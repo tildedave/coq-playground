@@ -10,6 +10,16 @@ Proof.
     case H.
 Qed.
 
+Theorem forward_small : (forall A B : Prop, A -> (A->B) -> B).
+Proof.
+    intro A.
+    intro B.
+    intro proof_of_A.
+    intro proof_of_A_implies_B.
+    pose (proof_of_B := proof_of_A_implies_B proof_of_A).
+    exact proof_of_B.
+Qed.
+
 End minimal_logic.
 
 Section test_sets.
@@ -31,7 +41,7 @@ Proof.
     apply a_in_x.
 Qed.
 
-(* A ∩ B = B ∩ A *)
+(* A \u2229 B = B \u2229 A *)
 
 Theorem Intersection_Commutes : Same_set U (Intersection U A B) (Intersection U B A).
 Proof.
@@ -52,7 +62,7 @@ Proof.
     assumption.
 Qed.
 
-(* (A ∩ B) ∩ C = A ∩ (B ∩ C) *)
+(* (A \u2229 B) \u2229 C = A \u2229 (B \u2229 C) *)
 
 Theorem Intersection_Assoc : Same_set U (Intersection U (Intersection U A B) C) (Intersection U A (Intersection U B C)).
 Proof.
@@ -85,7 +95,7 @@ Proof.
     assumption.
 Qed.
 
-(* A ∪ B = B ∪ A *)
+(* A \u222a B = B \u222a A *)
 
 Theorem Union_Commutes : Same_set U (Union U A B) (Union U B A).
 Proof.
@@ -110,7 +120,7 @@ Proof.
     assumption.
 Qed.
 
-(* (A ∪ B) ∪ C = A ∪ (B ∪ C) *)
+(* (A \u222a B) \u222a C = A \u222a (B \u222a C) *)
 
 Theorem Union_Assoc : Same_set U (Union U (Union U A B) C) (Union U A (Union U B C)).
 Proof.
@@ -149,3 +159,5 @@ Proof.
     apply Union_intror.
     exact x1_in_c.
 Qed.
+
+Theorem Distr1 : Same_set U (Union U A (Intersection U B C)) (Union U (Intersection U A B) (Intersection U A C)).
