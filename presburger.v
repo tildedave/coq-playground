@@ -16,7 +16,7 @@ Inductive literal : Type :=
 
 Inductive exp : Set :=
 | Exp_Lit : literal -> exp
-| Exp_Exists : string -> exp -> exp
+| Exp_Exists : (nat -> exp) -> exp
 | Exp_And : exp -> exp -> exp
 | Exp_Or : exp -> exp -> exp.
 (* TODO: support NOT *)
@@ -31,19 +31,29 @@ Inductive disjunction : Set :=
   | Disj_Disj : conjunction -> disjunction -> disjunction.
 
 Inductive expDnf : Type :=
-  | expDnf_Exists : list string -> list disjunction -> expDnf
+  | expDnf_Exists : (nat -> expDnf) -> expDnf
   | expDnf_Disjunction : list disjunction -> expDnf.
+
+Fixpoint dnfOr_helper (e1 : expDnf) (dl : list disjunction) : expDnf :=
+    match e1 with
+    | (expDnf_Exists d) =>
+        expDnf_Exists (fun (m : nat) => dnfOr_helper (d m) dl)
+    | (expDnf_Disjunction dl1) => expDnf_Disjunction (rev_append dl1 dl)
+    end.
 
 (* Combines two terms that are already DNF together *)
 Fixpoint dnfOr (e1 e2 : expDnf) : expDnf :=
     match (e1, e2) with
-    | (expDnf_Exists xl dl1, expDnf_Exists yl dl2) =>
-        (* TODO: xl must not capture variables in e2 *)
-        (expDnf_Exists (rev_append xl yl) (rev_append dl1 dl2))
-    | (expDnf_Exists xl dl1, expDnf_Disjunction dl2) =>
-        (expDnf_Exists xl (rev_append dl1 dl2))
-    | (expDnf_Disjunction dl1, expDnf_Exists yl dl2) =>
-        (expDnf_Exists yl (rev_append dl1 dl2))
+    | (expDnf_Exists d1, expDnf_Exists d2) =>
+        expDnf_Exists
+            (fun (m : nat) => expDnf_Exists
+                (fun (n : nat) => (dnfOr (d1 n) (d2 m))))
+    | (expDnf_Exists d1, expDnf_Disjunction dl2) =>
+        (expDnf_Exists
+            (fun (m : nat) => (dnfOr_helper (d1 m) dl2)))
+    | (expDnf_Disjunction dl1, expDnf_Exists d2) =>
+        (expDnf_Exists
+            (fun (n : nat) => (dnfOr_helper (d2 n) dl1)))
     | (expDnf_Disjunction dl1, expDnf_Disjunction dl2) =>
         (expDnf_Disjunction (rev_append dl1 dl2))
     end.
@@ -99,16 +109,26 @@ Fixpoint disjunction_list_and (d1 d2 : list disjunction) : list disjunction :=
         (disjunction_and x y) :: (disjunction_and_helper x d2') ++ (disjunction_and_helper y d1') ++ (disjunction_list_and d1' d2')
     end.
 
+Fixpoint dnfAnd_helper (e1 : expDnf) (dl : list disjunction) : expDnf :=
+    match e1 with
+    | (expDnf_Exists d) =>
+        expDnf_Exists (fun (m : nat) => dnfAnd_helper (d m) dl)
+    | (expDnf_Disjunction dl1) => expDnf_Disjunction (disjunction_list_and dl1 dl)
+    end.
+
 Fixpoint dnfAnd (e1 e2 : expDnf) : expDnf :=
     (* this is where terms can explode *)
     match (e1, e2) with
-    | (expDnf_Exists xl dl1, expDnf_Exists yl dl2) =>
-        (* TODO: xl must not capture variables in e2 *)
-        (expDnf_Exists (rev_append xl yl) (rev_append dl1 dl2))
-    | (expDnf_Exists xl dl1, expDnf_Disjunction dl2) =>
-        (expDnf_Exists xl (rev_append dl1 dl2))
-    | (expDnf_Disjunction dl1, expDnf_Exists yl dl2) =>
-        (expDnf_Exists yl (rev_append dl1 dl2))
+    | (expDnf_Exists d1, expDnf_Exists d2) =>
+        expDnf_Exists
+            (fun (m : nat) => expDnf_Exists
+                (fun (n : nat) => (dnfAnd (d1 n) (d2 m))))
+    | (expDnf_Exists d1, expDnf_Disjunction dl2) =>
+        expDnf_Exists
+            (fun (m : nat) => (dnfAnd_helper (d1 m) dl2))
+    | (expDnf_Disjunction dl1, expDnf_Exists d2) =>
+        expDnf_Exists
+            (fun (n : nat) => (dnfAnd_helper (d2 n) dl1))
     | (expDnf_Disjunction dl1, expDnf_Disjunction dl2) =>
         (expDnf_Disjunction (disjunction_list_and dl1 dl2))
     end.
@@ -116,14 +136,9 @@ Fixpoint dnfAnd (e1 e2 : expDnf) : expDnf :=
 Fixpoint dnfConvert (e : exp) : expDnf :=
     match e with
     | (Exp_Lit l) => (expDnf_Disjunction [Disj_Conj (Conj_Lit l)])
-    (* TODO: will need to ensure this doesn't capture any variable *)
-    | (Exp_Exists x e) =>
-        let dnf_e := (dnfConvert e) in
-        match dnf_e with
-        | expDnf_Exists yl dl => (expDnf_Exists (cons x yl) dl)
-        | expDnf_Disjunction dl => (expDnf_Exists (cons x nil) dl)
-        end
-    (* TODO: this is where we get term explosion *)
+    | (Exp_Exists d) =>
+        expDnf_Exists
+            (fun (m : nat) => dnfConvert (d m))
     | (Exp_And e1 e2) => dnfAnd (dnfConvert e1) (dnfConvert e2)
     | (Exp_Or e1 e2) => dnfOr (dnfConvert e1) (dnfConvert e2)
     end.
