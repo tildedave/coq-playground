@@ -16,7 +16,7 @@ Inductive literal : Type :=
 
 Inductive exp : Set :=
 | Exp_Lit : literal -> exp
-| Exp_Exists : (nat -> exp) -> exp
+| Exp_Exists : (string -> exp) -> exp
 | Exp_And : exp -> exp -> exp
 | Exp_Or : exp -> exp -> exp.
 (* TODO: support NOT *)
@@ -31,13 +31,13 @@ Inductive disjunction : Set :=
   | Disj_Disj : conjunction -> disjunction -> disjunction.
 
 Inductive expDnf : Type :=
-  | expDnf_Exists : (nat -> expDnf) -> expDnf
+  | expDnf_Exists : (string -> expDnf) -> expDnf
   | expDnf_Disjunction : list disjunction -> expDnf.
 
 Fixpoint dnfOr_helper (e1 : expDnf) (dl : list disjunction) : expDnf :=
     match e1 with
     | (expDnf_Exists d) =>
-        expDnf_Exists (fun (m : nat) => dnfOr_helper (d m) dl)
+        expDnf_Exists (fun (m : string) => dnfOr_helper (d m) dl)
     | (expDnf_Disjunction dl1) => expDnf_Disjunction (rev_append dl1 dl)
     end.
 
@@ -46,14 +46,14 @@ Fixpoint dnfOr (e1 e2 : expDnf) : expDnf :=
     match (e1, e2) with
     | (expDnf_Exists d1, expDnf_Exists d2) =>
         expDnf_Exists
-            (fun (m : nat) => expDnf_Exists
-                (fun (n : nat) => (dnfOr (d1 n) (d2 m))))
+            (fun (m : string) => expDnf_Exists
+                (fun (n : string) => (dnfOr (d1 n) (d2 m))))
     | (expDnf_Exists d1, expDnf_Disjunction dl2) =>
         (expDnf_Exists
-            (fun (m : nat) => (dnfOr_helper (d1 m) dl2)))
+            (fun (m : string) => (dnfOr_helper (d1 m) dl2)))
     | (expDnf_Disjunction dl1, expDnf_Exists d2) =>
         (expDnf_Exists
-            (fun (n : nat) => (dnfOr_helper (d2 n) dl1)))
+            (fun (n : string) => (dnfOr_helper (d2 n) dl1)))
     | (expDnf_Disjunction dl1, expDnf_Disjunction dl2) =>
         (expDnf_Disjunction (rev_append dl1 dl2))
     end.
@@ -112,7 +112,7 @@ Fixpoint disjunction_list_and (d1 d2 : list disjunction) : list disjunction :=
 Fixpoint dnfAnd_helper (e1 : expDnf) (dl : list disjunction) : expDnf :=
     match e1 with
     | (expDnf_Exists d) =>
-        expDnf_Exists (fun (m : nat) => dnfAnd_helper (d m) dl)
+        expDnf_Exists (fun (m : string) => dnfAnd_helper (d m) dl)
     | (expDnf_Disjunction dl1) => expDnf_Disjunction (disjunction_list_and dl1 dl)
     end.
 
@@ -121,14 +121,14 @@ Fixpoint dnfAnd (e1 e2 : expDnf) : expDnf :=
     match (e1, e2) with
     | (expDnf_Exists d1, expDnf_Exists d2) =>
         expDnf_Exists
-            (fun (m : nat) => expDnf_Exists
-                (fun (n : nat) => (dnfAnd (d1 n) (d2 m))))
+            (fun (m : string) => expDnf_Exists
+                (fun (n : string) => (dnfAnd (d1 n) (d2 m))))
     | (expDnf_Exists d1, expDnf_Disjunction dl2) =>
         expDnf_Exists
-            (fun (m : nat) => (dnfAnd_helper (d1 m) dl2))
+            (fun (m : string) => (dnfAnd_helper (d1 m) dl2))
     | (expDnf_Disjunction dl1, expDnf_Exists d2) =>
         expDnf_Exists
-            (fun (n : nat) => (dnfAnd_helper (d2 n) dl1))
+            (fun (n : string) => (dnfAnd_helper (d2 n) dl1))
     | (expDnf_Disjunction dl1, expDnf_Disjunction dl2) =>
         (expDnf_Disjunction (disjunction_list_and dl1 dl2))
     end.
@@ -138,7 +138,7 @@ Fixpoint dnfConvert (e : exp) : expDnf :=
     | (Exp_Lit l) => (expDnf_Disjunction [Disj_Conj (Conj_Lit l)])
     | (Exp_Exists d) =>
         expDnf_Exists
-            (fun (m : nat) => dnfConvert (d m))
+            (fun (m : string) => dnfConvert (d m))
     | (Exp_And e1 e2) => dnfAnd (dnfConvert e1) (dnfConvert e2)
     | (Exp_Or e1 e2) => dnfOr (dnfConvert e1) (dnfConvert e2)
     end.
@@ -152,4 +152,9 @@ Eval simpl in dnfAnd
 
 Eval simpl in (dnfConvert (Exp_And
     (Exp_Or (Exp_Lit (Lit_Var "A")) (Exp_Lit (Lit_Var "B")))
+    (Exp_Or (Exp_Lit (Lit_Var "C")) (Exp_Lit (Lit_Var "D"))))).
+
+
+Eval simpl in (dnfConvert (Exp_And
+    (Exp_Or (Exp_Lit (Lit_Var "A")) (Exp_Exists (fun a => (Exp_Lit (Lit_Var a)))))
     (Exp_Or (Exp_Lit (Lit_Var "C")) (Exp_Lit (Lit_Var "D"))))).
