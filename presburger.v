@@ -3,7 +3,7 @@ Section definitions.
 Require Import String List BinInt ZArith.
 Import ListNotations.
 
-Inductive func : Set := Plus | Sub | Mult : Z -> func.
+Inductive func : Set := Plus | Sub.
 Inductive relation  : Set := Eq | Lt | Cong : Z -> relation.
 
 (* term: x + 1 = y ---> = + x 1 y  *)
@@ -15,7 +15,8 @@ Inductive atom : Set :=
 
 Inductive term : Set :=
 | Term_Atom : atom -> term
-| Term_Func : func -> term -> term -> term.
+| Term_Func : func -> term -> term -> term
+| Term_MultK : Z -> term -> term.
 
 Inductive literal : Type :=
 | Literal_Relation : relation -> term -> term -> literal
@@ -28,10 +29,13 @@ Inductive exp : Set :=
 | Exp_Or : exp -> exp -> exp
 | Exp_Not : exp -> exp -> exp.
 
+Inductive linearTerm : Type :=
+| LinearTerm : Z -> string -> linearTerm.
+
 Inductive normalLiteral : Set :=
 (* 0 < K_0 + K_i * x_i *)
-| NormalLiteral_Gtz : Z -> list Z -> list string -> normalLiteral
-| NormalLiteral_Congz : Z -> list Z -> list string -> normalLiteral.
+| NormalLiteral_Gtz : Z -> list linearTerm -> normalLiteral
+| NormalLiteral_Congz : Z -> list linearTerm -> normalLiteral.
 
 Inductive conjunction : Type :=
 | Conj_NormalLiteral : normalLiteral -> conjunction
@@ -84,8 +88,75 @@ Fixpoint disjunction_list_and (d1 d2 : list disjunction) : list disjunction :=
         (disjunction_and x y) :: (disjunction_and_helper x d2') ++ (disjunction_and_helper y d1') ++ (disjunction_list_and d1' d2')
     end.
 
-Fixpoint collectTerms (r : relation) (t : term) : normalLiteral :=
-    NormalLiteral_Congz Z0 [Zpos 1] [ (String "X" "") ].
+Fixpoint removeCoeff (l1 : list linearTerm) (x : string) : (option linearTerm * list linearTerm) :=
+    match l1 with
+    | [] => (None, [])
+    | l :: tl =>
+        match l with
+        | (LinearTerm n y) =>
+            if string_dec x y then
+                (Some l, tl)
+            else
+                let (r, lt) := (removeCoeff tl x) in
+                (r, l :: lt)
+        end
+    end.
+
+Import ZArith.Int.
+
+Check Z_eq_dec.
+
+Fixpoint addCoeff (l1 : list linearTerm) (l2 : list linearTerm) :=
+    match l1 with
+    | [] => l2
+    | (LinearTerm m x) :: tl =>
+        let (r, l2') := (removeCoeff l2 x) in
+            match r with
+            | None => addCoeff tl l2 (* cannot happen *)
+            | (Some (LinearTerm n y)) =>
+                if Z_eq_dec (m + n) 0 then
+                    (addCoeff tl l2')
+                else
+                    (LinearTerm (m + n) y) :: (addCoeff tl l2')
+            end
+    end.
+
+Fixpoint subCoeff (l1 : list linearTerm) (l2 : list linearTerm) :=
+    addCoeff l1 (map (fun lt => match lt with (LinearTerm n y) => (LinearTerm (-n) y) end) l2).
+
+Eval simpl in subCoeff [(LinearTerm 1 "x"); (LinearTerm 5 "y")] [(LinearTerm 3 "z") ; (LinearTerm 1 "x") ; (LinearTerm 2 "y")].
+
+Fixpoint multCoeff (k : Z) (l : list linearTerm) :=
+    map (fun lt => match lt with (LinearTerm n y) => (LinearTerm (k * n)%Z y) end) l.
+
+Fixpoint collectTerms_Helper (t : term) : (Z * list linearTerm) :=
+    match t with
+    | (Term_Atom a) =>
+        match a with
+        | (Atom_Const m) => (m, [])
+        | (Atom_Var x) => (Z0, [LinearTerm (Zpos 1) x])
+        end
+    | (Term_Func f t1 t2) =>
+        let '(K0, l1) := collectTerms_Helper t1 in
+        let '(K1, l2) := collectTerms_Helper t2 in
+            match f with
+            | Plus =>
+                ((K0 + K1)%Z, addCoeff l1 l2)
+            | Sub =>
+                ((K0 - K1)%Z, subCoeff l1 l2)
+            end
+    | (Term_MultK k t) =>
+        let '(K0, l1) := collectTerms_Helper t in
+            ((K0 * k)%Z, multCoeff k l1)
+    end.
+
+Definition collectTermsForCongruence (t : term) :=
+    let '(K, l) := collectTerms_Helper t in
+        (NormalLiteral_Congz K l).
+
+Definition collectTermsForGreaterThanZero (t : term) :=
+    let '(K, l) := collectTerms_Helper t in
+        (NormalLiteral_Gtz K l).
 
 Definition normalLiteralToDisjunction (nl : normalLiteral) :=
     (Disj_Conj (Conj_NormalLiteral nl)).
@@ -106,12 +177,12 @@ Fixpoint normalizeLiteral (l : literal) : disjunction :=
                 disjunction_and d1 d2
         | Lt =>
             if isZeroTerm t1 then
-                (normalLiteralToDisjunction (collectTerms Lt t2))
+                (normalLiteralToDisjunction (collectTermsForGreaterThanZero t2))
             else
                 normalizeLiteral (Literal_Relation Lt (Term_Atom (Atom_Const 0)) (Term_Func Sub t2 t1))
         | (Cong k) =>
             if isZeroTerm t1 then
-                (normalLiteralToDisjunction (collectTerms (Cong 0) t2))
+                (normalLiteralToDisjunction (collectTermsForCongruence t2))
             else
                 normalizeLiteral (Literal_Relation (Cong k) (Term_Atom (Atom_Const 0)) (Term_Func Sub t2 t1))
         end
@@ -133,9 +204,9 @@ Fixpoint normalizeLiteral (l : literal) : disjunction :=
 
     with congToDisjunction k n t :=
         match n with
-        | O => Disj_Conj (Conj_NormalLiteral (NormalLiteral_Congz Z0 [] []))
+        | O => Disj_Conj (Conj_NormalLiteral (NormalLiteral_Congz Z0 []))
         | (S m) => Disj_Disj
-            (Conj_NormalLiteral (collectTerms (Cong 0) (Term_Func Plus t (Term_Atom (Atom_Const (Z_of_nat' m))))))
+            (Conj_NormalLiteral (collectTermsForCongruence (Term_Func Plus t (Term_Atom (Atom_Const (Z_of_nat' m))))))
             (congToDisjunction k m t)
         end.
 
