@@ -9,6 +9,8 @@ Inductive relation  : Set := Eq | Lt | Cong : Z -> relation.
 (* term: x + 1 = y ---> = + x 1 y  *)
 (* http://lara.epfl.ch/w/_media/sav12:qe_presburger_arithmetic.pdf *)
 
+Section BasicEquations.
+
 Inductive atom : Set :=
 | Atom_Var : string -> atom
 | Atom_Const : Z -> atom.
@@ -29,13 +31,16 @@ Inductive exp : Set :=
 | Exp_Or : exp -> exp -> exp
 | Exp_Not : exp -> exp -> exp.
 
+Section NormalizedEquations.
+
 Inductive linearTerm : Type :=
 | LinearTerm : Z -> string -> linearTerm.
 
 Inductive normalLiteral : Set :=
 (* 0 < K_0 + K_i * x_i *)
 | NormalLiteral_Gtz : Z -> list linearTerm -> normalLiteral
-| NormalLiteral_Congz : Z -> list linearTerm -> normalLiteral.
+(* 0 =_{M} K_0 + K_i * x_i *)
+| NormalLiteral_Congz : Z -> Z -> list linearTerm -> normalLiteral.
 
 Inductive conjunction : Type :=
 | Conj_NormalLiteral : normalLiteral -> conjunction
@@ -45,8 +50,9 @@ Inductive disjunction : Set :=
   | Disj_Conj : conjunction -> disjunction
   | Disj_Disj : conjunction -> disjunction -> disjunction.
 
-
 (* (A v B) ^ (C v D) => (A v B) C v (A v B)D => AC v BC v AD v BD *)
+
+Section normalizingLiterals.
 
 Fixpoint conj_and_disjunction (c : conjunction) (d : disjunction) :=
     match d with
@@ -146,14 +152,6 @@ Fixpoint collectTerms_Helper (t : term) : (Z * list linearTerm) :=
             ((K0 * k)%Z, multCoeff k l1)
     end.
 
-Definition collectTermsForCongruence (t : term) :=
-    let '(K, l) := collectTerms_Helper t in
-        (NormalLiteral_Congz K l).
-
-Definition collectTermsForGreaterThanZero (t : term) :=
-    let '(K, l) := collectTerms_Helper t in
-        (NormalLiteral_Gtz K l).
-
 Definition normalLiteralToDisjunction (nl : normalLiteral) :=
     (Disj_Conj (Conj_NormalLiteral nl)).
 
@@ -190,7 +188,7 @@ Fixpoint normalizeLiteral (l : literal) : disjunction :=
                 normalLiteralToDisjunction l
         | (Cong k) =>
             (* t1 =_k t2 -> 0 _=k t2 - t1 *)
-            let l := NormalLiteral_Congz (K2 - K1)%Z (subCoeff t2' t1') in
+            let l := NormalLiteral_Congz k (K2 - K1)%Z (subCoeff t2' t1') in
                 normalLiteralToDisjunction l
         end
     | (Literal_NotRelation r t1 t2) =>
@@ -211,6 +209,75 @@ Fixpoint normalizeLiteral (l : literal) : disjunction :=
             negatedCongToDisjunction k (Zabs_nat k) (K2 - K1)%Z (subCoeff t2' t1')
         end
     end.
+
+Section DenotationalSemantics.
+
+Fixpoint denoteAtom (a : atom) (G : (string -> Z)) : Z :=
+  match a with
+  | (Atom_Var x) => (G x)
+  | (Atom_Const n) => n
+  end.
+
+Fixpoint denoteTerm (t : term) (G : (string -> Z)) : Z :=
+  match t with
+  | (Term_Atom a) => denoteAtom a G
+  | (Term_Func f t1 t2) =>
+    match f with
+    | Plus => (denoteTerm t1 G) + (denoteTerm t2 G)
+    | Sub => (denoteTerm t1 G) - (denoteTerm t2 G)
+    end
+  | (Term_MultK k t) => k * (denoteTerm t G)
+  end.
+
+Fixpoint denoteLiteral (l : literal) (G : (string -> Z)) : bool :=
+  match l with
+  | (Literal_Relation r t1 t2) =>
+    let (n1, n2) := (denoteTerm t1 G, denoteTerm t2 G) in
+    match r with
+    | Eq => if Z_eq_dec n1 n2 then true else false
+    | Lt => if Z_lt_dec n1 n2 then true else false
+    | (Cong k) => if Z_eq_dec (n1 mod n2) 0 then true else false
+    end
+  | (Literal_NotRelation r t1 t2) =>
+    let (n1, n2) := (denoteTerm t1 G, denoteTerm t2 G) in
+    match r with
+    | Eq => if Z_eq_dec n1 n2 then false else true
+    | Lt => if Z_lt_dec n1 n2 then false else true
+    | (Cong k) => if Z_eq_dec (n1 mod n2) 0 then false else true
+    end    
+  end.
+
+Fixpoint denoteLinearTerm (l : linearTerm) (G : (string -> Z)): Z :=
+  match l with
+  | (LinearTerm n x) => n * (G x)
+  end.
+
+Fixpoint denoteLinearTermSequence (K : Z) (ltl : list linearTerm) (G : (string -> Z)) : Z :=
+  (fold_left (fun n lt => (n + (denoteLinearTerm lt G))%Z) ltl Z0) + K.
+
+Fixpoint denoteNormalLiteral (nl : normalLiteral) (G : (string -> Z)) : bool :=
+  match nl with
+  | (NormalLiteral_Gtz K0 ltl) => if Z_lt_dec Z0 (denoteLinearTermSequence K0 ltl G) then true else false  
+  | (NormalLiteral_Congz K K0 ltl) => if Z_eq_dec Z0 ((denoteLinearTermSequence K ltl G) mod K) then true else false
+  end.
+
+Fixpoint denoteConjunction (c : conjunction) (G : (string -> Z)) : bool :=
+  match c with
+  | (Conj_NormalLiteral n) => denoteNormalLiteral n G
+  | (Conj_And c1 c2) => andb (denoteConjunction c1 G) (denoteConjunction c2 G)
+  end.
+
+Fixpoint denoteDisjunction (d : disjunction) (G : (string -> Z)) : bool :=
+  match d with
+  | Disj_Conj c => denoteConjunction c G
+  | Disj_Disj c d' => orb (denoteConjunction c G) (denoteDisjunction d' G)
+  end.
+
+Theorem normalizePreservesDenotation :
+  forall l d G,
+  (normalizeLiteral l) = d -> (denoteLiteral l G) = (denoteDisjunction d G).
+Proof.
+Admitted.
 
 Inductive expDnf : Type :=
   | expDnf_Exists : (string -> expDnf) -> expDnf
@@ -241,7 +308,8 @@ Fixpoint dnfOr (e1 e2 : expDnf) : expDnf :=
         (expDnf_Disjunction (rev_append dl1 dl2))
     end.
 
-Eval simpl in (conj_and_disjunction (Conj_NormalLiteral (Ltz_LinearEquation 0 (Term_Atom (Atom_Var "A"))) (Disj_Disj (Conj_NormalLiteral (Ltz_LinearEquation 0 (Term_Atom (Atom_Var "B"))) (Disj_Conj (Conj_NormalLiteral (Ltz_LinearEquation 0 (Term_Atom (Atom_Var "C")))))).
+
+Eval simpl in (conj_and_disjunction (Conj_NormalLiteral (Gtz_LinearEquation 0 (Term_Atom (Atom_Var "A"))) (Disj_Disj (Conj_NormalLiteral (Ltz_LinearEquation 0 (Term_Atom (Atom_Var "B"))) (Disj_Conj (Conj_NormalLiteral (Ltz_LinearEquation 0 (Term_Atom (Atom_Var "C"))))))))).
 
 Fixpoint dnfAnd_helper (e1 : expDnf) (dl : list disjunction) : expDnf :=
     match e1 with
