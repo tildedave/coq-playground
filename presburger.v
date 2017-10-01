@@ -244,7 +244,7 @@ Fixpoint denoteLiteral (l : literal) (G : (string -> Z)) : bool :=
     | Eq => if Z_eq_dec n1 n2 then false else true
     | Lt => if Z_lt_dec n1 n2 then false else true
     | (Cong k) => if Z_eq_dec (n1 mod n2) 0 then false else true
-    end    
+    end
   end.
 
 Fixpoint denoteLinearTerm (l : linearTerm) (G : (string -> Z)): Z :=
@@ -257,7 +257,7 @@ Definition denoteLinearTermSequence (K : Z) (ltl : list linearTerm) (G : (string
 
 Fixpoint denoteNormalLiteral (nl : normalLiteral) (G : (string -> Z)) : bool :=
   match nl with
-  | (NormalLiteral_Gtz K0 ltl) => if Z_lt_dec Z0 (denoteLinearTermSequence K0 ltl G) then true else false  
+  | (NormalLiteral_Gtz K0 ltl) => if Z_lt_dec Z0 (denoteLinearTermSequence K0 ltl G) then true else false
   | (NormalLiteral_Congz K K0 ltl) => if Z_eq_dec Z0 ((denoteLinearTermSequence K ltl G) mod K) then true else false
   end.
 
@@ -274,21 +274,22 @@ Fixpoint denoteDisjunction (d : disjunction) (G : (string -> Z)) : bool :=
   end.
 
 Eval simpl in denoteLinearTermSequence 100 [] (fun n => 1%Z).
-    
+
 Theorem collectTerms_Denotation :
   forall t G K ltl,
     (collectTerms t) = (K, ltl) -> (denoteTerm t G) = (denoteLinearTermSequence K ltl G).
 Proof.
-  intros.
+  intros t G.
   induction t.
   (* t is an atom *)
   induction a.
   (* a is a variable *)
+  intros.
   unfold denoteTerm.
   simpl.
   simpl in H.
   inversion H.
-  unfold denoteLinearTermSequence.  
+  unfold denoteLinearTermSequence.
   unfold fold_left.
   rewrite Z.add_0_r.
   rewrite Z.add_0_l.
@@ -296,6 +297,7 @@ Proof.
   rewrite Z.mul_1_l.
   reflexivity.
   (* a is a constant *)
+  intros.
   simpl.
   simpl in H.
   inversion H.
@@ -306,28 +308,22 @@ Proof.
   (* t is a function *)
   case f.
   (* plus *)
+  intros.
   unfold denoteTerm.
   simpl.
   fold denoteTerm.
-  (* need to show that ltl is the same as t1 t2 *)
-  (* need the variables in the induction hypothesis to be different ... *)
-  rewrite IHt1.
-  rewrite IHt2.
-
-  unfold denoteLinearTermSequence.
-  unfold collectTerms in H.
-  
+  (* need to get into a place where he can apply the induction hypothesis *)
   inversion H.
-  
+
 Qed.
 
-  
+
   unfold denoteLinearTermSequence.
   fold denoteLinearTermSequence.
   unfold fold_left.
   fold fold_left.
   simpl.
-  
+
   Theorem normalizePreservesDenotation :
   forall l d G,
   (normalizeLiteral l) = d -> (denoteLiteral l G) = (denoteDisjunction d G).
@@ -427,4 +423,3 @@ Eval simpl in (dnfConvert (Exp_And
     Ew Ex Ey Ez (x + y = w) ^ (w + z = 2)
 
 *)
-
