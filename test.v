@@ -20,6 +20,52 @@ Proof.
     exact proof_of_B.
 Qed.
 
+Require Import Bool.
+Theorem negb_is_not : (forall a, Is_true (negb a) <-> (~(Is_true a))).
+  intros.
+  unfold iff.
+  unfold Is_true.
+  case a.
+  simpl.
+  split.
+  intro proof_of_false.
+  intro proof_of_true.
+  exact proof_of_false.
+  unfold not.
+  intro proof_of_true_implies_false.
+  refine (proof_of_true_implies_false _).
+  apply I.
+  split.
+  simpl.
+  intro.
+  unfold not.
+  intro.
+  exact H0.
+  unfold not.
+  intro.
+  simpl.
+  apply I.
+Qed.
+
+Theorem equality_test' : forall (A:Set) (B :Set) (C : Set), A = B /\ B = C -> A = C.
+Proof.
+  intros.
+  elim H.
+  intros.
+  rewrite H0.
+  exact H1.
+Qed.
+
+Theorem pair_equality_test : forall (A:Set) (B :Set) C D, (A, B) = (C, D) -> A = C /\ B = D.
+Proof.
+  intros.
+  split.
+  inversion H.
+  reflexivity.
+  inversion H.
+  reflexivity.
+Qed.
+
 End minimal_logic.
 
 Section test_sets.

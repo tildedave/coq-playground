@@ -131,7 +131,7 @@ Eval simpl in subCoeff [(LinearTerm 1 "x"); (LinearTerm 5 "y")] [(LinearTerm 3 "
 Fixpoint multCoeff (k : Z) (l : list linearTerm) :=
     map (fun lt => match lt with (LinearTerm n y) => (LinearTerm (k * n)%Z y) end) l.
 
-Fixpoint collectTerms_Helper (t : term) : (Z * list linearTerm) :=
+Fixpoint collectTerms (t : term) : (Z * list linearTerm) :=
     match t with
     | (Term_Atom a) =>
         match a with
@@ -139,8 +139,8 @@ Fixpoint collectTerms_Helper (t : term) : (Z * list linearTerm) :=
         | (Atom_Var x) => (Z0, [LinearTerm (Zpos 1) x])
         end
     | (Term_Func f t1 t2) =>
-        let '(K0, l1) := collectTerms_Helper t1 in
-        let '(K1, l2) := collectTerms_Helper t2 in
+        let '(K0, l1) := collectTerms t1 in
+        let '(K1, l2) := collectTerms t2 in
             match f with
             | Plus =>
                 ((K0 + K1)%Z, addCoeff l1 l2)
@@ -148,7 +148,7 @@ Fixpoint collectTerms_Helper (t : term) : (Z * list linearTerm) :=
                 ((K0 - K1)%Z, subCoeff l1 l2)
             end
     | (Term_MultK k t) =>
-        let '(K0, l1) := collectTerms_Helper t in
+        let '(K0, l1) := collectTerms t in
             ((K0 * k)%Z, multCoeff k l1)
     end.
 
@@ -174,8 +174,8 @@ Fixpoint negatedCongToDisjunction (k : Z) (n : nat) (K : Z) (ltl : list linearTe
 Fixpoint normalizeLiteral (l : literal) : disjunction :=
     match l with
     | (Literal_Relation r t1 t2) =>
-        let (K1, t1') := collectTerms_Helper t1 in
-        let (K2, t2') := collectTerms_Helper t2 in
+        let (K1, t1') := collectTerms t1 in
+        let (K2, t2') := collectTerms t2 in
         match r with
         | Eq =>
             (* t1 = t2 -> t1 < t2 + 1 ^ t2 < t1 + 1 -> 0 > t2 - t1  + 1 ^ 0 > t1 - t2  + 1*)
@@ -192,8 +192,8 @@ Fixpoint normalizeLiteral (l : literal) : disjunction :=
                 normalLiteralToDisjunction l
         end
     | (Literal_NotRelation r t1 t2) =>
-        let (K1, t1') := collectTerms_Helper t1 in
-        let (K2, t2') := collectTerms_Helper t2 in
+        let (K1, t1') := collectTerms t1 in
+        let (K2, t2') := collectTerms t2 in
         match r with
         | Eq =>
         (* ~(t1' = t2') -> (t1' < t2' v t2' < t1') -> 0 < t2' - t1' v 0 < t1' - t2' *)
@@ -252,7 +252,7 @@ Fixpoint denoteLinearTerm (l : linearTerm) (G : (string -> Z)): Z :=
   | (LinearTerm n x) => n * (G x)
   end.
 
-Fixpoint denoteLinearTermSequence (K : Z) (ltl : list linearTerm) (G : (string -> Z)) : Z :=
+Definition denoteLinearTermSequence (K : Z) (ltl : list linearTerm) (G : (string -> Z)) : Z :=
   (fold_left (fun n lt => (n + (denoteLinearTerm lt G))%Z) ltl Z0) + K.
 
 Fixpoint denoteNormalLiteral (nl : normalLiteral) (G : (string -> Z)) : bool :=
@@ -273,11 +273,69 @@ Fixpoint denoteDisjunction (d : disjunction) (G : (string -> Z)) : bool :=
   | Disj_Disj c d' => orb (denoteConjunction c G) (denoteDisjunction d' G)
   end.
 
-Theorem normalizePreservesDenotation :
+Eval simpl in denoteLinearTermSequence 100 [] (fun n => 1%Z).
+    
+Theorem collectTerms_Denotation :
+  forall t G K ltl,
+    (collectTerms t) = (K, ltl) -> (denoteTerm t G) = (denoteLinearTermSequence K ltl G).
+Proof.
+  intros.
+  induction t.
+  (* t is an atom *)
+  induction a.
+  (* a is a variable *)
+  unfold denoteTerm.
+  simpl.
+  simpl in H.
+  inversion H.
+  unfold denoteLinearTermSequence.  
+  unfold fold_left.
+  rewrite Z.add_0_r.
+  rewrite Z.add_0_l.
+  unfold denoteLinearTerm.
+  rewrite Z.mul_1_l.
+  reflexivity.
+  (* a is a constant *)
+  simpl.
+  simpl in H.
+  inversion H.
+  unfold denoteLinearTermSequence.
+  unfold fold_left.
+  rewrite Z.add_0_l.
+  reflexivity.
+  (* t is a function *)
+  case f.
+  (* plus *)
+  unfold denoteTerm.
+  simpl.
+  fold denoteTerm.
+  (* need to show that ltl is the same as t1 t2 *)
+  (* need the variables in the induction hypothesis to be different ... *)
+  rewrite IHt1.
+  rewrite IHt2.
+
+  unfold denoteLinearTermSequence.
+  unfold collectTerms in H.
+  
+  inversion H.
+  
+Qed.
+
+  
+  unfold denoteLinearTermSequence.
+  fold denoteLinearTermSequence.
+  unfold fold_left.
+  fold fold_left.
+  simpl.
+  
+  Theorem normalizePreservesDenotation :
   forall l d G,
   (normalizeLiteral l) = d -> (denoteLiteral l G) = (denoteDisjunction d G).
 Proof.
-Admitted.
+induction l.
+elim r.
+unfold normalizeLiteral.
+
 
 Inductive expDnf : Type :=
   | expDnf_Exists : (string -> expDnf) -> expDnf
