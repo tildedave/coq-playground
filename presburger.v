@@ -252,8 +252,11 @@ Fixpoint denoteLinearTerm (l : linearTerm) (G : (string -> Z)): Z :=
   | (LinearTerm n x) => n * (G x)
   end.
 
+Definition denoteLinearTermList (ltl : list linearTerm) (G : (string -> Z)) : Z :=
+  (fold_left (fun n lt => (n + (denoteLinearTerm lt G))%Z) ltl Z0).
+
 Definition denoteLinearTermSequence (K : Z) (ltl : list linearTerm) (G : (string -> Z)) : Z :=
-  (fold_left (fun n lt => (n + (denoteLinearTerm lt G))%Z) ltl Z0) + K.
+  (denoteLinearTermList ltl G) + K.
 
 Fixpoint denoteNormalLiteral (nl : normalLiteral) (G : (string -> Z)) : bool :=
   match nl with
@@ -274,6 +277,80 @@ Fixpoint denoteDisjunction (d : disjunction) (G : (string -> Z)) : bool :=
   end.
 
 Eval simpl in denoteLinearTermSequence 100 [] (fun n => 1%Z).
+
+Lemma removeCoeff_None :
+  forall (G : string -> Z) ltl x ltl',
+    (removeCoeff ltl x) = (None, ltl') -> ltl = ltl'.
+Proof.
+  intros.
+  induction ltl.
+  unfold removeCoeff in H.
+  inversion H.
+  reflexivity.
+  destruct a.
+  unfold removeCoeff in H.
+  fold removeCoeff in H.
+  destruct (string_dec x s) in H.
+  (* impossible branch *)
+  inversion H.
+  destruct (removeCoeff ltl x).
+  inversion H.
+
+Lemma removeCoeff_works_None :
+  forall (G : string -> Z) ltl x ltl',
+    (removeCoeff ltl x) = (None, ltl') ->
+    (denoteLinearTermList ltl G) = (denoteLinearTermList ltl' G).
+Proof.
+  intros.
+  induction ltl'.
+  (* ltl' is [] *)
+  unfold removeCoeff in H.
+  unfold denoteLinearTermList at 2.
+  simpl.
+  case ltl.
+  (* ltl is [] *)
+  unfold denoteLinearTermList at 1.
+  simpl.
+  reflexivity.
+  (* ltl is a non-empty list *)
+
+Lemma removeCoeff_works :
+  forall (G : string -> Z) ltl n x ltl2,
+    (removeCoeff ltl x) = (Some (LinearTerm n x), ltl2) ->
+    (denoteLinearTermList ltl G) = (n * (G x) + (denoteLinearTermList ltl2 G))%Z.
+Proof.
+  intros.
+  induction ltl.
+  (* empty list case *)
+  simpl in H.
+  inversion H.
+  (* list is populated case *)
+  simpl in H.
+  unfold denoteLinearTermList at 1.
+  unfold denoteLinearTerm.
+  simpl.
+
+Lemma addCoeff_works :
+  forall G lt0 lt1 lt,
+    addCoeff lt0 lt1 = lt ->
+    (denoteLinearTermList lt G) = ((denoteLinearTermList lt0 G) + (denoteLinearTermList lt1 G))%Z.
+Proof.
+  intros.
+  induction lt0.
+  simpl.
+  simpl in H.
+  rewrite H.
+  reflexivity.
+  unfold addCoeff in H.
+  fold addCoeff in H.
+  case a.
+  intros.
+  (* must use information on how removeCoeff works *)
+
+      Lemma collectTerms_Plus :
+  forall G t1 t2 K0 K1 lt0 lt1,
+    (collectTerms t1) = (K0, lt0) ->
+    (collectTerms t2) = (K1, lt1) ->
 
 Theorem collectTerms_Denotation :
   forall t G K ltl,
@@ -313,8 +390,9 @@ Proof.
   simpl.
   fold denoteTerm.
   (* need to get into a place where he can apply the induction hypothesis *)
-  inversion H.
-
+  simpl in H.
+  remember (collectTerms t1) as terms1.
+  remember (collectTerms t2) as terms2.
 Qed.
 
 

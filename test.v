@@ -2,7 +2,6 @@ Require Import List Ensembles.
 
 Section minimal_logic.
 
-
 Theorem False_cannot_be_proven : ~False.
 Proof.
     unfold not.
