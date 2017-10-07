@@ -9,6 +9,29 @@ Proof.
     case H.
 Qed.
 
+Theorem cons_list : forall (A : Type) (l1 l2 : list A) x,
+    x :: l1 = x :: l2 -> l1 = l2.
+Proof.
+  intros.
+  inversion H.
+  reflexivity.
+Qed.
+
+Theorem cons_list_2 : forall (A : Type) (l1 l2 : list A) x,
+    l1 = l2 -> x :: l1 = x :: l2.
+Proof.
+  intros.
+  rewrite H.
+  reflexivity.
+Qed.
+
+Theorem cons_list_3 : forall (A : Type) (l1 l2 : list A) x,
+    x :: l1 = x :: l2 -> l1 = l2.
+  intros.
+  inversion H.
+  reflexivity.
+Qed.
+
 Theorem forward_small : (forall A B : Prop, A -> (A->B) -> B).
 Proof.
     intro A.

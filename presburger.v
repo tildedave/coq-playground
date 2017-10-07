@@ -278,23 +278,98 @@ Fixpoint denoteDisjunction (d : disjunction) (G : (string -> Z)) : bool :=
 
 Eval simpl in denoteLinearTermSequence 100 [] (fun n => 1%Z).
 
+Inductive expDnf : Type :=
+  | expDnf_Exists : (string -> expDnf) -> expDnf
+  | expDnf_Disjunction : list disjunction -> expDnf.
+
+
+Fixpoint dnfOr_helper (e1 : expDnf) (dl : list disjunction) : expDnf :=
+   match e1 with
+   | (expDnf_Exists d) =>
+       expDnf_Exists (fun (m : string) => dnfOr_helper (d m) dl)
+   | (expDnf_Disjunction dl1) => expDnf_Disjunction (rev_append dl1 dl)
+  end.
+
+(* Combines two terms that are already DNF together *)
+Fixpoint dnfOr (e1 e2 : expDnf) : expDnf :=
+    match (e1, e2) with
+    | (expDnf_Exists d1, expDnf_Exists d2) =>
+        expDnf_Exists
+            (fun (m : string) => expDnf_Exists
+                (fun (n : string) => (dnfOr (d1 n) (d2 m))))
+    | (expDnf_Exists d1, expDnf_Disjunction dl2) =>
+        (expDnf_Exists
+            (fun (m : string) => (dnfOr_helper (d1 m) dl2)))
+    | (expDnf_Disjunction dl1, expDnf_Exists d2) =>
+        (expDnf_Exists
+            (fun (n : string) => (dnfOr_helper (d2 n) dl1)))
+    | (expDnf_Disjunction dl1, expDnf_Disjunction dl2) =>
+        (expDnf_Disjunction (rev_append dl1 dl2))
+    end.
+
+Fixpoint dnfAnd_helper (e1 : expDnf) (dl : list disjunction) : expDnf :=
+    match e1 with
+    | (expDnf_Exists d) =>
+        expDnf_Exists (fun (m : string) => dnfAnd_helper (d m) dl)
+    | (expDnf_Disjunction dl1) => expDnf_Disjunction (disjunction_list_and dl1 dl)
+    end.
+
+Fixpoint dnfAnd (e1 e2 : expDnf) : expDnf :=
+    (* this is where terms can explode *)
+    match (e1, e2) with
+    | (expDnf_Exists d1, expDnf_Exists d2) =>
+        expDnf_Exists
+            (fun (m : string) => expDnf_Exists
+                (fun (n : string) => (dnfAnd (d1 n) (d2 m))))
+    | (expDnf_Exists d1, expDnf_Disjunction dl2) =>
+        expDnf_Exists
+            (fun (m : string) => (dnfAnd_helper (d1 m) dl2))
+    | (expDnf_Disjunction dl1, expDnf_Exists d2) =>
+        expDnf_Exists
+            (fun (n : string) => (dnfAnd_helper (d2 n) dl1))
+    | (expDnf_Disjunction dl1, expDnf_Disjunction dl2) =>
+        (expDnf_Disjunction (disjunction_list_and dl1 dl2))
+    end.
+
+Fixpoint dnfConvert (e : exp) : expDnf :=
+    match e with
+    | (Exp_Term l) => (expDnf_Disjunction [Disj_Conj (Conj_Lit l)])
+    | (Exp_Exists d) =>
+        expDnf_Exists
+            (fun (m : string) => dnfConvert (d m))
+    | (Exp_And e1 e2) => dnfAnd (dnfConvert e1) (dnfConvert e2)
+    | (Exp_Or e1 e2) => dnfOr (dnfConvert e1) (dnfConvert e2)
+    end.
+
+(* TODO: valuations, prove normalization is right *)
+
+Section proof_scratchwork.
+
 Lemma removeCoeff_None :
   forall (G : string -> Z) ltl x ltl',
     (removeCoeff ltl x) = (None, ltl') -> ltl = ltl'.
 Proof.
-  intros.
+  intros G ltl x.
   induction ltl.
-  unfold removeCoeff in H.
+  intros ltl'.
+  unfold removeCoeff.
+  intro H.
   inversion H.
   reflexivity.
   destruct a.
-  unfold removeCoeff in H.
-  fold removeCoeff in H.
-  destruct (string_dec x s) in H.
+  intro.
+  unfold removeCoeff.
+  fold removeCoeff.
+  destruct (string_dec x s).
   (* impossible branch *)
+  intro H.
   inversion H.
+  (* possible branch *)
   destruct (removeCoeff ltl x).
+  intro H.
   inversion H.
+  admit.
+Admitted.
 
 Lemma removeCoeff_works_None :
   forall (G : string -> Z) ltl x ltl',
@@ -346,11 +421,8 @@ Proof.
   case a.
   intros.
   (* must use information on how removeCoeff works *)
-
-      Lemma collectTerms_Plus :
-  forall G t1 t2 K0 K1 lt0 lt1,
-    (collectTerms t1) = (K0, lt0) ->
-    (collectTerms t2) = (K1, lt1) ->
+  admit.
+Admitted.
 
 Theorem collectTerms_Denotation :
   forall t G K ltl,
@@ -369,9 +441,13 @@ Proof.
   unfold denoteLinearTermSequence.
   unfold fold_left.
   rewrite Z.add_0_r.
-  rewrite Z.add_0_l.
+  unfold denoteLinearTermList.
+  simpl.
+
   unfold denoteLinearTerm.
+  simpl denoteLinearTerm.
   rewrite Z.mul_1_l.
+
   reflexivity.
   (* a is a constant *)
   intros.
@@ -409,95 +485,3 @@ Proof.
 induction l.
 elim r.
 unfold normalizeLiteral.
-
-
-Inductive expDnf : Type :=
-  | expDnf_Exists : (string -> expDnf) -> expDnf
-  | expDnf_Disjunction : list disjunction -> expDnf.
-
-
-Fixpoint dnfOr_helper (e1 : expDnf) (dl : list disjunction) : expDnf :=
-   match e1 with
-   | (expDnf_Exists d) =>
-       expDnf_Exists (fun (m : string) => dnfOr_helper (d m) dl)
-   | (expDnf_Disjunction dl1) => expDnf_Disjunction (rev_append dl1 dl)
-  end.
-
-(* Combines two terms that are already DNF together *)
-Fixpoint dnfOr (e1 e2 : expDnf) : expDnf :=
-    match (e1, e2) with
-    | (expDnf_Exists d1, expDnf_Exists d2) =>
-        expDnf_Exists
-            (fun (m : string) => expDnf_Exists
-                (fun (n : string) => (dnfOr (d1 n) (d2 m))))
-    | (expDnf_Exists d1, expDnf_Disjunction dl2) =>
-        (expDnf_Exists
-            (fun (m : string) => (dnfOr_helper (d1 m) dl2)))
-    | (expDnf_Disjunction dl1, expDnf_Exists d2) =>
-        (expDnf_Exists
-            (fun (n : string) => (dnfOr_helper (d2 n) dl1)))
-    | (expDnf_Disjunction dl1, expDnf_Disjunction dl2) =>
-        (expDnf_Disjunction (rev_append dl1 dl2))
-    end.
-
-
-Eval simpl in (conj_and_disjunction (Conj_NormalLiteral (Gtz_LinearEquation 0 (Term_Atom (Atom_Var "A"))) (Disj_Disj (Conj_NormalLiteral (Ltz_LinearEquation 0 (Term_Atom (Atom_Var "B"))) (Disj_Conj (Conj_NormalLiteral (Ltz_LinearEquation 0 (Term_Atom (Atom_Var "C"))))))))).
-
-Fixpoint dnfAnd_helper (e1 : expDnf) (dl : list disjunction) : expDnf :=
-    match e1 with
-    | (expDnf_Exists d) =>
-        expDnf_Exists (fun (m : string) => dnfAnd_helper (d m) dl)
-    | (expDnf_Disjunction dl1) => expDnf_Disjunction (disjunction_list_and dl1 dl)
-    end.
-
-Fixpoint dnfAnd (e1 e2 : expDnf) : expDnf :=
-    (* this is where terms can explode *)
-    match (e1, e2) with
-    | (expDnf_Exists d1, expDnf_Exists d2) =>
-        expDnf_Exists
-            (fun (m : string) => expDnf_Exists
-                (fun (n : string) => (dnfAnd (d1 n) (d2 m))))
-    | (expDnf_Exists d1, expDnf_Disjunction dl2) =>
-        expDnf_Exists
-            (fun (m : string) => (dnfAnd_helper (d1 m) dl2))
-    | (expDnf_Disjunction dl1, expDnf_Exists d2) =>
-        expDnf_Exists
-            (fun (n : string) => (dnfAnd_helper (d2 n) dl1))
-    | (expDnf_Disjunction dl1, expDnf_Disjunction dl2) =>
-        (expDnf_Disjunction (disjunction_list_and dl1 dl2))
-    end.
-
-Fixpoint dnfConvert (e : exp) : expDnf :=
-    match e with
-    | (Exp_Term l) => (expDnf_Disjunction [Disj_Conj (Conj_Lit l)])
-    | (Exp_Exists d) =>
-        expDnf_Exists
-            (fun (m : string) => dnfConvert (d m))
-    | (Exp_And e1 e2) => dnfAnd (dnfConvert e1) (dnfConvert e2)
-    | (Exp_Or e1 e2) => dnfOr (dnfConvert e1) (dnfConvert e2)
-    end.
-
-(* TODO: valuations, prove normalization is right *)
-
-
-Eval simpl in (dnfConvert (Exp_Or (Exp_Term (Lit_Var "A")) (Exp_Term (Lit_Var "B")))).
-Eval simpl in (dnfConvert (Exp_Or (Exp_Term (Lit_Var "C")) (Exp_Term (Lit_Var "D")))).
-
-Eval simpl in dnfAnd
-    (expDnf_Disjunction [Disj_Conj (Conj_NormalLiteral (Ltz_LinearEquation 0 (Term_Atom (Atom_Var "A"))); Disj_Conj (Conj_NormalLiteral (Ltz_LinearEquation 0 (Term_Atom (Atom_Var "B")))])
-    (expDnf_Disjunction [Disj_Conj (Conj_NormalLiteral (Ltz_LinearEquation 0 (Term_Atom (Atom_Var "C"))); Disj_Conj (Conj_NormalLiteral (Ltz_LinearEquation 0 (Term_Atom (Atom_Var "D")))]).
-
-Eval simpl in (dnfConvert (Exp_And
-    (Exp_Or (Exp_Lit (Lit_Var "A")) (Exp_Lit (Lit_Var "B")))
-    (Exp_Or (Exp_Lit (Lit_Var "C")) (Exp_Lit (Lit_Var "D"))))).
-
-
-Eval simpl in (dnfConvert (Exp_And
-    (Exp_Or (Exp_Lit (Lit_Var "A")) (Exp_Exists (fun a => (Exp_Lit (Lit_Var a)))))
-    (Exp_Or (Exp_Lit (Lit_Var "C")) (Exp_Lit (Lit_Var "D"))))).
-
-(*
-    Ex Ey Ez (x  + y + z = 2)
-    Ew Ex Ey Ez (x + y = w) ^ (w + z = 2)
-
-*)
