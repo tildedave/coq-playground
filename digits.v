@@ -7,6 +7,14 @@ Inductive digit : Set :=
 Fixpoint denoteDigit (d : digit) : nat :=
   match d with Digit n _ _ => n end.
 
+Definition denotePair p :=
+  match p with
+    (d1, d2) => 10 * (denoteDigit d1) + (denoteDigit d2)
+  end.
+
+Definition denoteDigitList (dl : list digit) : nat :=
+  fold_left (fun n d => (n * 10) + (denoteDigit d)) dl 0.
+
 Definition D0 : digit.
   refine (Digit 0 _ _).
   auto with arith.  auto with arith.
@@ -57,9 +65,6 @@ Definition D9 : digit.
   auto with arith.  auto with arith.
 Defined.
 
-Definition denoteDigitList (dl : list digit) : nat :=
-  fold_left (fun n d => (n * 10) + (denoteDigit d)) dl 0.
-
 Compute (denoteDigitList [D3 ; D4 ; D7]).
 
 Definition toDigit (n : nat | n >= 0 /\ n < 10) : digit.
@@ -99,11 +104,6 @@ Definition addDigit (d1 : digit) (d2 : digit) : (digit * digit).
          Digit total (all_nat_gte_zero total) TotalLt10).
 Defined.
 
-Definition denotePair p :=
-  match p with
-    (d1, d2) => 10 * (denoteDigit d1) + (denoteDigit d2)
-  end.
-
 Theorem addDigit_works_as_expected :
   forall d1 d2 : digit,
     (denoteDigit d1) + (denoteDigit d2) = (denotePair (addDigit d1 d2)).
@@ -116,3 +116,44 @@ Proof.
   auto.
   auto.
 Qed.
+
+Theorem addDigit_assoc_r : forall (d1 d2 d3 : digit),
+    (denoteDigit d1) + (denotePair (addDigit d2 d3)) = (denotePair (addDigit d1 d2)) + denoteDigit d3.
+Proof.
+  intros.
+  rewrite <- addDigit_works_as_expected.
+  rewrite <- addDigit_works_as_expected.
+  rewrite Nat.add_assoc.
+  reflexivity.
+Qed.
+
+Definition addDigitToPair d1 p : (digit * digit) :=
+  match p with
+  | (x, y) =>
+    let (rem2, total) := (addDigit y d1) in
+    let (_, rem3) := (addDigit rem2 x) in
+    (rem3, total)
+  end.
+
+Theorem addDigitToPair_works : forall d p,
+    denotePair (addDigitToPair d p) = denoteDigit d + denotePair p.
+Proof.
+  intros.
+  unfold addDigitToPair.
+  unfold denotePair.
+  destruct p.
+Admitted.
+
+Fixpoint addDigitList_helper (dl1 dl2 : list digit) (rem : digit) :=
+  match (dl1, dl2) with
+  | ([], _) => rem :: dl2
+  | (_, []) => rem :: dl1
+  | (d1 :: tl1, d2 :: tl2) =>
+    let (rem', total) := addDigitToPair rem (addDigit d1 d2) in
+    total :: (addDigitList_helper tl1 tl2 rem')
+  end.
+
+Definition addDigitList (dl1 : list digit) (dl2 : list digit) :=
+  rev (addDigitList_helper (rev dl1) (rev dl2) D0).
+
+Compute addDigitList [ D6; D7 ; D8 ] [ D4 ; D2 ; D3 ].
