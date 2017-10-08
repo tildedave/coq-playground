@@ -88,17 +88,31 @@ Admitted.
 
 Check (mod_is_lt (2 + 10) 3).
 
-Definition addDigit (d1 : digit) (d2 : digit) : (option digit * digit).
+Definition addDigit (d1 : digit) (d2 : digit) : (digit * digit).
   pose (m := denoteDigit d1).
   pose (n := denoteDigit d2).
   remember ((m + n) mod 10) as total.
   remember ((m + n) / 10) as remainder.
   assert (total < 10) as TotalLt10. rewrite Heqtotal. apply mod_is_lt. auto with arith.
   assert (remainder < 10) as RemainderLt10. rewrite Heqremainder. apply div_is_lt.
-  destruct (beq_nat remainder 0).
-  exact (None, Digit total (all_nat_gte_zero total) TotalLt10).
-  exact (Some (Digit remainder (all_nat_gte_zero remainder) RemainderLt10),
+  exact (Digit remainder (all_nat_gte_zero remainder) RemainderLt10,
          Digit total (all_nat_gte_zero total) TotalLt10).
 Defined.
 
-Compute (addDigit D1 D2).
+Definition denotePair p :=
+  match p with
+    (d1, d2) => 10 * (denoteDigit d1) + (denoteDigit d2)
+  end.
+
+Theorem addDigit_works_as_expected :
+  forall d1 d2 : digit,
+    (denoteDigit d1) + (denoteDigit d2) = (denotePair (addDigit d1 d2)).
+Proof.
+  intros.
+  unfold denotePair.
+  unfold denoteDigit.
+  unfold addDigit.
+  rewrite <- Nat.div_mod.
+  auto.
+  auto.
+Qed.
