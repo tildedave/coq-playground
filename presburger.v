@@ -50,6 +50,11 @@ Inductive disjunction : Set :=
   | Disj_Conj : conjunction -> disjunction
   | Disj_Disj : conjunction -> disjunction -> disjunction.
 
+Fixpoint map_conjunction (A : Type) (c : conjunction) (f : conjunction -> A) : A :=
+  match c with
+  | (Conj_NormalLiteral nl) => (map_normalLiteral f nl)
+  | (Conj_And c1 c2) =>
+
 (* (A v B) ^ (C v D) => (A v B) C v (A v B)D => AC v BC v AD v BD *)
 
 Section normalizingLiterals.
@@ -277,6 +282,42 @@ Fixpoint denoteDisjunction (d : disjunction) (G : (string -> Z)) : bool :=
   end.
 
 Eval simpl in denoteLinearTermSequence 100 [] (fun n => 1%Z).
+
+Fixpoint getCoefficients_normalLiteral (nl : normalLiteral) (x : string) :=
+  let lt := (fun l => match l with
+                      | (NormalLiteral_Gtz _ lt) => lt
+                      | (NormalLiteral_Congz _ _ lt) => lt
+                      end) in
+  let (n, _) := removeCoeff (lt nl) x in
+  match n with
+  | None => []
+  | (Some (LinearTerm K _)) => [K]
+  end.
+
+Fixpoint getCoefficients_conjunction (c : conjunction) (x : string) :=
+  match c with
+  | (Conj_NormalLiteral nl) => (getCoefficients_normalLiteral nl x)
+  | (Conj_And c1 c2) => (getCoefficients_conjunction c1 x) ++ (getCoefficients_conjunction c2 x)
+  end.
+
+Fixpoint getCoefficients_disjunction (d : disjunction) (x : string) :=
+  match d with
+  | Disj_Conj c => getCoefficients_conjunction c x
+  | Disj_Disj c d' => (getCoefficients_conjunction c x) ++ (getCoefficients_disjunction d' x)
+  end.
+
+Definition getCoefficients_disjunctionList (dl : list disjunction) (x : string) := (fold_left (fun n d => (n ++ (getCoefficients_disjunction d x))) dl []).
+
+Definition normalizeCoefficients (dl : list disjunction) (x : string) :=
+  let coeff := (getCoefficients_disjunctionList dl x) in
+  let gcm := fold_left (fun m n => (m * n)%Z) coeff 1%Z in
+  map (fun d => multCoeff_disjunction d gcm) dl.
+
+Compute normalizeCoefficients [Disj_Disj (Conj_NormalLiteral (NormalLiteral_Gtz 2 [LinearTerm 4 "A"])) (Disj_Conj (Conj_NormalLiteral (NormalLiteral_Gtz 1 [LinearTerm 5 "A"])))] "A".
+
+Eval simpl in (conj_and_disjunction (Conj_NormalLiteral (Gtz_LinearEquation 0 (Term_Atom (Atom_Var "A"))) (Disj_Disj (Conj_NormalLiteral (Gtz_LinearEquation 0 (Term_Atom (Atom_Var "B"))) (Disj_Conj (Conj_NormalLiteral (Gtz_LinearEquation 0 (Term_Atom (Atom_Var "C"))))))))).
+
+eval simple in normalizeCoefficients
 
 Inductive expDnf : Type :=
   | expDnf_Exists : (string -> expDnf) -> expDnf
