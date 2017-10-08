@@ -69,20 +69,22 @@ Definition toDigit (n : nat | n >= 0 /\ n < 10) : digit.
   exact (Digit x H0 H1).
 Defined.
 
-Lemma mod_is_lt : forall (m n : nat), (m mod n) < n.
-  intros.
-Admitted.
-
-Lemma div_is_lt : forall (m n : nat), (m / n) < n.
-  intros.
-Admitted.
-
-Lemma all_nat_gt_zero : forall m, m >= 0.
+Lemma all_nat_gte_zero : forall m, m >= 0.
   intros.
   induction m.
   auto.
   auto with arith.
 Qed.
+
+Lemma mod_is_lt : forall (m n : nat), n > 0 -> (m mod n) < n.
+  intros.
+  apply (Nat.mod_bound_pos m n (all_nat_gte_zero m)).
+  exact H.
+Qed.
+
+Lemma div_is_lt : forall (m n : nat), (m / n) < n.
+  intros.
+Admitted.
 
 Check (mod_is_lt (2 + 10) 3).
 
@@ -91,12 +93,12 @@ Definition addDigit (d1 : digit) (d2 : digit) : (option digit * digit).
   pose (n := denoteDigit d2).
   remember ((m + n) mod 10) as total.
   remember ((m + n) / 10) as remainder.
-  assert (total < 10) as TotalLt10. rewrite Heqtotal. apply mod_is_lt.
+  assert (total < 10) as TotalLt10. rewrite Heqtotal. apply mod_is_lt. auto with arith.
   assert (remainder < 10) as RemainderLt10. rewrite Heqremainder. apply div_is_lt.
   destruct (beq_nat remainder 0).
-  exact (None, Digit total (all_nat_gt_zero total) TotalLt10).
-  exact (Some (Digit remainder (all_nat_gt_zero remainder) RemainderLt10),
-         Digit total (all_nat_gt_zero total) TotalLt10).
+  exact (None, Digit total (all_nat_gte_zero total) TotalLt10).
+  exact (Some (Digit remainder (all_nat_gte_zero remainder) RemainderLt10),
+         Digit total (all_nat_gte_zero total) TotalLt10).
 Defined.
 
-Compute (addDigit D7 D6).
+Compute (addDigit D1 D2).
