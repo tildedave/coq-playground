@@ -4,7 +4,7 @@ Import ListNotations.
 Inductive digit : Set :=
 | Digit : forall n, n < 10 -> digit.
 
-Fixpoint denoteDigit (d : digit) : nat :=
+Definition denoteDigit (d : digit) : nat :=
   match d with Digit n _ => n end.
 
 Definition denotePair p :=
@@ -67,11 +67,10 @@ Defined.
 
 Compute (denoteDigitList [D3 ; D4 ; D7]).
 
-Definition toDigit (n : nat | n >= 0 /\ n < 10) : digit.
+Definition toDigit (n : nat | n < 10) : digit.
   inversion n.
-  elim H.
   intros.
-  exact (Digit x H1).
+  exact (Digit x H).
 Defined.
 
 Lemma all_nat_gte_zero : forall m, m >= 0.
@@ -87,11 +86,38 @@ Lemma mod_is_lt : forall (m n : nat), n > 0 -> (m mod n) < n.
   exact H.
 Qed.
 
-Lemma div_is_lt : forall (m n : nat), (m / n) < n.
+Lemma denoteDigit_is_lt_10 : forall (d : digit), denoteDigit d < 10.
+  intros.
+  unfold denoteDigit.
+  elim d.
+  intros.
+  exact l.
+Qed.
+
+Lemma lt_is_le : forall (a b : nat), a < b -> a <= b.
+Proof.
+  intros.
+  rewrite (lt_n_Sm_le a b).
+  reflexivity.
+  rewrite lt_n_Sn.
+  Check (lt_n_S a b).
+  apply (lt_n_S a b) in H.
+  assumption.
+Qed.
+
+Lemma blah : forall (a b c d : nat), a < d -> d + b <= c -> a + b < c.
+Proof.
+  intros.
+  - apply (lt_le_trans (a + b) (d + b) c).
+    apply (plus_lt_compat_r a d b H).
+    assumption.
+Qed.
+
+Lemma div_le_compat : forall (a b c : nat), a <= b -> c > 0 -> a / c <= b / c.
   intros.
 Admitted.
 
-Check (mod_is_lt (2 + 10) 3).
+Require Import Omega.
 
 Definition addDigit (d1 : digit) (d2 : digit) : (digit * digit).
   pose (m := denoteDigit d1).
@@ -99,7 +125,20 @@ Definition addDigit (d1 : digit) (d2 : digit) : (digit * digit).
   remember ((m + n) mod 10) as total.
   remember ((m + n) / 10) as remainder.
   assert (total < 10) as TotalLt10. rewrite Heqtotal. apply mod_is_lt. auto with arith.
-  assert (remainder < 10) as RemainderLt10. rewrite Heqremainder. apply div_is_lt.
+  assert (remainder < 10) as RemainderLt10. rewrite Heqremainder.
+  assert (m < 10). apply denoteDigit_is_lt_10.
+  assert (n < 10). apply denoteDigit_is_lt_10.
+  assert (m + n < 20).
+  apply (blah m n _ 10 H).
+  apply (plus_lt_compat_l n 10 10) in H0.
+  auto with arith.
+  apply (lt_is_le _ _) in H1.
+  apply (div_le_compat _ _ 10) in H1.
+  apply (le_lt_trans _ _ 10) in H1.
+  assumption.
+  compute.
+  auto with arith.
+  auto with arith.
   exact (Digit remainder RemainderLt10,
          Digit total TotalLt10).
 Defined.
@@ -141,13 +180,21 @@ Proof.
   intros.
   unfold addDigitToPair.
   unfold denotePair.
-  destruct p.
 Admitted.
+
+Fixpoint addDigitList_helper_remainder (dl : list digit) (rem : digit) :=
+  match dl with
+  | [] => [rem]
+  | d :: tl =>
+    let (rem', x) := addDigit d rem in
+    x :: addDigitList_helper_remainder tl rem'
+  end.
 
 Fixpoint addDigitList_helper (dl1 dl2 : list digit) (rem : digit) :=
   match (dl1, dl2) with
-  | ([], _) => rem :: dl2
-  | (_, []) => rem :: dl1
+  | ([], []) => [rem]
+  | ([], _) => addDigitList_helper_remainder dl2 rem
+  | (_, []) => addDigitList_helper_remainder dl1 rem
   | (d1 :: tl1, d2 :: tl2) =>
     let (rem', total) := addDigitToPair rem (addDigit d1 d2) in
     total :: (addDigitList_helper tl1 tl2 rem')
@@ -156,4 +203,15 @@ Fixpoint addDigitList_helper (dl1 dl2 : list digit) (rem : digit) :=
 Definition addDigitList (dl1 : list digit) (dl2 : list digit) :=
   rev (addDigitList_helper (rev dl1) (rev dl2) D0).
 
-Compute addDigitList [ D6; D7 ; D8 ] [ D4 ; D2 ; D3 ].
+Compute (denoteDigitList (addDigitList [ D6; D7 ; D8 ] [ D1; D1; D4 ; D2 ; D3 ])).
+
+(* this is not correct because condition on rem is incorrect *)
+Lemma addDigitList_helper_remainder_works :
+  forall dl rem,
+    addDigitList_helper_remainder
+
+
+
+    Theorem addDigitList_works :
+  forall dl1 dl2, denoteDigitList dl1 + denoteDigitList dl2 = denoteDigitList (addDigitList dl1 dl2).
+  intros.
