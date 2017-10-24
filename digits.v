@@ -94,16 +94,7 @@ Lemma denoteDigit_is_lt_10 : forall (d : digit), denoteDigit d < 10.
   exact l.
 Qed.
 
-Lemma lt_is_le : forall (a b : nat), a < b -> a <= b.
-Proof.
-  intros.
-  rewrite (lt_n_Sm_le a b).
-  reflexivity.
-  rewrite lt_n_Sn.
-  Check (lt_n_S a b).
-  apply (lt_n_S a b) in H.
-  assumption.
-Qed.
+Require Import Omega.
 
 Lemma blah : forall (a b c d : nat), a < d -> d + b <= c -> a + b < c.
 Proof.
@@ -113,35 +104,39 @@ Proof.
     assumption.
 Qed.
 
-Lemma div_le_compat : forall (a b c : nat), a <= b -> c > 0 -> a / c <= b / c.
+Theorem sub_lt_mono_r : forall (n m p : nat), (n < m) <-> (n - p < m - p).
+Proof.
+  split.
   intros.
-Admitted.
+  induction p.
+  rewrite <- minus_n_O.
+  rewrite <- minus_n_O.
+  assumption.
+  intros.
+  Search (_ < _ - _).
+  rewrite <- (Nat.lt_add_lt_sub_r (n - S p) m (S p)).
+  Search (_ - _ + _).
+  rewrite Nat.sub_add.
+  assumption.
 
-Require Import Omega.
 
 Definition addDigit (d1 : digit) (d2 : digit) : (digit * digit).
   pose (m := denoteDigit d1).
   pose (n := denoteDigit d2).
-  remember ((m + n) mod 10) as total.
-  remember ((m + n) / 10) as remainder.
-  assert (total < 10) as TotalLt10. rewrite Heqtotal. apply mod_is_lt. auto with arith.
-  assert (remainder < 10) as RemainderLt10. rewrite Heqremainder.
+  destruct (lt_dec (m + n) 10) as [ TotalLt10 | TotalGt10 ].
+  exact (D0, Digit (m + n) TotalLt10).
+  assert (m + n - 10 < 10) as SumMinus10Lt10.
   assert (m < 10). apply denoteDigit_is_lt_10.
   assert (n < 10). apply denoteDigit_is_lt_10.
-  assert (m + n < 20).
-  apply (blah m n _ 10 H).
-  apply (plus_lt_compat_l n 10 10) in H0.
+  apply (plus_lt_compat m 10 n 10 H) in H0.
+  apply not_lt in TotalGt10.
+  apply (sub_lt_mono_r (m + n) (10 + 10) 10) in H0.
   auto with arith.
-  apply (lt_is_le _ _) in H1.
-  apply (div_le_compat _ _ 10) in H1.
-  apply (le_lt_trans _ _ 10) in H1.
-  assumption.
-  compute.
-  auto with arith.
-  auto with arith.
-  exact (Digit remainder RemainderLt10,
-         Digit total TotalLt10).
+  exact (D1, Digit (m + n - 10) SumMinus10Lt10).
 Defined.
+
+
+Compute (addDigit D3 D4).
 
 Theorem addDigit_works_as_expected :
   forall d1 d2 : digit,
@@ -151,6 +146,8 @@ Proof.
   unfold denotePair.
   unfold denoteDigit.
   unfold addDigit.
+  auto.
+
   rewrite <- Nat.div_mod.
   auto.
   auto.
