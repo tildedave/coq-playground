@@ -132,6 +132,8 @@ Defined.
 
 Compute (denotePair (addDigit D3 D4)).
 
+Require Import Omega.
+
 Theorem addDigit_works_as_expected :
   forall d1 d2 : digit,
     (denoteDigit d1) + (denoteDigit d2) = (denotePair (addDigit d1 d2)).
@@ -140,12 +142,19 @@ Proof.
   unfold denotePair.
   unfold denoteDigit.
   unfold addDigit.
-
+  destruct (lt_dec (denoteDigit d1 + denoteDigit d2) 10).
+  auto with arith.
+  assert (10 * (match D1 with | Digit n0 _ => n0 end) = 10) as Ten.
   auto.
-
-  rewrite <- Nat.div_mod.
-  auto.
-  auto.
+  rewrite Ten.
+  apply not_lt in n.
+  unfold ge in n.
+  Search (_ + _ - _).
+  rewrite (Nat.add_sub_assoc _ _ 10 n).
+  assert (10 + (denoteDigit d1 + denoteDigit d2) - 10 = (denoteDigit d1 + denoteDigit d2)).
+  auto with arith.
+  rewrite H.
+  auto with arith.
 Qed.
 
 Theorem addDigit_assoc_r : forall (d1 d2 d3 : digit),
