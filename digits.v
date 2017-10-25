@@ -94,8 +94,6 @@ Lemma denoteDigit_is_lt_10 : forall (d : digit), denoteDigit d < 10.
   exact l.
 Qed.
 
-Require Import Omega.
-
 Lemma blah : forall (a b c d : nat), a < d -> d + b <= c -> a + b < c.
 Proof.
   intros.
@@ -104,39 +102,35 @@ Proof.
     assumption.
 Qed.
 
-Theorem sub_lt_mono_r : forall (n m p : nat), (n < m) <-> (n - p < m - p).
-Proof.
-  split.
-  intros.
-  induction p.
-  rewrite <- minus_n_O.
-  rewrite <- minus_n_O.
-  assumption.
-  intros.
-  Search (_ < _ - _).
-  rewrite <- (Nat.lt_add_lt_sub_r (n - S p) m (S p)).
-  Search (_ - _ + _).
-  rewrite Nat.sub_add.
-  assumption.
-
-
 Definition addDigit (d1 : digit) (d2 : digit) : (digit * digit).
   pose (m := denoteDigit d1).
   pose (n := denoteDigit d2).
   destruct (lt_dec (m + n) 10) as [ TotalLt10 | TotalGt10 ].
   exact (D0, Digit (m + n) TotalLt10).
-  assert (m + n - 10 < 10) as SumMinus10Lt10.
+  assert (m + n < 19) as SumMinus20.
+
   assert (m < 10). apply denoteDigit_is_lt_10.
   assert (n < 10). apply denoteDigit_is_lt_10.
-  apply (plus_lt_compat m 10 n 10 H) in H0.
-  apply not_lt in TotalGt10.
-  apply (sub_lt_mono_r (m + n) (10 + 10) 10) in H0.
+
+  apply (blah m n _ 10 H).
+  rewrite plus_comm.
+  apply (plus_lt_compat_r n 10 10) in H0.
   auto with arith.
-  exact (D1, Digit (m + n - 10) SumMinus10Lt10).
+  apply lt_le_S in SumMinus20.
+  apply (minus_le_compat_r _ _ 10) in SumMinus20.
+  apply not_lt in TotalGt10.
+  unfold ge in TotalGt10.
+  rewrite (Nat.sub_succ_l 10 (m + n) TotalGt10) in SumMinus20.
+  apply (le_S_gt _ (19 - 10)) in SumMinus20.
+  unfold gt in SumMinus20.
+  apply Nat.lt_lt_succ_r in SumMinus20.
+  assert (S (19 - 10) = 10).
+  auto with arith.
+  rewrite H in SumMinus20.
+  exact (D1, Digit (m + n - 10) SumMinus20).
 Defined.
 
-
-Compute (addDigit D3 D4).
+Compute (denotePair (addDigit D3 D4)).
 
 Theorem addDigit_works_as_expected :
   forall d1 d2 : digit,
@@ -146,6 +140,7 @@ Proof.
   unfold denotePair.
   unfold denoteDigit.
   unfold addDigit.
+
   auto.
 
   rewrite <- Nat.div_mod.
