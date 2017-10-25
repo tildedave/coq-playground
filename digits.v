@@ -136,7 +136,7 @@ Require Import Omega.
 
 Theorem addDigit_works_as_expected :
   forall d1 d2 : digit,
-    (denoteDigit d1) + (denoteDigit d2) = (denotePair (addDigit d1 d2)).
+          (denoteDigit d1) + (denoteDigit d2) = (denotePair (addDigit d1 d2)).
 Proof.
   intros.
   unfold denotePair.
@@ -157,6 +157,29 @@ Proof.
   auto with arith.
 Qed.
 
+Theorem addDigit_works_a_little_grittier :
+  forall d1 d2 d3 d4 : digit,
+    (addDigit d1 d2) = (d3, d4) -> (denoteDigit d1) + (denoteDigit d2) = 10 * (denoteDigit d3) + (denoteDigit d4).
+Proof.
+  intros.
+  rewrite addDigit_works_as_expected.
+  unfold denotePair.
+  rewrite H.
+  reflexivity.
+Qed.
+
+Lemma addDigit_bounded : forall (d1 d2 d3 d4 : digit), (d3, d4) = (addDigit d1 d2) -> d3 = D0 \/ d3 = D1.
+  intros.
+  unfold addDigit in H.
+  destruct (lt_dec (denoteDigit d1 + denoteDigit d2) 10).
+  left.
+  inversion H.
+  reflexivity.
+  right.
+  inversion H.
+  reflexivity.
+Qed.
+
 Theorem addDigit_assoc_r : forall (d1 d2 d3 : digit),
     (denoteDigit d1) + (denotePair (addDigit d2 d3)) = (denotePair (addDigit d1 d2)) + denoteDigit d3.
 Proof.
@@ -167,21 +190,97 @@ Proof.
   reflexivity.
 Qed.
 
-Definition addDigitToPair d1 p : (digit * digit) :=
-  match p with
-  | (x, y) =>
-    let (rem2, total) := (addDigit y d1) in
-    let (_, rem3) := (addDigit rem2 x) in
-    (rem3, total)
-  end.
+Definition addThreeDigits d1 d2 d3 : (digit * digit) :=
+  let (rem1, subtotal) := (addDigit d1 d2) in
+  let (rem2, total) := (addDigit subtotal d3) in
+  let (_, rem) := (addDigit rem1 rem2) in
+  (rem, total).
 
+Lemma addThreeDigits_bounded : forall (d1 d2 d3 d4 d5 : digit), (addThreeDigits d1 d2 d3) = (d4, d5) -> denoteDigit d4 <= 2.
+Proof.
+  intros.
+  unfold addThreeDigits in H.
+  remember (addDigit d1 d2) as p.
+  destruct p as (rem1, subtotal).
+  apply (addDigit_bounded d1 d2 rem1 subtotal) in Heqp.
+  remember (addDigit subtotal d3) as p.
+  destruct p as (rem2, total).
+  apply (addDigit_bounded subtotal d3 rem2 total) in Heqp0.
+  remember (addDigit rem1 rem2) as p.
+  destruct p as (ignored, rem).
+  elim Heqp.
+  elim Heqp0.
+  (* mindless *)
+  intros. rewrite H0 in Heqp1. rewrite H1 in Heqp1. inversion Heqp1. inversion H. rewrite <- H5. rewrite H4. auto.
+  intros. rewrite H0 in Heqp1. rewrite H1 in Heqp1. inversion Heqp1. inversion H. rewrite <- H5. rewrite H4. auto.
+  elim Heqp0.
+  intros. rewrite H0 in Heqp1. rewrite H1 in Heqp1. inversion Heqp1. inversion H. rewrite <- H5. rewrite H4. auto.
+  intros. rewrite H0 in Heqp1. rewrite H1 in Heqp1. inversion Heqp1. inversion H. rewrite <- H5. rewrite H4. auto.
+Qed.
+
+Lemma plus_reg_r : forall (a b c : nat), a + b = c + b <-> a = c.
+Proof.
+  intros.
+  induction b.
+  rewrite Nat.add_0_r.
+  rewrite Nat.add_0_r.
+  reflexivity.
+  rewrite <- plus_n_Sm.
+  rewrite <- plus_n_Sm.
+  split.
+  intros.
+  apply eq_add_S in H.
+  apply IHb in H.
+  assumption.
+  intros.
+  rewrite <- IHb in H.
+  apply eq_S in H.
+  assumption.
+Qed.
+
+Theorem addThreeDigits_works : forall d1 d2 d3, denotePair (addThreeDigits d1 d2 d3) = denoteDigit d1 + denoteDigit d2 + denoteDigit d3.
+  intros.
+  unfold addThreeDigits.
+  remember (addDigit d1 d2) as p1.
+  destruct p1 as (rem1, subtotal).
+  remember (addDigit subtotal d3) as p2.
+  destruct p2 as (rem2, total).
+  remember (addDigit rem1 rem2) as p3.
+  destruct p3 as (ignored, rem).
+  unfold denotePair.
+  symmetry in Heqp1.
+  rewrite (addDigit_works_a_little_grittier d1 d2 rem1 subtotal Heqp1).
+  symmetry in Heqp2.
+  rewrite <- plus_assoc.
+  rewrite (addDigit_works_a_little_grittier subtotal d3 rem2 total Heqp2).
+  rewrite plus_assoc.
+  rewrite plus_reg_r.
+  symmetry in Heqp1.
+  symmetry in Heqp2.
+  pose (P := (addDigit_bounded _ _ _ _ Heqp1)).
+  pose (Q := (addDigit_bounded _ _ _ _ Heqp2)).
+
+  elim P.
+  elim Q.
+  intros.
+  rewrite H.
+  rewrite H0.
+  rewrite H in Heqp3.
+  rewrite H0 in Heqp3.
+  inversion Heqp3.
+  auto.
+
+(* Now must show 10 * denoteDigit rem = 10 * denoteDigit rem1 + 10 * denoteDig
+it rem2, should be easy based on case analysis *)
+Admitted.
+
+(* following is not true: Compute (addDigitToPair D9 (D9, D4)) = rolls over. *)
 Theorem addDigitToPair_works : forall d p,
     denotePair (addDigitToPair d p) = denoteDigit d + denotePair p.
 Proof.
   intros.
   unfold addDigitToPair.
   unfold denotePair.
-Admitted.
 
 Fixpoint addDigitList_helper_remainder (dl : list digit) (rem : digit) :=
   match dl with
