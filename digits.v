@@ -257,30 +257,18 @@ Theorem addThreeDigits_works : forall d1 d2 d3, denotePair (addThreeDigits d1 d2
   rewrite plus_reg_r.
   symmetry in Heqp1.
   symmetry in Heqp2.
+
   pose (P := (addDigit_bounded _ _ _ _ Heqp1)).
   pose (Q := (addDigit_bounded _ _ _ _ Heqp2)).
 
   elim P.
   elim Q.
-  intros.
-  rewrite H.
-  rewrite H0.
-  rewrite H in Heqp3.
-  rewrite H0 in Heqp3.
-  inversion Heqp3.
-  auto.
-
-(* Now must show 10 * denoteDigit rem = 10 * denoteDigit rem1 + 10 * denoteDig
-it rem2, should be easy based on case analysis *)
-Admitted.
-
-(* following is not true: Compute (addDigitToPair D9 (D9, D4)) = rolls over. *)
-Theorem addDigitToPair_works : forall d p,
-    denotePair (addDigitToPair d p) = denoteDigit d + denotePair p.
-Proof.
-  intros.
-  unfold addDigitToPair.
-  unfold denotePair.
+  intros. rewrite H. rewrite H0. rewrite H in Heqp3. rewrite H0 in Heqp3. inversion Heqp3. auto.
+  intros. rewrite H. rewrite H0. rewrite H in Heqp3. rewrite H0 in Heqp3. inversion Heqp3. auto.
+  elim Q.
+  intros. rewrite H. rewrite H0. rewrite H in Heqp3. rewrite H0 in Heqp3. inversion Heqp3. auto.
+  intros. rewrite H. rewrite H0. rewrite H in Heqp3. rewrite H0 in Heqp3. inversion Heqp3. auto.
+Qed.
 
 Fixpoint addDigitList_helper_remainder (dl : list digit) (rem : digit) :=
   match dl with
@@ -296,7 +284,7 @@ Fixpoint addDigitList_helper (dl1 dl2 : list digit) (rem : digit) :=
   | ([], _) => addDigitList_helper_remainder dl2 rem
   | (_, []) => addDigitList_helper_remainder dl1 rem
   | (d1 :: tl1, d2 :: tl2) =>
-    let (rem', total) := addDigitToPair rem (addDigit d1 d2) in
+    let (rem', total) := addThreeDigits d1 d2 rem in
     total :: (addDigitList_helper tl1 tl2 rem')
   end.
 
