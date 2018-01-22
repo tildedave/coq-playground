@@ -278,6 +278,40 @@ Fixpoint addDigitList_helper_remainder (dl : list digit) (rem : digit) :=
     x :: addDigitList_helper_remainder tl rem'
   end.
 
+Fixpoint denoteDigitList_backwards (dl : list digit) : nat :=
+  match dl with
+  | [] => 0
+  | x :: dl => (denoteDigit x) + (10 * denoteDigitList_backwards dl)
+  end.
+
+Theorem addDigitList_helper_remainder_works : forall dl rem, denoteDigitList_backwards (addDigitList_helper_remainder dl rem) = denoteDigitList_backwards dl + denoteDigit rem.
+Proof.
+  intros.
+  induction dl.
+  unfold denoteDigitList_backwards at 2.
+  unfold addDigitList_helper_remainder.
+  unfold denoteDigitList_backwards.
+  auto.
+
+  unfold addDigitList_helper_remainder.
+
+  unfold denoteDigitList_backwards.
+  auto.
+  unfold addDigitList_helper_remainder in H.
+  remember (addDigit a rem) as p.
+  destruct p as (rem', x).
+  fold addDigitList_helper_remainder in H.
+
+  unfold denoteDigitList_backwards.
+  fold denoteDigitList_backwards.
+  rewrite Nat.add_shuffle0.
+  symmetry in Heqp.
+  rewrite (addDigit_works_a_little_grittier a rem rem' x Heqp).
+  rewrite plus_comm.
+  rewrite plus_assoc.
+  Search (_ * (_ + _)).
+  rewrite <- Nat.mul_add_distr_l.
+
 Fixpoint addDigitList_helper (dl1 dl2 : list digit) (rem : digit) :=
   match (dl1, dl2) with
   | ([], []) => [rem]
@@ -293,13 +327,26 @@ Definition addDigitList (dl1 : list digit) (dl2 : list digit) :=
 
 Compute (denoteDigitList (addDigitList [ D6; D7 ; D8 ] [ D1; D1; D4 ; D2 ; D3 ])).
 
-(* this is not correct because condition on rem is incorrect *)
-Lemma addDigitList_helper_remainder_works :
-  forall dl rem,
-    addDigitList_helper_remainder
+Compute (denoteDigitList [ D1 ; D4 ]).
+
+Check fold_right.
+
+Definition denoteDigitListBackwards (dl : list digit) : nat :=
+  fold_right (fun d n => (n * 10) + (denoteDigit d)) 0 dl.
+
+Compute (denoteDigitListBackwards [ D1 ; D4 ; D6 ]).
+
+Lemma addDigitList_helper_works :
+  forall dl1 dl2 rem dl',
+    addDigitList_helper dl1 dl2 rem = denoteDigit rem + denoteDigitListBackwards dl1 + denoteDigitListBackwards dl2.
 
 
-
-    Theorem addDigitList_works :
+Theorem addDigitList_works :
   forall dl1 dl2, denoteDigitList dl1 + denoteDigitList dl2 = denoteDigitList (addDigitList dl1 dl2).
   intros.
+  unfold addDigitList.
+
+
+
+
+addDigitList_helper dl1 dl2 = dl' ->
