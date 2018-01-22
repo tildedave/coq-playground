@@ -132,8 +132,6 @@ Defined.
 
 Compute (denotePair (addDigit D3 D4)).
 
-Require Import Omega.
-
 Theorem addDigit_works_as_expected :
   forall d1 d2 : digit,
           (denoteDigit d1) + (denoteDigit d2) = (denotePair (addDigit d1 d2)).
@@ -286,31 +284,34 @@ Fixpoint denoteDigitList_backwards (dl : list digit) : nat :=
 
 Theorem addDigitList_helper_remainder_works : forall dl rem, denoteDigitList_backwards (addDigitList_helper_remainder dl rem) = denoteDigitList_backwards dl + denoteDigit rem.
 Proof.
-  intros.
   induction dl.
+  intros.
   unfold denoteDigitList_backwards at 2.
   unfold addDigitList_helper_remainder.
   unfold denoteDigitList_backwards.
   auto.
 
+  intros.
   unfold addDigitList_helper_remainder.
-
-  unfold denoteDigitList_backwards.
-  auto.
-  unfold addDigitList_helper_remainder in H.
+  fold addDigitList_helper_remainder.
   remember (addDigit a rem) as p.
   destruct p as (rem', x).
-  fold addDigitList_helper_remainder in H.
-
   unfold denoteDigitList_backwards.
   fold denoteDigitList_backwards.
-  rewrite Nat.add_shuffle0.
+  rewrite IHdl.
+  rewrite Nat.mul_add_distr_l.
   symmetry in Heqp.
-  rewrite (addDigit_works_a_little_grittier a rem rem' x Heqp).
-  rewrite plus_comm.
-  rewrite plus_assoc.
-  Search (_ * (_ + _)).
-  rewrite <- Nat.mul_add_distr_l.
+  apply addDigit_works_a_little_grittier in Heqp.
+  symmetry in Heqp.
+  rewrite Nat.add_comm in Heqp.
+  Search (_ + (_ + _)).
+  rewrite Nat.add_shuffle3.
+  rewrite Heqp.
+  rewrite Nat.add_comm.
+  Search (_ + _ + _).
+  rewrite Nat.add_shuffle0.
+  reflexivity.
+Qed.
 
 Fixpoint addDigitList_helper (dl1 dl2 : list digit) (rem : digit) :=
   match (dl1, dl2) with
