@@ -424,15 +424,32 @@ Proof.
   omega.
 Qed.
 
+Definition addDigitList (dl1 : list digit) (dl2 : list digit) :=
+  rev (addDigitList_helper (rev dl1) (rev dl2) D0).
+
+Compute (denoteDigitList_backwards (rev [ D6 ; D7 ; D8 ])).
+Compute (denoteDigitList [ D6 ; D7 ; D8 ]).
+
+Lemma denoteDigitList_backwards_rev : forall dl, denoteDigitList_backwards (rev dl) = denoteDigitList dl.
+Proof.
+  (* don't think induction works to prove this, can't get to a play to apply IH *)
+  induction dl.
+  intros.
+  compute.
+  reflexivity.
+  Search (rev (_ :: _)).
+  unfold denoteDigitList_backwards.
+  unfold rev.
+
+  Lemma addDigitList_helper_rev : denoteDigitList (addDigitList_helper (rev d1) (rev d2)) = denoteDigitList_backwards
+
+
+
 Compute (denoteDigitList (addDigitList [ D6; D7 ; D8 ] [ D1; D1; D4 ; D2 ; D3 ])).
 
 Compute (denoteDigitList [ D1 ; D4 ]).
 
-Check fold_right.
-
-Compute (denoteDigitListBackwards [ D1 ; D4 ; D6 ]).
-
-Lemma denoteDigitList_rev : forall dl, denoteDigitList (rev dl) = denoteDigitList_backwards dl.
+Lemma denoteDigitList_rev1 : forall dl, denoteDigitList (rev dl) = denoteDigitList_backwards dl.
 Proof.
   induction dl.
   intros.
@@ -444,7 +461,6 @@ Proof.
 
   (* induction case is a pain, come back to this later *)
 Admitted.
-
 
 Theorem addDigitList_works :
   forall dl1 dl2, denoteDigitList dl1 + denoteDigitList dl2 = denoteDigitList (addDigitList dl1 dl2).
