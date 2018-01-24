@@ -268,6 +268,14 @@ Theorem addThreeDigits_works : forall d1 d2 d3, denotePair (addThreeDigits d1 d2
   intros. rewrite H. rewrite H0. rewrite H in Heqp3. rewrite H0 in Heqp3. inversion Heqp3. auto.
 Qed.
 
+(* Not sure why I need this, I imagine there is some way to just "fold" the RHS into a denotePair *)
+Lemma denotePair_rewrite : forall d1 d2, denotePair (d1, d2) = 10 * denoteDigit d1 + denoteDigit d2.
+Proof.
+  intros.
+  unfold denotePair.
+  reflexivity.
+Qed.
+
 Fixpoint addDigitList_helper_remainder (dl : list digit) (rem : digit) :=
   match dl with
   | [] => [rem]
@@ -352,6 +360,8 @@ Proof.
   reflexivity.
 Qed.
 
+Require Import Omega.
+
 Lemma addDigitList_helper_works :
   forall dl1 dl2 rem,
     denoteDigitList_backwards (addDigitList_helper dl1 dl2 rem) = denoteDigit rem + denoteDigitList_backwards dl1 + denoteDigitList_backwards dl2.
@@ -375,10 +385,44 @@ Proof.
   reflexivity.
 
   intros.
+  destruct dl2.
   unfold addDigitList_helper at 1.
+  rewrite addDigitList_helper_remainder_works.
+  rewrite denoteDigitList_backwards_empty.
+  rewrite <- plus_n_O.
+  rewrite <- plus_comm.
+  reflexivity.
 
-  Definition addDigitList (dl1 : list digit) (dl2 : list digit) :=
-  rev (addDigitList_helper (rev dl1) (rev dl2) D0).
+  unfold addDigitList_helper.
+  remember (addThreeDigits a d rem) as p.
+  destruct p as (rem', total).
+  fold addDigitList_helper.
+  unfold denoteDigitList_backwards at 1.
+  fold denoteDigitList_backwards.
+  rewrite IHdl1.
+  unfold denoteDigitList_backwards at 3.
+  unfold denoteDigitList_backwards at 3.
+  fold denoteDigitList_backwards.
+  fold denoteDigitList_backwards.
+  (* playing with the terms so they end up with the right terms on LHS/RHS annoying, feels like this should be easier *)
+  assert (denoteDigit total + 10 * (denoteDigit rem' + denoteDigitList_backwards dl1 + denoteDigitList_backwards dl2) = denoteDigit total + 10 * denoteDigit rem' + 10 * denoteDigitList_backwards dl1 + 10 * denoteDigitList_backwards dl2).
+  rewrite Nat.mul_add_distr_l.
+  rewrite Nat.mul_add_distr_l.
+  omega.
+  rewrite H.
+  assert (denoteDigit rem + (denoteDigit a + 10 * denoteDigitList_backwards dl1) + (denoteDigit d + 10 * denoteDigitList_backwards dl2) = (denoteDigit rem + denoteDigit a + denoteDigit d + 10 * denoteDigitList_backwards dl1 + 10 * denoteDigitList_backwards dl2)).
+  omega.
+  rewrite H0.
+  rewrite plus_reg_r.
+  rewrite plus_reg_r.
+  destruct H.
+  destruct H0.
+  rewrite plus_comm.
+  rewrite <- denotePair_rewrite.
+  rewrite Heqp.
+  rewrite addThreeDigits_works.
+  omega.
+Qed.
 
 Compute (denoteDigitList (addDigitList [ D6; D7 ; D8 ] [ D1; D1; D4 ; D2 ; D3 ])).
 
