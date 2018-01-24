@@ -323,7 +323,61 @@ Fixpoint addDigitList_helper (dl1 dl2 : list digit) (rem : digit) :=
     total :: (addDigitList_helper tl1 tl2 rem')
   end.
 
-Definition addDigitList (dl1 : list digit) (dl2 : list digit) :=
+Search (_ ++ _).
+
+Lemma wtf : forall (A : Type) (a : A) (l : (list A)), a :: l = [a] ++ l.
+Proof.
+  induction l.
+  compute.
+  reflexivity.
+  compute.
+  reflexivity.
+Qed.
+
+Lemma denoteDigitList_backwards_single : forall d, denoteDigitList_backwards [d] = denoteDigit d.
+Proof.
+  intros.
+  unfold denoteDigitList_backwards.
+  Search (_ * 0).
+  rewrite <- mult_n_O.
+  rewrite <- plus_n_O.
+  reflexivity.
+Qed.
+
+Lemma denoteDigitList_backwards_empty : denoteDigitList_backwards [] = 0.
+Proof.
+  intros.
+  unfold denoteDigitList_backwards.
+  compute.
+  reflexivity.
+Qed.
+
+Lemma addDigitList_helper_works :
+  forall dl1 dl2 rem,
+    denoteDigitList_backwards (addDigitList_helper dl1 dl2 rem) = denoteDigit rem + denoteDigitList_backwards dl1 + denoteDigitList_backwards dl2.
+Proof.
+  induction dl1.
+  induction dl2.
+  intros.
+  unfold addDigitList_helper.
+  rewrite denoteDigitList_backwards_single.
+  rewrite denoteDigitList_backwards_empty.
+  rewrite <- plus_n_O.
+  rewrite <- plus_n_O.
+  reflexivity.
+
+  intros.
+  unfold addDigitList_helper.
+  rewrite addDigitList_helper_remainder_works.
+  rewrite denoteDigitList_backwards_empty.
+  rewrite <- plus_n_O.
+  rewrite plus_comm.
+  reflexivity.
+
+  intros.
+  unfold addDigitList_helper at 1.
+
+  Definition addDigitList (dl1 : list digit) (dl2 : list digit) :=
   rev (addDigitList_helper (rev dl1) (rev dl2) D0).
 
 Compute (denoteDigitList (addDigitList [ D6; D7 ; D8 ] [ D1; D1; D4 ; D2 ; D3 ])).
@@ -332,14 +386,20 @@ Compute (denoteDigitList [ D1 ; D4 ]).
 
 Check fold_right.
 
-Definition denoteDigitListBackwards (dl : list digit) : nat :=
-  fold_right (fun d n => (n * 10) + (denoteDigit d)) 0 dl.
-
 Compute (denoteDigitListBackwards [ D1 ; D4 ; D6 ]).
 
-Lemma addDigitList_helper_works :
-  forall dl1 dl2 rem dl',
-    addDigitList_helper dl1 dl2 rem = denoteDigit rem + denoteDigitListBackwards dl1 + denoteDigitListBackwards dl2.
+Lemma denoteDigitList_rev : forall dl, denoteDigitList (rev dl) = denoteDigitList_backwards dl.
+Proof.
+  induction dl.
+  intros.
+  unfold rev.
+  unfold denoteDigitList.
+  unfold denoteDigitList_backwards.
+  compute.
+  reflexivity.
+
+  (* induction case is a pain, come back to this later *)
+Admitted.
 
 
 Theorem addDigitList_works :
