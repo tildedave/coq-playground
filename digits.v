@@ -274,14 +274,6 @@ Theorem addThreeDigits_works : forall d1 d2 d3, denotePair (addThreeDigits d1 d2
   intros. rewrite H. rewrite H0. rewrite H in Heqp3. rewrite H0 in Heqp3. inversion Heqp3. auto.
 Qed.
 
-(* Not sure why I need this, I imagine there is some way to just "fold" the RHS into a denotePair *)
-Lemma denotePair_rewrite : forall d1 d2, denotePair (d1, d2) = 10 * denoteDigit d1 + denoteDigit d2.
-Proof.
-  intros.
-  unfold denotePair.
-  reflexivity.
-Qed.
-
 Fixpoint addDigitList_helper_remainder (dl : list digit) (rem : digit) :=
   match dl with
   | [] => [rem]
@@ -414,7 +406,8 @@ Proof.
   destruct H. (* don't need this *)
   destruct H0. (* don't need this *)
   rewrite plus_comm.
-  rewrite <- denotePair_rewrite.
+  symmetry.
+  fold (denotePair (rem', total)).
   rewrite Heqp.
   rewrite addThreeDigits_works.
   ring.
