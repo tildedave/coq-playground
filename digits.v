@@ -12,8 +12,14 @@ Definition denotePair p :=
     (d1, d2) => 10 * (denoteDigit d1) + (denoteDigit d2)
   end.
 
-Definition denoteDigitList (dl : list digit) : nat :=
-  fold_left (fun n d => (n * 10) + (denoteDigit d)) dl 0.
+Fixpoint denoteDigitList_helper (dl : list digit) (acc : nat) :=
+  match dl with
+  | [] => acc
+  | a :: dl => denoteDigitList_helper dl ((acc * 10) + (denoteDigit a))
+  end.
+
+(* using explicit recursion over fold_left because I can't figure out how re-"fold" the induction for induction proofs *)
+Definition denoteDigitList dl := denoteDigitList_helper dl 0.
 
 Definition D0 : digit.
   refine (Digit 0 _).
@@ -479,7 +485,7 @@ Proof.
   apply length_always_gte_0.
 Qed.
 
-Lemma denoteDigitList_backwards_rev1 : forall dl a, denoteDigitList_backwards (rev (a :: dl)) = 10 ^ (length dl) * (denoteDigit a) + denoteDigitList_backwards (rev dl).
+Lemma denoteDigitList_backwards_rev_cons : forall dl a, denoteDigitList_backwards (rev (a :: dl)) = 10 ^ (length dl) * (denoteDigit a) + denoteDigitList_backwards (rev dl).
 Proof.
   induction dl.
   intro a0.
@@ -500,20 +506,128 @@ Proof.
   ring.
 Qed.
 
+(* I don't think I need this, needed this for denoteDigitList_backwards because of the presence of 'rev' *)
+Lemma denoteDigitList_split : forall dl1 dl2, denoteDigitList (dl1 ++ dl2) = 10 ^ (length dl2) * denoteDigitList dl1 + denoteDigitList dl2.
+Proof.
+  induction dl1.
+  intros.
+  rewrite app_nil_l.
+  symmetry.
+  unfold denoteDigitList at 1.
+  unfold denoteDigitList_helper.
+  ring.
+
+  intros.
+  Search ((_ :: _) ++ _).
+  rewrite <- app_comm_cons.
+  unfold denoteDigitList at 1.
+Abort.
+
+Lemma denoteDigitList_helper_cons : forall dl a acc, denoteDigitList_helper (a :: dl) acc = denoteDigitList_helper dl (10 * acc + denoteDigit a).
+Proof.
+  intros.
+  unfold denoteDigitList_helper at 1.
+  fold denoteDigitList_helper.
+  rewrite mult_comm.
+  reflexivity.
+Qed.
+
+Lemma denoteDigitList_helper_split : forall dl m n, denoteDigitList_helper dl (m + n) = denoteDigitList_helper dl m + n * 10 ^ (length dl).
+Proof.
+  induction dl.
+  intros.
+  unfold denoteDigitList_helper.
+  simpl.
+  ring.
+
+  intros.
+  rewrite denoteDigitList_helper_cons.
+  Search (_ * (_ + _)).
+  rewrite Nat.mul_add_distr_l.
+  rewrite <- plus_assoc.
+  rewrite IHdl.
+  Search (_ * _).
+  rewrite Nat.mul_add_distr_r.
+  assert (n * 10 ^ length (a :: dl) = 10 * n * 10 ^ length dl).
+  unfold length.
+  rewrite Nat.pow_succ_r.
+  rewrite Nat.mul_comm.
+  symmetry.
+  Search (_ * _ * _).
+  rewrite Nat.mul_shuffle0.
+  reflexivity.
+  fold (length dl).
+  apply length_always_gte_0.
+  rewrite H.
+  rewrite plus_comm.
+  symmetry.
+  rewrite plus_comm.
+  symmetry.
+  rewrite <- plus_assoc.
+  rewrite Nat.add_cancel_l.
+  rewrite denoteDigitList_helper_cons.
+  symmetry.
+  rewrite IHdl.
+  ring.
+Qed.
+
+Lemma denoteDigitList_helper_cons_unwrap : forall dl a acc, denoteDigitList_helper (a :: dl) acc = 10 ^ length dl * denoteDigit a + denoteDigitList_helper dl (acc * 10).
+Proof.
+  induction dl.
+  intros.
+  rewrite denoteDigitList_helper_cons.
+  unfold denoteDigitList_helper.
+  symmetry.
+  unfold length.
+  rewrite Nat.pow_0_r.
+  ring.
+
+  (* So I do need to prove this :) *)
+
+  intros.
+  (* don't want to unfold both a0 :: a so we use a temp variable *)
+  remember (a :: dl) as dl'.
+  rewrite denoteDigitList_helper_cons.
+  rewrite Heqdl'.
+  rewrite denoteDigitList_helper_split.
+  rewrite plus_comm.
+  assert (10 * acc = acc * 10).
+  ring.
+  rewrite H.
+  rewrite Nat.add_cancel_r.
+  ring.
+Qed.
+
+Lemma denoteDigitList_unwrap : forall dl a, denoteDigitList (a :: dl) = 10 ^ length dl * denoteDigit a + denoteDigitList dl.
+Proof.
+  induction dl.
+  intros.
+  unfold denoteDigitList.
+  unfold denoteDigitList_helper.
+  simpl.
+  ring.
+
+  intros.
+  unfold denoteDigitList.
+  rewrite denoteDigitList_helper_cons_unwrap.
+  rewrite Nat.add_cancel_l.
+  simpl.
+  reflexivity.
+Qed.
+
 Lemma denoteDigitList_backwards_rev : forall dl, denoteDigitList_backwards (rev dl) = denoteDigitList dl.
 Proof.
-  (* don't think induction works to prove this, can't get to a play to apply IH *)
   induction dl.
   intros.
   compute.
   reflexivity.
-  Search (rev (_ :: _)).
-  unfold denoteDigitList_backwards.
-  unfold rev.
 
-  Lemma addDigitList_helper_rev : denoteDigitList (addDigitList_helper (rev d1) (rev d2)) = denoteDigitList_backwards
-
-
+  rewrite denoteDigitList_backwards_rev_cons.
+  rewrite IHdl.
+  symmetry.
+  rewrite denoteDigitList_unwrap.
+  ring.
+Qed.
 
 Compute (denoteDigitList (addDigitList [ D6; D7 ; D8 ] [ D1; D1; D4 ; D2 ; D3 ])).
 
