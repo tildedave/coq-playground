@@ -423,22 +423,6 @@ Qed.
 Definition addDigitList (dl1 : list digit) (dl2 : list digit) :=
   rev (addDigitList_helper (rev dl1) (rev dl2) D0).
 
-Compute (denoteDigitList_backwards (rev [ D6 ; D7 ; D8 ])).
-Compute (denoteDigitList [ D6 ; D7 ; D8 ]).
-
-
-Lemma wtf2 : forall (A : Type) (l : list A) m, (length l) = (S m) <-> exists a x, l = a :: x.
-Proof.
-  intros.
-  split.
-  intros.
-  unfold length in H.
-  (* feels like this should be easy *)
-Admitted.
-
-Compute denoteDigitList_backwards [ D1 ; D2 ; D3 ].
-Compute (10 ^1 * (denoteDigitList_backwards [D2 ; D3])) + (denoteDigitList_backwards [D1]).
-
 Lemma length_always_gte_0 : forall (A : Type) (l : list A), length l >= 0.
 Proof.
   intros.
@@ -451,7 +435,7 @@ Proof.
   auto.
 Qed.
 
-Lemma denoteDigitList_backwards_split : forall dl1 dl2, denoteDigitList_backwards (dl1 ++ dl2) = 10 ^ (length dl1) * denoteDigitList_backwards dl2 + denoteDigitList_backwards dl1.
+Lemma denoteDigitList_backwards_app : forall dl1 dl2, denoteDigitList_backwards (dl1 ++ dl2) = 10 ^ (length dl1) * denoteDigitList_backwards dl2 + denoteDigitList_backwards dl1.
 Proof.
   induction dl1.
   intros.
@@ -497,7 +481,7 @@ Proof.
   rewrite rev_app_distr.
   unfold rev at 2.
   rewrite app_nil_l.
-  rewrite denoteDigitList_backwards_split.
+  rewrite denoteDigitList_backwards_app.
   rewrite IHdl.
   Search (length (rev _)).
   rewrite rev_length.
@@ -505,23 +489,6 @@ Proof.
   unfold denoteDigitList_backwards.
   ring.
 Qed.
-
-(* I don't think I need this, needed this for denoteDigitList_backwards because of the presence of 'rev' *)
-Lemma denoteDigitList_split : forall dl1 dl2, denoteDigitList (dl1 ++ dl2) = 10 ^ (length dl2) * denoteDigitList dl1 + denoteDigitList dl2.
-Proof.
-  induction dl1.
-  intros.
-  rewrite app_nil_l.
-  symmetry.
-  unfold denoteDigitList at 1.
-  unfold denoteDigitList_helper.
-  ring.
-
-  intros.
-  Search ((_ :: _) ++ _).
-  rewrite <- app_comm_cons.
-  unfold denoteDigitList at 1.
-Abort.
 
 Lemma denoteDigitList_helper_cons : forall dl a acc, denoteDigitList_helper (a :: dl) acc = denoteDigitList_helper dl (10 * acc + denoteDigit a).
 Proof.
@@ -629,29 +596,88 @@ Proof.
   ring.
 Qed.
 
-Compute (denoteDigitList (addDigitList [ D6; D7 ; D8 ] [ D1; D1; D4 ; D2 ; D3 ])).
+Lemma denoteDigitList_app : forall dl1 dl2, denoteDigitList (dl1 ++ dl2) = 10 ^ (length dl2) * denoteDigitList dl1 + denoteDigitList dl2.
+Proof.
+  induction dl1.
+  intros.
+  rewrite app_nil_l.
+  symmetry.
+  unfold denoteDigitList at 1.
+  unfold denoteDigitList_helper.
+  ring.
 
-Compute (denoteDigitList [ D1 ; D4 ]).
+  intros.
+  Search ((_ :: _) ++ _).
+  rewrite <- app_comm_cons.
+  unfold denoteDigitList.
+  Search (denoteDigitList_helper _).
+  rewrite denoteDigitList_helper_cons_unwrap.
+  symmetry.
+  rewrite denoteDigitList_helper_cons_unwrap.
+  simpl.
+  fold (denoteDigitList dl1).
+  fold (denoteDigitList dl2).
+  fold (denoteDigitList (dl1 ++ dl2)).
+  rewrite Nat.mul_add_distr_l.
+  assert (10 ^ length dl2 * 10 ^ length dl1 = 10 ^ length (dl1 ++ dl2)).
+  Search (_ ^ _ * _ ^ _).
+  rewrite <- Nat.pow_add_r.
+  rewrite plus_comm.
+  Search (length (_ ++ _)).
+  rewrite app_length.
+  reflexivity.
 
-Lemma denoteDigitList_rev1 : forall dl, denoteDigitList (rev dl) = denoteDigitList_backwards dl.
+  rewrite Nat.mul_assoc.
+  rewrite H.
+  rewrite <- Nat.add_assoc.
+  rewrite Nat.add_cancel_l.
+  symmetry.
+  rewrite IHdl1.
+  reflexivity.
+Qed.
+
+Lemma denoteDigitList_rev : forall dl, denoteDigitList (rev dl) = denoteDigitList_backwards dl.
 Proof.
   induction dl.
-  intros.
-  unfold rev.
-  unfold denoteDigitList.
-  unfold denoteDigitList_backwards.
   compute.
   reflexivity.
 
-  (* induction case is a pain, come back to this later *)
-Admitted.
+  rewrite list_cons_app.
+  Search (rev _).
+  rewrite rev_app_distr.
+  unfold rev at 2.
+  rewrite app_nil_l.
+  rewrite denoteDigitList_app.
+  unfold length.
+  unfold denoteDigitList at 2.
+  unfold denoteDigitList_helper.
+  Search (0 * _).
+  rewrite Nat.mul_0_l.
+  rewrite Nat.pow_1_r.
+  rewrite Nat.add_0_l.
+  symmetry.
+  rewrite denoteDigitList_backwards_app.
+  unfold length.
+  rewrite Nat.pow_1_r.
+  rewrite <- IHdl.
+  rewrite Nat.add_cancel_l.
+  unfold denoteDigitList_backwards.
+  ring.
+Qed.
 
 Theorem addDigitList_works :
   forall dl1 dl2, denoteDigitList dl1 + denoteDigitList dl2 = denoteDigitList (addDigitList dl1 dl2).
+Proof.
   intros.
   unfold addDigitList.
-
-
-
-
-addDigitList_helper dl1 dl2 = dl' ->
+  symmetry.
+  rewrite denoteDigitList_rev.
+  rewrite addDigitList_helper_works.
+  rewrite denoteDigitList_backwards_rev.
+  rewrite denoteDigitList_backwards_rev.
+  rewrite Nat.add_cancel_r.
+  Search (_ + _ = _).
+  unfold denoteDigit.
+  simpl.
+  reflexivity.
+Qed.
