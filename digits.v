@@ -406,7 +406,6 @@ Proof.
   destruct H. (* don't need this *)
   destruct H0. (* don't need this *)
   rewrite plus_comm.
-  symmetry.
   fold (denotePair (rem', total)).
   rewrite Heqp.
   rewrite addThreeDigits_works.
