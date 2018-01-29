@@ -86,12 +86,6 @@ Lemma all_nat_gte_zero : forall m, m >= 0.
   auto with arith.
 Qed.
 
-Lemma mod_is_lt : forall (m n : nat), n > 0 -> (m mod n) < n.
-  intros.
-  apply (Nat.mod_bound_pos m n (all_nat_gte_zero m)).
-  exact H.
-Qed.
-
 Lemma denoteDigit_is_lt_10 : forall (d : digit), denoteDigit d < 10.
   intros.
   unfold denoteDigit.
@@ -672,4 +666,46 @@ Proof.
   unfold denoteDigit.
   simpl.
   reflexivity.
+Qed.
+
+Lemma mod_is_lt : forall (m n : nat), n > 0 -> (m mod n) < n.
+  intros.
+  apply (Nat.mod_bound_pos m n (all_nat_gte_zero m)).
+  exact H.
+Qed.
+
+Lemma TenGt0 : 10 > 0.
+Proof.
+  auto with arith.
+Qed.
+
+(* https://stackoverflow.com/questions/33302526/well-founded-recursion-in-coq *)
+Require Coq.Program.Tactics.
+Require Coq.Program.Wf.
+
+Require Import Omega.
+
+Program Fixpoint convertToDigitList (n : nat) { measure n } : (list digit) :=
+  if eq_nat_dec n 0 then
+    []
+  else
+    let a := n mod 10 in
+    let m := n / 10 in
+    let d := Digit a (mod_is_lt n 10 TenGt0) in
+    convertToDigitList m ++ [d].
+Obligation 1.
+fold (n / 10) in H.
+fold (n / 10).
+apply not_eq in H.
+destruct H.
+(* TODO: remove omega usage *)
+assert False. omega.
+contradict H0.
+assert (1 < 10) as OneLtTen. auto with arith.
+assert (0 < n) as ZeroLtN.
+apply (mult_lt_compat_l _ _ 10) in H.
+rewrite <- mult_n_O in H.
+omega.
+omega.
+apply (Nat.div_lt _ _ ZeroLtN OneLtTen).
 Qed.
