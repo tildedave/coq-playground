@@ -94,6 +94,16 @@ Lemma denoteDigit_is_lt_10 : forall (d : digit), denoteDigit d < 10.
   exact l.
 Qed.
 
+Lemma denoteDigit_is_le_9 : forall (d : digit), denoteDigit d <= 9.
+  intros.
+  unfold denoteDigit.
+  elim d.
+  intros.
+  apply lt_le_S in l.
+  apply le_S_n in l.
+  exact l.
+Qed.
+
 Lemma blah : forall (a b c d : nat), a < d -> d + b <= c -> a + b < c.
 Proof.
   intros.
@@ -709,3 +719,91 @@ omega.
 omega.
 apply (Nat.div_lt _ _ ZeroLtN OneLtTen).
 Qed.
+
+Lemma convertToDigitList_split :
+  forall dl m, convertToDigitList m = dl -> m <> 0 -> exists dl', dl = dl' ++ [Digit (m mod 10) (mod_is_lt m 10 TenGt0)].
+Proof.
+Admitted.
+
+Lemma convertToDigitList_works :
+  forall m, denoteDigitList (convertToDigitList m) = m.
+Proof.
+  (* https://sympa.inria.fr/sympa/arc/coq-club/2016-12/msg00019.html *)
+  induction m as [m IHm] using (well_founded_induction lt_wf).
+  remember (convertToDigitList m) as dl.
+
+  unfold convertToDigitList in Heqdl.
+  destruct (Nat.eq_dec m 0) in Heqdl.
+  rewrite e in Heqdl.
+  compute in Heqdl.
+  rewrite Heqdl.
+  unfold denoteDigitList.
+  unfold denoteDigitList_helper.
+  symmetry.
+  exact e.
+
+  symmetry in Heqdl.
+  apply (convertToDigitList_split) in Heqdl.
+  destruct Heqdl as [ dl' ].
+  rewrite H.
+  rewrite denoteDigitList_app.
+  unfold length.
+  assert ((convertToDigitList (m mod 10)) = [Digit (m mod 10) (mod_is_lt m 10 TenGt0)]).
+  unfold convertToDigitList.
+  (* not sure how to progress *)
+  (*
+  unfold denoteDigitList at 2.
+  unfold denoteDigitList_helper.
+  unfold denoteDigit.
+  unfold length.
+  Search (_ ^ 1).
+  rewrite Nat.pow_1_r.
+  rewrite Nat.mul_0_l.
+  rewrite Nat.add_0_l.
+   *)
+Admitted.
+
+Compute (convertToDigitList 123).
+
+(* Multiplication *)
+
+(* 123 * 456 = (100 + 20 + 3) * (400 + 50 + 6) *)
+(* 100 * 400 + 100 * 50 + 100 * 6 + 20 * 400 + 20 * 50 + 20 * 6 + 3 * 400 + 3 * 50 + 3 * 6 *)
+
+Fixpoint multiplyDigit (d1 : digit) (d2 : digit) : (digit * digit).
+  pose (m := denoteDigit d1).
+  pose (n := denoteDigit d2).
+  destruct (lt_dec (m * n) 10) as [ TotalLt10 | TotalGt10 ].
+  exact (D0, Digit (m * n) TotalLt10).
+
+  (* Must prove that multiplying two digits gives a remainder / modulus both < 10 *)
+  assert (m * n <= 81) as MultBounded.
+  Search (_ <= _ -> _ < _).
+  assert (m <= 9). apply denoteDigit_is_le_9.
+  assert (n <= 9). apply denoteDigit_is_le_9.
+  apply (mult_le_compat _ _ _ _ H H0).
+
+  pose (a := (m * n) / 10).
+  pose (b := (m * n) mod 10).
+
+  assert (b < 10) as ModLt10. apply mod_is_lt. auto with arith.
+  assert (a < 10) as RemainderLt10.
+  Search (_ <= _ -> _ / _ <= _).
+  apply (Nat.div_le_mono (m * n) 81 10) in MultBounded.
+  assert (81 / 10 = 8). auto with arith.
+  rewrite H in MultBounded.
+  apply le_lt_n_Sm in MultBounded.
+  apply Nat.lt_lt_succ_r in MultBounded.
+  exact MultBounded.
+  auto with arith.
+  exact (Digit a RemainderLt10, Digit b ModLt10).
+Defined.
+
+Fixpoint multiplyDigitList_backwards_helper (dl : list digit) (d : digit) : list digit :=
+  match dl with
+  | [] => []
+  | d' :: dl =>
+    let (rem, d0) := (multiplyDigit d d') in
+    let dl' := (multiplyDigitList_backwards_helper dl d) in
+    d0 :: (addDigitList_helper dl' [rem] D0)
+  end.
