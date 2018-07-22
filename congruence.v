@@ -161,52 +161,27 @@ Proof.
     reflexivity.
 Qed.
 
-(*
-Lemma congruent_k : forall n m, m <> 0 -> exists k, congruent n k m /\ 0 <= k < m.
+
+Compute Z.div_eucl 6 5.
+
+Lemma congruent_k : forall n m, m > 0 -> exists k, congruent k n m /\ 0 <= k < m.
 Proof.
   unfold congruent.
   unfold divides.
   intros.
-  remember (BinInt.Z.div_eucl n m) as p.
-  destruct p as (q, r).
-  exists r.
-  split.
-  exists q.
-
-Admitted.
-
-
-
-  apply (Z.div_eucl_eq _ _ _) Heqp.
-
-  Check Z.div_eucl_eq.
-  Check Z.div_eucl.
-  destruct p as (q, r).
-  split.
-  exists q.
-  apply (Z_div_mod _ _ H Heqp).
-
-
-  remember (Z_div_mod n m H).
-
-  remember (Z.div_mod n m H) as H1.
+  assert (m <> 0) as HMisNotZero.
+  omega.
+  Compute (-6 mod 7).
   exists (n mod m).
   split.
-  rewrite (Zmod_divides _ _ H) in H1.
-
-  Search (- _ / _).
-
-  exists (- n / m).
-  rewrite Z_div_zero_opp_full.
-
-
-  destruct (BinInt.Z.div_eucl n m).
-
-  inversion H1.
-
-  rewrite <- Z_div_mod.
-
- *)
+  exists (n / m).
+  Search (_ = _ - _).
+  rewrite <- Zeq_plus_swap.
+  symmetry.
+  apply (Z_div_mod_eq_full _ _ HMisNotZero).
+  Search (_ mod _).
+  apply (Z_mod_lt _ _ H).
+Qed.
 
 Lemma even_or_odd: forall n, congruent n 0 2 \/ congruent n 1 2.
 Proof.
@@ -317,19 +292,32 @@ Proof.
   remember (every_number_is_even_or_odd_modulus x) as Hx_is_even_or_odd.
   destruct HeqHx_is_even_or_odd.
   destruct Hx_is_even_or_odd as [HEven | HOdd].
-  apply (Zmod_divides _ _ H2IsNot0) in HEven.
-  destruct HEven as [k].
-  exists (2 * k * k - k).
-  rewrite H.
-  Search (_ * (_ - _)).
-  rewrite Zmult_minus_distr_l.
-  rewrite Zmult_minus_distr_l.
+  - apply (Zmod_divides _ _ H2IsNot0) in HEven.
+    destruct HEven as [k].
+    exists (2 * k * k - k).
+    rewrite H.
+    Search (_ * (_ - _)).
+    rewrite Zmult_minus_distr_l.
+    rewrite Zmult_minus_distr_l.
+    Search (_ * 1).
+    rewrite Z.mul_1_r.
+    rewrite Z.mul_shuffle1.
+    Search (_ * (_ * _)).
+    rewrite <- (Zmult_assoc 2 k k).
+    rewrite Zmult_assoc.
+    reflexivity.
+  - Search (_ + _ mod _).
+    rewrite <- Z_div_mod_eq.
+    cut (1 mod 2 = 1).
+    intros.
+    rewrite <- H in HOdd.
+    Search (_ mod _ = 0).
 
+    compute.
+    reflexivity.
 
-  Search (_ mod _ = _).
-  Check Zmod_divides.
-
-  apply (
+    rewrite
+    apply (
   remember (every_number_is_even_or_odd_congruent x) as H.
   destruct H as [H0 | H1].
 
