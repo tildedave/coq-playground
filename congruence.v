@@ -70,6 +70,17 @@ Proof.
   reflexivity.
 Qed.
 
+Theorem divides_opp : forall a m, divides m a -> divides m (-a).
+Proof.
+  intros.
+  apply (divides_mult _ (-1) m) in H.
+  Search (_ * -_).
+  Search (_ * -_).
+  Search (-_).
+  rewrite Z.opp_eq_mul_m1.
+  exact H.
+Qed.
+
 Definition congruent a b m := divides m (b - a).
 
 (* Chapter 3 proposition 3.2.1 *)
@@ -203,6 +214,7 @@ Proof.
   rewrite <- H3 in H.
   left.  assumption.
 Qed.
+
 Lemma every_number_is_even_or_odd_modulus : forall x, x mod 2 = 0 \/ x mod 2 = 1.
   intros.
   assert (2 > 0).
@@ -265,6 +277,17 @@ Qed.
 Lemma congruent_squared : forall x, congruent x (x * x) 2.
 Proof.
   intros x.
+  remember (every_number_is_even_or_odd_congruent x) as HXIsEvenOrOdd.
+  elim HXIsEvenOrOdd.
+  intros.
+  unfold congruent in H.
+  unfold congruent.
+
+  destruct H as [q J].
+
+
+  destruct HeqHXIsEvenOrOdd.
+  elim
   unfold congruent.
   unfold divides.
   Search (_ * _ - _).
