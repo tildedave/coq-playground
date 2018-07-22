@@ -175,7 +175,6 @@ Proof.
   exists (n mod m).
   split.
   exists (n / m).
-  Search (_ = _ - _).
   rewrite <- Zeq_plus_swap.
   symmetry.
   apply (Z_div_mod_eq_full _ _ HMisNotZero).
@@ -186,33 +185,24 @@ Qed.
 Lemma even_or_odd: forall n, congruent n 0 2 \/ congruent n 1 2.
 Proof.
   intros.
-  remember (n mod 2) as k.
-  (* Lemma Z_mod_lt a b : b > 0 -> 0 <= a mod b < b. *)
-  cut (k = 0 \/ k = 1).
-  - intros. destruct H. rewrite H in Heqk.
-    symmetry in Heqk.
-    apply Zmod_divides in Heqk.
-    left.
-    unfold congruent.
-    unfold divides.
-    destruct Heqk as [c H0].
-    exists (- c).
-    Search (_ * -_).
-    rewrite <- Zopp_mult_distr_r.
-    rewrite <- H0.
-    Search (0 - _).
-    rewrite <- Z.sub_0_l.
-    reflexivity.
-    Search (_ <> 0).
-    (* not sure how to prove 2 <> 0, auto with arith / compute doesn't work *)
-    omega.
-    right.
-    unfold congruent.
-    unfold divides.
-    rewrite H in Heqk.
-    remember Heqk as n_is_odd.
-Admitted.
-
+  assert (2 > 0) as HTwoGtZero. omega.
+  apply (congruent_k n 2) in HTwoGtZero.
+  destruct HTwoGtZero as [q HNCongruentToLt2].
+  elim HNCongruentToLt2.
+  intros.
+  apply congruent_comm in H.
+  inversion H0.
+  apply Zle_lt_or_eq in H1.
+  elim H1.
+  intros.
+  assert (q = 1) as HQisOne.
+  omega.
+  rewrite HQisOne in H.
+  right. assumption.
+  intros.
+  rewrite <- H3 in H.
+  left.  assumption.
+Qed.
 Lemma every_number_is_even_or_odd_modulus : forall x, x mod 2 = 0 \/ x mod 2 = 1.
   intros.
   assert (2 > 0).
@@ -227,7 +217,6 @@ Lemma every_number_is_even_or_odd_modulus : forall x, x mod 2 = 0 \/ x mod 2 = 1
   symmetry in H.
   left.  exact H.
 Qed.
-
 
 Lemma every_number_is_even_or_odd : forall x, exists k, x = 2 * k \/ x = 2 * k + 1.
 Proof.
