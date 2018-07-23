@@ -149,7 +149,6 @@ Proof.
     reflexivity.
 Qed.
 
-
 Theorem congruent_mult : forall a b c d m, congruent a c m -> congruent b d m -> congruent (a * b) (c * d) m.
 Proof.
   unfold congruent.
@@ -177,10 +176,7 @@ Proof.
     reflexivity.
 Qed.
 
-
-Compute Z.div_eucl 6 5.
-
-Lemma congruent_k : forall n m, m > 0 -> exists k, congruent k n m /\ 0 <= k < m.
+Lemma congruent_k : forall n m, m > 0 -> exists k, congruent k n m /\ k = n mod m.
 Proof.
   unfold congruent.
   unfold divides.
@@ -194,30 +190,115 @@ Proof.
   rewrite <- Zeq_plus_swap.
   symmetry.
   apply (Z_div_mod_eq_full _ _ HMisNotZero).
-  Search (_ mod _).
+  reflexivity.
+Qed.
+
+Lemma congruent_0 : forall a b m, congruent a b m -> congruent (b - a) 0 m.
+Proof.
+  intros.
+  unfold congruent.
+  unfold congruent in H.
+  apply divides_opp.
+  replace (- (0 - (b - a))) with (b - a).
+  assumption.
+  ring.
+Qed.
+
+Lemma squeeze : forall a b m, b > 0 -> a < b -> a > -b -> a = m * b -> a = 0.
+Proof.
+  intros a b m HMGt0 H0 H1 HDivisible.
+  assert (m = 0).
+  rewrite HDivisible in H0, H1.
+  Search (_ * _ <= _).
+Admitted.
+
+Theorem congruent_equiv_mod : forall a b m, m > 0 -> congruent a b m <-> a mod m = b mod m.
+Proof.
+  split.
+  intros.
+  assert (exists k1, congruent k1 a m /\ k1 = a mod m).
+  apply (congruent_k a m).
+  assumption.
+  assert (exists k2, congruent k2 b m /\ k2 = b mod m).
+  apply (congruent_k b m).
+  assumption.
+  destruct H1 as [j1 [J1 J1']].
+  destruct H2 as [j2 [J2 J2']].
+  unfold congruent in J1, J2.
+  apply divides_opp in J1.
+  apply (divides_add _ _ _ J1) in J2.
+  replace (- (a - j1) + (b - j2)) with (b - a - (j2 - j1)) in J2.
+  fold (congruent (j2 - j1) (b - a) m) in J2.
+  apply congruent_0, congruent_comm in H0.
+  apply congruent_comm in J2.
+  apply (congruent_assoc  _ _ _ _ H0) in J2.
+  unfold congruent in J2.
+  rewrite Z.sub_0_r in J2.
+  unfold divides in J2.
+  assert (0 <= j1 < m).
+  rewrite J1'.
   apply (Z_mod_lt _ _ H).
+  assert (0 <= j2 < m).
+  rewrite J2'.
+  apply (Z_mod_lt _ _ H).
+  assert (j2 - j1 < m). omega.
+  assert (j2 - j1 > -m). omega.
+  inversion J2.
+  assert (j2 - j1 = 0).
+  symmetry in H5.
+  rewrite <- Z.mul_comm in H5.
+  apply (squeeze (j2 - j1) m x H H3 H4 H5).
+  Search (_ - _ = 0).
+  rewrite <- J1', <- J2'.
+  apply Zeq_minus in H6.
+  rewrite Z.sub_0_r in H6.
+  Search (_ - _ = 0).
+  apply Zminus_eq in H6.
+  symmetry in H6.
+  exact H6.
+  ring.
+  intros.
+  apply congruent_comm.
+  unfold congruent.
+  Search (_ -> _ - _ = 0).
+  apply Zeq_minus in H0.
+  Search (_ mod _ = _ mod _).
+  assert ((a mod m - b mod m) mod m = 0 mod m).
+  Search (_ mod _ = _ mod _).
+  rewrite H0. reflexivity.
+  rewrite <- Zminus_mod in H1.
+  Search (0 mod _).
+  rewrite Zmod_0_l in H1.
+  Search (_ mod _ = 0 -> _).
+  Search (_ mod _ = 0 -> _).
+  apply (Z_div_exact_2 _ _ H) in H1.
+  unfold divides.
+  exists ((a - b) / m).
+  symmetry.
+  exact H1.
 Qed.
 
 Lemma even_or_odd: forall n, congruent n 0 2 \/ congruent n 1 2.
 Proof.
   intros.
   assert (2 > 0) as HTwoGtZero. omega.
+  (* this is dumb *)
+  assert (2 > 0) as HTwoGtZero'. exact HTwoGtZero.
   apply (congruent_k n 2) in HTwoGtZero.
   destruct HTwoGtZero as [q HNCongruentToLt2].
   elim HNCongruentToLt2.
   intros.
   apply congruent_comm in H.
-  inversion H0.
-  apply Zle_lt_or_eq in H1.
-  elim H1.
+  apply (Z_mod_lt n 2) in HTwoGtZero'.
+  rewrite <- H0 in HTwoGtZero'.
+  elim HTwoGtZero'.
   intros.
-  assert (q = 1) as HQisOne.
-  omega.
-  rewrite HQisOne in H.
-  right. assumption.
+  cut (q = 0 \/ q = 1).
   intros.
-  rewrite <- H3 in H.
-  left.  assumption.
+  case H3 as [HQIsZero | HQIsOne].
+  - left. rewrite <- HQIsZero. exact H.
+  - right. rewrite <- HQIsOne. exact H.
+  - omega.
 Qed.
 
 Lemma every_number_is_even_or_odd_modulus : forall x, x mod 2 = 0 \/ x mod 2 = 1.
@@ -311,9 +392,45 @@ Qed.
 Theorem poly_congruence_pg_28 : ~(exists x, x * x - 117 * x + 31 = 0).
 Proof.
   intro H.
+  assert (congruent (-117) 1 2) as H117IsOdd.
+  unfold congruent.
+  unfold divides.
+  exists (59).
+  ring.
+  assert (congruent 31 1 2) as H31IsOdd.
+  unfold congruent.
+  unfold divides.
+  exists (-15).
+  ring.
   destruct H as [x H1].
-  remember (even_or_odd x) as x_is_even_or_odd.
-  destruct x_is_even_or_odd.
+  assert (congruent (x * x - 117 * x + 31) 0 2) as HCongruentEquation.
+  rewrite H1.
+  apply congruent_refl.
+  assert (congruent 0 0 2) as HZeroIsEven.
+  apply congruent_refl.
+  remember (congruent_squared x) as HXIsCongruentToItsSquare.
+  remember (even_or_odd x) as Hx_is_even_or_odd.
+  destruct Hx_is_even_or_odd as [HEven | HOdd].
+  assert (congruent (x * x) 0 2).
+  apply (congruent_comm _ _ _).
+  destruct HeqHx_is_even_or_odd.
+  apply congruent_comm in HEven.
+  apply (congruent_assoc _ _ _ _ HEven HXIsCongruentToItsSquare).
+
+  assert (congruent (-117 * x) 0 2).
+  apply (congruent_mult (-117) x 1 0 2 H117IsOdd HEven).
+  apply (congruent_add _ _ _ _ 2 H) in H0.
+  apply (congruent_add _ _ _ _ 2 H0) in H31IsOdd.
+  rewrite Z.add_0_l in H31IsOdd.
+  assert (x * x + -117 * x + 31  = x * x - 117 * x + 31) as HRewrite. ring.
+  rewrite HRewrite in H31IsOdd.
+
+  rewrite <- Z.mul_opp_comm in H31IsOdd.
+
+  simpl in H31IsOdd.
+
+  apply (congruent_mult
+  congruent_squared in HEven.
 
   unfold congruent in c.
 
