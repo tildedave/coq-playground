@@ -70,15 +70,20 @@ Proof.
   reflexivity.
 Qed.
 
-Theorem divides_opp : forall a m, divides m a -> divides m (-a).
+Theorem divides_opp : forall a m, divides m a <-> divides m (-a).
 Proof.
-  intros.
+  split.
+  intro H.
   apply (divides_mult _ (-1) m) in H.
-  Search (_ * -_).
-  Search (_ * -_).
-  Search (-_).
   rewrite Z.opp_eq_mul_m1.
   exact H.
+  intro H.
+  apply (divides_mult _ (-1) m) in H.
+  cut (- a * -1 = a).
+  intros.
+  rewrite H0 in H.
+  exact H.
+  ring.
 Qed.
 
 Definition congruent a b m := divides m (b - a).
@@ -279,75 +284,29 @@ Proof.
   intros x.
   remember (every_number_is_even_or_odd_congruent x) as HXIsEvenOrOdd.
   elim HXIsEvenOrOdd.
-  intros.
-  unfold congruent in H.
-  unfold congruent.
+  - intros.
+    unfold congruent in H.
+    unfold congruent.
 
-  destruct H as [q J].
-
-
-  destruct HeqHXIsEvenOrOdd.
-  elim
-  unfold congruent.
-  unfold divides.
-  Search (_ * _ - _).
-  Search (_ * 1).
-  rewrite <- Z.add_opp_r.
-  rewrite <- (Z.mul_1_r (-x)).
-  Search (- _ * _).
-  rewrite Z.mul_opp_comm.
-  Search (_ * _ + _ * _).
-  rewrite <- Z.mul_add_distr_l.
-  rewrite Z.add_opp_r.
-  assert (2 <> 0) as H2IsNot0.
-  omega.
-  remember (every_number_is_even_or_odd_modulus x) as Hx_is_even_or_odd.
-  destruct HeqHx_is_even_or_odd.
-  destruct Hx_is_even_or_odd as [HEven | HOdd].
-  - apply (Zmod_divides _ _ H2IsNot0) in HEven.
-    destruct HEven as [k].
-    exists (2 * k * k - k).
-    rewrite H.
-    Search (_ * (_ - _)).
-    rewrite Zmult_minus_distr_l.
-    rewrite Zmult_minus_distr_l.
-    Search (_ * 1).
-    rewrite Z.mul_1_r.
-    rewrite Z.mul_shuffle1.
-    Search (_ * (_ * _)).
-    rewrite <- (Zmult_assoc 2 k k).
-    rewrite Zmult_assoc.
-    reflexivity.
-  - Search (_ + _ mod _).
-    rewrite <- Z_div_mod_eq.
-    cut (1 mod 2 = 1).
-    intros.
-    rewrite <- H in HOdd.
-    Search (_ mod _ = 0).
-
-    compute.
-    reflexivity.
-
-    rewrite
-    apply (
-  remember (every_number_is_even_or_odd_congruent x) as H.
-  destruct H as [H0 | H1].
-
-  unfold congruent in H0.
-  Check divides_mult.
-  destruct HeqH.
-  apply (divides_mult _ x 2) in H0.
-
-  unfold divides in H0.
-  destruct H0 as [k J0].
-  exists (2 * k  * k + k).
-  Search (0 - _).
-  rewrite Z.sub_0_l in J0.
-
-  unfold congruent.
-  unfold divides.
-  intros.
-
+    Search (0 - _).
+    rewrite Z.sub_0_l in H.
+    apply divides_opp in H.
+    assert (divides 2 (x * x)).
+    apply (divides_mult x x 2) in H.
+    exact H.
+    apply divides_opp in H.
+    apply (divides_add _ _ 2 H0 H).
+  - intros.
+    unfold congruent in H.
+    unfold congruent.
+    apply (divides_mult _ x 2) in H.
+    cut ((1 - x) * x = - (x * x - x)).
+    intro HSimpl.
+    rewrite HSimpl in H.
+    apply divides_opp in H.
+    exact H.
+    ring.
+Qed.
 
 Theorem poly_congruence_pg_28 : ~(exists x, x * x - 117 * x + 31 = 0).
 Proof.
