@@ -411,60 +411,52 @@ Qed.
 Theorem poly_congruence_pg_28 : ~(exists x, x * x - 117 * x + 31 = 0).
 Proof.
   intro H.
-  assert ((-117) mod 2 = 1) as H117IsOdd. compute. reflexivity.
-  assert (31 mod 2 = 1) as H31IsOdd. compute. reflexivity.
+  assert (congruent (-117) 1 2) as H117IsOdd. unfold congruent, divides.  exists 59. auto with arith.
+  assert (congruent 31 1 2) as H31IsOdd. unfold congruent, divides. exists (-15). auto with arith.
+  assert (congruent 2 0 2) as H2IsEven. unfold congruent, divides. exists (-1). auto with arith.
   assert (2 <> 0) as H2IsNotZero. omega.
   assert (2 > 0) as H2IsGtZero. omega.
   destruct H as [x H1].
   assert (congruent (x * x - 117 * x + 31) 0 2) as HCongruentEquation.
   rewrite H1.
   apply congruent_refl.
-  apply congruent_equiv_mod in HCongruentEquation.
   assert (congruent (x * x - 117 * x) 0 2).
-  remember (every_number_is_even_or_odd x) as HXIsEvenOrOdd.
-  destruct HXIsEvenOrOdd as [q [HXIsEven | HXIsOdd]].
-  - assert (x mod 2  = 0) as HXMod2Is0. rewrite HXIsEven, Z.mul_comm, (Z_mod_mult _ _). reflexivity.
-    assert (((x mod 2 * (x mod 2) mod 2)) = 0). rewrite HXMod2Is0. compute. reflexivity.
-    rewrite <- (Z.mul_mod _ _ 2 H2IsNotZero) in H.
-    assert (((-117 mod 2 * (x mod 2) mod 2)) = 0).  rewrite HXMod2Is0. compute. reflexivity.
-    rewrite <- (Z.mul_mod _ _ 2 H2IsNotZero) in H0.
-    Search (_ mod _ + _ mod _).
-    assert (((x * x) mod 2 + (-117 * x mod 2)) mod 2 = 0).
-    rewrite H, H0. compute. reflexivity.
-    rewrite <- (Z.add_mod _ _ 2 H2IsNotZero) in H2.
-    replace (x * x + -117 * x) with (x * x - 117 * x) in H2. apply (congruent_equiv_mod _ _ _ H2IsGtZero).
-    rewrite H2. compute.  reflexivity.
+  assert (congruent x (x * x) 2) as HXIsCongruentToSquare. apply (congruent_squared x).
+  assert (congruent x 0 2 \/ congruent x 1 2) as HXIsEvenOrOdd.
+  apply (every_number_is_even_or_odd_congruent x).
+  assert (x * x - 117 * x = -117 * x + x * x) as HSubstProperty. ring.
+  destruct HXIsEvenOrOdd as [HXIsEven | HXIsOdd].
+  - apply congruent_comm in HXIsEven.
+    apply (congruent_assoc _ _ _ _ HXIsEven) in HXIsCongruentToSquare.
+    assert (congruent (-117 * x) 0 2) as HXLinearTermIsEven.
+    apply congruent_comm in HXIsEven.
+    apply (congruent_mult (-117) x 1 0 2 H117IsOdd) in HXIsEven.
+    ring_simplify in HXIsEven.  exact HXIsEven.
+    apply congruent_comm in HXLinearTermIsEven.
+    apply (congruent_add _ _ _ _ _ HXLinearTermIsEven) in HXIsCongruentToSquare.
+    apply congruent_comm in HXIsCongruentToSquare.
+    ring_simplify in HXIsCongruentToSquare.
+    rewrite HSubstProperty.
+    exact HXIsCongruentToSquare.
+  - apply congruent_comm in HXIsOdd.
+    apply (congruent_assoc _ _ _ _ HXIsOdd) in HXIsCongruentToSquare.
+    assert (congruent (-117 * x) 1 2) as HXLinearTermIsOdd.
+    apply congruent_comm in HXIsOdd.
+    apply (congruent_mult (-117) x 1 1 2 H117IsOdd) in HXIsOdd.
+    ring_simplify in HXIsOdd. exact HXIsOdd.
+    apply congruent_comm in HXLinearTermIsOdd.
+    apply (congruent_add _ _ _ _ _ HXLinearTermIsOdd) in HXIsCongruentToSquare.
+    apply congruent_comm in HXIsCongruentToSquare.
+    ring_simplify in HXIsCongruentToSquare.
+    rewrite HSubstProperty.
+    apply (congruent_assoc _ _ _ _ HXIsCongruentToSquare) in H2IsEven.  exact H2IsEven.
+  - apply (congruent_add _ _ _ _ _ H31IsOdd) in H.
+    ring_simplify in H.
+    replace (31 + (x * x - 117 * x)) with (x * x - 117 * x + 31) in H.
+    apply congruent_comm in H.
+    apply (congruent_assoc _ _ _ _ H) in HCongruentEquation.
+    unfold congruent, divides in HCongruentEquation.
+    destruct HCongruentEquation.
+    omega.
     ring.
-  -
-  (* Z.mul_mod: forall a b n : Z, n <> 0 -> (a * b) mod n = (a mod n * (b mod n)) mod n *)
-
-  assert (congruent 0 0 2) as HZeroIsEven.
-  apply congruent_refl.
-  remember (congruent_squared x) as HXIsCongruentToItsSquare.
-  remember (even_or_odd x) as Hx_is_even_or_odd.
-  destruct Hx_is_even_or_odd as [HEven | HOdd].
-  assert (congruent (x * x) 0 2).
-  apply (congruent_comm _ _ _).
-  destruct HeqHx_is_even_or_odd.
-  apply congruent_comm in HEven.
-  apply (congruent_assoc _ _ _ _ HEven HXIsCongruentToItsSquare).
-
-  assert (congruent (-117 * x) 0 2).
-  apply (congruent_mult (-117) x 1 0 2 H117IsOdd HEven).
-  apply (congruent_add _ _ _ _ 2 H) in H0.
-  apply (congruent_add _ _ _ _ 2 H0) in H31IsOdd.
-  rewrite Z.add_0_l in H31IsOdd.
-  assert (x * x + -117 * x + 31  = x * x - 117 * x + 31) as HRewrite. ring.
-  rewrite HRewrite in H31IsOdd.
-
-  rewrite <- Z.mul_opp_comm in H31IsOdd.
-
-  simpl in H31IsOdd.
-
-  apply (congruent_mult
-  congruent_squared in HEven.
-
-  unfold congruent in c.
-
-  Lemma
-*)
+Qed.
