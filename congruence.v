@@ -207,10 +207,29 @@ Qed.
 Lemma squeeze : forall a b m, b > 0 -> a < b -> a > -b -> a = m * b -> a = 0.
 Proof.
   intros a b m HMGt0 H0 H1 HDivisible.
-  assert (m = 0).
   rewrite HDivisible in H0, H1.
-  Search (_ * _ <= _).
-Admitted.
+  Search (_ * 1).
+  apply Z.gt_lt in HMGt0.
+  assert (m < 1).
+  rewrite <- Z.mul_1_r in H0.
+  rewrite (Z.mul_comm b 1) in H0.
+  apply (Zmult_lt_reg_r _ _ _ HMGt0) in H0.
+  exact H0.
+  assert (m > -1).
+  rewrite <- Z.mul_1_r in H1.
+  rewrite Z.mul_opp_comm in H1.
+  simpl in H1.
+  rewrite (Z.mul_comm b (-1)) in H1.
+  apply Z.gt_lt in H1.
+  apply (Zmult_lt_reg_r _ _ _ HMGt0) in H1.
+  apply Z.lt_gt in H1.
+  exact H1.
+  assert (m = 0) as HMIsZero.
+  omega.
+  rewrite HMIsZero in HDivisible.
+  simpl in HDivisible.
+  exact HDivisible.
+Qed.
 
 Theorem congruent_equiv_mod : forall a b m, m > 0 -> congruent a b m <-> a mod m = b mod m.
 Proof.
@@ -392,20 +411,33 @@ Qed.
 Theorem poly_congruence_pg_28 : ~(exists x, x * x - 117 * x + 31 = 0).
 Proof.
   intro H.
-  assert (congruent (-117) 1 2) as H117IsOdd.
-  unfold congruent.
-  unfold divides.
-  exists (59).
-  ring.
-  assert (congruent 31 1 2) as H31IsOdd.
-  unfold congruent.
-  unfold divides.
-  exists (-15).
-  ring.
+  assert ((-117) mod 2 = 1) as H117IsOdd. compute. reflexivity.
+  assert (31 mod 2 = 1) as H31IsOdd. compute. reflexivity.
+  assert (2 <> 0) as H2IsNotZero. omega.
+  assert (2 > 0) as H2IsGtZero. omega.
   destruct H as [x H1].
   assert (congruent (x * x - 117 * x + 31) 0 2) as HCongruentEquation.
   rewrite H1.
   apply congruent_refl.
+  apply congruent_equiv_mod in HCongruentEquation.
+  assert (congruent (x * x - 117 * x) 0 2).
+  remember (every_number_is_even_or_odd x) as HXIsEvenOrOdd.
+  destruct HXIsEvenOrOdd as [q [HXIsEven | HXIsOdd]].
+  - assert (x mod 2  = 0) as HXMod2Is0. rewrite HXIsEven, Z.mul_comm, (Z_mod_mult _ _). reflexivity.
+    assert (((x mod 2 * (x mod 2) mod 2)) = 0). rewrite HXMod2Is0. compute. reflexivity.
+    rewrite <- (Z.mul_mod _ _ 2 H2IsNotZero) in H.
+    assert (((-117 mod 2 * (x mod 2) mod 2)) = 0).  rewrite HXMod2Is0. compute. reflexivity.
+    rewrite <- (Z.mul_mod _ _ 2 H2IsNotZero) in H0.
+    Search (_ mod _ + _ mod _).
+    assert (((x * x) mod 2 + (-117 * x mod 2)) mod 2 = 0).
+    rewrite H, H0. compute. reflexivity.
+    rewrite <- (Z.add_mod _ _ 2 H2IsNotZero) in H2.
+    replace (x * x + -117 * x) with (x * x - 117 * x) in H2. apply (congruent_equiv_mod _ _ _ H2IsGtZero).
+    rewrite H2. compute.  reflexivity.
+    ring.
+  -
+  (* Z.mul_mod: forall a b n : Z, n <> 0 -> (a * b) mod n = (a mod n * (b mod n)) mod n *)
+
   assert (congruent 0 0 2) as HZeroIsEven.
   apply congruent_refl.
   remember (congruent_squared x) as HXIsCongruentToItsSquare.
