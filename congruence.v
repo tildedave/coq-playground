@@ -107,7 +107,7 @@ Proof.
   exact H.
 Qed.
 
-Theorem congruent_assoc : forall a b c m, congruent a b m -> congruent b c m -> congruent a c m.
+Theorem congruent_assoc_l : forall a b c m, congruent a b m -> congruent b c m -> congruent a c m.
 Proof.
   unfold congruent.
   intros.
@@ -126,6 +126,14 @@ Proof.
   rewrite Z.add_opp_r.
   reflexivity.
 Qed.
+
+Theorem congruent_assoc_r : forall a b c m, congruent a b m -> congruent a c m -> congruent b c m.
+Proof.
+  intros a b c m H0 H1.
+  apply congruent_comm in H0.
+  apply (congruent_assoc_l _ _ _ _ H0). exact H1.
+Qed.
+
 
 Theorem congruent_1_8_7 : congruent 1 8 7.
 Proof.
@@ -250,7 +258,7 @@ Proof.
   fold (congruent (j2 - j1) (b - a) m) in J2.
   apply congruent_0, congruent_comm in H0.
   apply congruent_comm in J2.
-  apply (congruent_assoc  _ _ _ _ H0) in J2.
+  apply (congruent_assoc_l  _ _ _ _ H0) in J2.
   unfold congruent in J2.
   rewrite Z.sub_0_r in J2.
   unfold divides in J2.
@@ -427,7 +435,7 @@ Proof.
   assert (x * x - 117 * x = -117 * x + x * x) as HSubstProperty. ring.
   destruct HXIsEvenOrOdd as [HXIsEven | HXIsOdd].
   - apply congruent_comm in HXIsEven.
-    apply (congruent_assoc _ _ _ _ HXIsEven) in HXIsCongruentToSquare.
+    apply (congruent_assoc_l _ _ _ _ HXIsEven) in HXIsCongruentToSquare.
     assert (congruent (-117 * x) 0 2) as HXLinearTermIsEven.
     apply congruent_comm in HXIsEven.
     apply (congruent_mult (-117) x 1 0 2 H117IsOdd) in HXIsEven.
@@ -438,10 +446,8 @@ Proof.
     ring_simplify in HXIsCongruentToSquare.
     rewrite HSubstProperty.
     exact HXIsCongruentToSquare.
-  - apply congruent_comm in HXIsOdd.
-    apply (congruent_assoc _ _ _ _ HXIsOdd) in HXIsCongruentToSquare.
+  - apply (congruent_assoc_r _ _ _ _ HXIsOdd) in HXIsCongruentToSquare.
     assert (congruent (-117 * x) 1 2) as HXLinearTermIsOdd.
-    apply congruent_comm in HXIsOdd.
     apply (congruent_mult (-117) x 1 1 2 H117IsOdd) in HXIsOdd.
     ring_simplify in HXIsOdd. exact HXIsOdd.
     apply congruent_comm in HXLinearTermIsOdd.
@@ -449,14 +455,12 @@ Proof.
     apply congruent_comm in HXIsCongruentToSquare.
     ring_simplify in HXIsCongruentToSquare.
     rewrite HSubstProperty.
-    apply (congruent_assoc _ _ _ _ HXIsCongruentToSquare) in H2IsEven.  exact H2IsEven.
+    apply (congruent_assoc_l _ _ _ _ HXIsCongruentToSquare) in H2IsEven.  exact H2IsEven.
   - apply (congruent_add _ _ _ _ _ H31IsOdd) in H.
     ring_simplify in H.
     replace (31 + (x * x - 117 * x)) with (x * x - 117 * x + 31) in H.
-    apply congruent_comm in H.
-    apply (congruent_assoc _ _ _ _ H) in HCongruentEquation.
+    apply (congruent_assoc_r _ _ _ _ H) in HCongruentEquation.
     unfold congruent, divides in HCongruentEquation.
     destruct HCongruentEquation.
-    omega.
-    ring.
+    omega. ring.
 Qed.
