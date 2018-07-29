@@ -464,3 +464,5 @@ Proof.
     destruct HCongruentEquation.
     omega. ring.
 Qed.
+
+Compute (Z.divide_factor_r 12).
