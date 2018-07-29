@@ -83,7 +83,7 @@ Lemma find_factor_helper_1_lt : forall i m n b, 1 < n -> 1 < m -> (find_factor_h
   destruct i; auto; auto.
 Qed.
 
-Theorem find_factor_mult: forall n b, 1 < n -> find_factor n = b -> exists c, c * b = n.
+Theorem find_factor_mult: forall n b, 1 < n -> find_factor n = b -> (n / b) * b = n.
   intros n b n_lt_1.
   intros FindFactor.
   unfold find_factor in FindFactor.
@@ -91,9 +91,8 @@ Theorem find_factor_mult: forall n b, 1 < n -> find_factor n = b -> exists c, c 
   assert (b <> 0) as b_neq_0.
   apply (find_factor_helper_1_lt _ _ _ _ n_lt_1 H1_lt_2) in FindFactor; omega.
   apply (find_factor_helper_mult _ _ _ _ H1_lt_2) in FindFactor.
-  apply (Nat.mod_divides _ _ b_neq_0) in FindFactor.
-  destruct FindFactor as [c' H2].
-  exists c'.
+  Search (_ mod _ = 0).
+  apply (Nat.div_exact n b b_neq_0) in FindFactor.
   rewrite Nat.mul_comm.
   auto.
 Qed.
@@ -130,3 +129,25 @@ apply (Nat.div_lt _ _ H1 Heqb).
 Defined.
 
 Compute (prime_divisors 8).
+
+Fixpoint mult_list (l : list nat) :=
+  match l with
+  | [] => 1
+  | a :: l => a * (mult_list l)
+  end.
+
+Compute (mult_list (prime_divisors 16)).
+
+Goal
+
+Goal forall n x l, prime_divisors n = (x :: l) -> n mod x = 0.
+  intros n x l.
+  intro PrimeDivisors.
+  unfold prime_divisors in PrimeDivisors.
+
+  inversion PrimeDivisors.
+
+  destruct (Nat.eq_dec (find_factor recarg) recarg) in PrimeDivisors.
+
+  Goal forall n, mult_list (prime_divisors n) = n.
+  intros.
