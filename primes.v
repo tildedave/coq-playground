@@ -108,25 +108,24 @@ Qed.
 Require Import List.
 Import ListNotations.
 
-Program Fixpoint prime_divisors (n : nat) { measure n } : (list nat) :=
-  match n with
-    0 => []
-  | 1 => []
-  | (S p) => let a := find_factor n in
+Program Fixpoint prime_divisors_helper (n i : nat) : (list nat) :=
+  match i with
+  | 0 => []
+  | (S p) => (
+      match n with
+      | 0 => []
+      | 1 => []
+      | _ => let a := find_factor n in
              if (Nat.eq_dec a n) then
                [n]
              else
-               a :: prime_divisors (n / a)
+               a :: prime_divisors_helper (n / a) p
+      end
+    )
   end.
-Obligation 1.
-remember (find_factor (S p)) as b.
-assert (1 < S p) as H1_lt_Sp. omega.
-symmetry in Heqb.
-apply (find_factor_1_lt (S p) b H1_lt_Sp) in Heqb.
-assert (0 < S p).
-apply Nat.lt_0_succ.
-apply (Nat.div_lt _ _ H1 Heqb).
-Defined.
+
+Program Fixpoint prime_divisors (n : nat) : (list nat) :=
+  prime_divisors_helper n n.
 
 Compute (prime_divisors 8).
 
@@ -138,14 +137,69 @@ Fixpoint mult_list (l : list nat) :=
 
 Compute (mult_list (prime_divisors 16)).
 
-Goal
-
-Goal forall n x l, prime_divisors n = (x :: l) -> n mod x = 0.
+Lemma prime_divisors_helper_1_lt : forall i n x l, prime_divisors_helper n i = x :: l -> x > 1.
+Proof.
+  induction i.
   intros n x l.
+  simpl; discriminate.
+  intros n x l.
+  intros def_of_x.
+  unfold prime_divisors_helper in def_of_x.
+  remember (find_factor n) as a.
+  fold (prime_divisors_helper (n / a) i) in def_of_x.
+  destruct (Nat.eq_dec a n).
+  destruct n; [discriminate | destruct n].
+  discriminate.
+  inversion def_of_x.
+  auto with arith.
+  destruct n; [discriminate | destruct n].
+  discriminate.
+  inversion def_of_x.
+  unfold gt.
+  symmetry in Heqa.
+  rewrite <- H0.
+  apply (find_factor_1_lt (S (S n)) a).
+  auto with arith.
+  assumption.
+Qed.
+
+Goal forall i n x l, n <= i -> prime_divisors_helper n i = (x :: l) -> n = x * (n / x).
+  induction i.
+  intros n x l.
+  intros n_lte_i def_of_x.
+  Search (_ * (_ / _)).
+  apply Nat.div_exact.
+  Search (_ <> 0).
+  apply Nat.neq_0_lt_0.
+  Search (S _ < _ -> _ < _).
+  apply Nat.lt_succ_l.
+  apply (prime_divisors_helper_1_lt 0 n x l); assumption.
+  unfold prime_divisors_helper in def_of_x; discriminate.
+  intros n x l n_lte_i def_of_x.
+  unfold prime_divisors_helper in def_of_x.
+  remember (find_factor n) as a.
+  fold (prime_divisors_helper (n / a) i) in def_of_x.
+  destruct n.
+  discriminate.
+  destruct n.
+  discriminate.
+  destruct (Nat.eq_dec a (S (S n))).
+  inversion def_of_x.
+  rewrite H0.
+  Search (_ * (_ / _)).
+  apply Nat.div_exact. rewrite <- H0. auto with arith.
+  apply a_mod_a_eq_0.
+  inversion def_of_x.
+  destruct l.
+
+  apply IHi (S (S n) / x).
+
+  rewrite n_eq_0; apply Nat.mod_0_l.
+
   intro PrimeDivisors.
   unfold prime_divisors in PrimeDivisors.
-
-  inversion PrimeDivisors.
+  Search (Wf.Fix_sub).
+  apply Wf.Fix_eq in PrimeDivisors.
 
   destruct (Nat.eq_dec (find_factor recarg) recarg) in PrimeDivisors.
 
