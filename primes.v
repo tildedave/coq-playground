@@ -124,8 +124,7 @@ Program Fixpoint prime_divisors_helper (n i : nat) : (list nat) :=
     )
   end.
 
-Program Fixpoint prime_divisors (n : nat) : (list nat) :=
-  prime_divisors_helper n n.
+Definition prime_divisors (n : nat) : (list nat) := prime_divisors_helper n n.
 
 Compute (prime_divisors 8).
 
@@ -163,7 +162,7 @@ Proof.
   assumption.
 Qed.
 
-Goal forall i n x l, n <= i -> prime_divisors_helper n i = (x :: l) -> n = x * (n / x).
+Lemma prime_divisors_helper_mult : forall i n x l, n <= i -> prime_divisors_helper n i = (x :: l) -> n = x * (n / x).
   induction i.
   intros n x l.
   intros n_lte_i def_of_x.
@@ -189,19 +188,175 @@ Goal forall i n x l, n <= i -> prime_divisors_helper n i = (x :: l) -> n = x * (
   Search (_ * (_ / _)).
   apply Nat.div_exact. rewrite <- H0. auto with arith.
   apply a_mod_a_eq_0.
-  inversion def_of_x.
-  destruct l.
+  inversion def_of_x as [a_eq_x].
+  symmetry in Heqa; apply find_factor_mult in Heqa; symmetry in Heqa.
+  rewrite <- a_eq_x; rewrite Nat.mul_comm. assumption.
+  auto with arith.
+Qed.
 
-  apply IHi (S (S n) / x).
+Theorem prime_divisors_mult : forall n x l, prime_divisors n = x :: l -> n = x * (n / x).
+  intros n x l def_of_x_l.
+  unfold prime_divisors in def_of_x_l.
+  apply (prime_divisors_helper_mult n n x l).
+  auto with arith. assumption.
+Qed.
 
-  rewrite n_eq_0; apply Nat.mod_0_l.
+Lemma prime_divisors_helper_trivial : forall h, [] = prime_divisors_helper 1 h.
+Proof.
+  intro h; unfold prime_divisors_helper; destruct h; reflexivity; reflexivity.
+Qed.
 
-  intro PrimeDivisors.
-  unfold prime_divisors in PrimeDivisors.
-  Search (Wf.Fix_sub).
-  apply Wf.Fix_eq in PrimeDivisors.
+Lemma prime_divisors_helper_inversion : forall i n x l, n <= (S i) -> prime_divisors_helper n (S i) = x :: l -> x = find_factor n /\ ((l = prime_divisors_helper (n / x) i /\ x <> n) \/ (l = [] /\ x = n)).
+  intros i n x l n_lte_Si def_of_x_l.
+  unfold prime_divisors_helper in def_of_x_l.
+  remember (find_factor n) as a.
+  fold (prime_divisors_helper (n / a) i) in def_of_x_l.
+  destruct n.
+  discriminate.
+  destruct n.
+  discriminate.
+  destruct (Nat.eq_dec a (S (S n))) as [a_eq | a_neq].
+  inversion def_of_x_l.  symmetry in a_eq.
+  split.
+  - exact a_eq.
+  - replace (S (S n) / S (S n)) with 1.
+    replace (prime_divisors_helper 1 i) with ([] : list nat).
+    right. split ; [reflexivity | reflexivity].
+    apply prime_divisors_helper_trivial.
+    symmetry.
+    apply (Nat.div_same).
+    auto with arith.
+  - split.
+    inversion def_of_x_l. reflexivity.
+    inversion def_of_x_l.
+    rewrite H1.
+    left.
+    split ; [ reflexivity | rewrite <- H0 ; assumption ].
+Qed.
 
-  destruct (Nat.eq_dec (find_factor recarg) recarg) in PrimeDivisors.
+Lemma prime_divisors_helper_inversion2 : forall i n, n <= (S i) -> prime_divisors_helper n i = [] -> i = 0 \/ n <= 1.
+  intros i n n_lte_Si H.
+  destruct i.
+  left; reflexivity.
+  right.
+  unfold prime_divisors_helper in H.
+  destruct n.
+  omega.
+  destruct n.
+  omega.
+  remember (find_factor (S (S n))) as a.
+  destruct (Nat.eq_dec a (S (S n))).
+  discriminate.
+  discriminate.
+Qed.
 
-  Goal forall n, mult_list (prime_divisors n) = n.
-  intros.
+Lemma prime_divisors_helper_inversion3 : forall i n x, 1 < n <= (S i) -> prime_divisors_helper n i = [x] -> x = n /\ find_factor n = x.
+Proof.
+  induction i.
+  intros n x n_lte_Si def_of_x.
+  simpl in def_of_x; discriminate.
+  intros n x n_lte_Si def_of_x.
+  unfold prime_divisors_helper in def_of_x.
+  remember (find_factor n) as a.
+  fold (prime_divisors_helper (n / a) i) in def_of_x.
+  destruct n; [ discriminate | destruct n; [ discriminate | destruct (Nat.eq_dec a (S (S n))) ]].
+  inversion def_of_x; auto.
+  (* this situation corresponds to n = 0 (so (S (S n)) = 2) *)
+  inversion def_of_x as [H1].
+  assert (1 < a) as a_gt_1. apply (find_factor_1_lt (S (S n)) a). auto with arith. symmetry in Heqa. assumption.
+  apply prime_divisors_helper_inversion2 in H.
+  split; [auto | auto].
+  destruct H as [i_0 | n_small].
+  rewrite i_0 in n_lte_Si.
+  assert (n = 0) as n_0. omega.
+  rewrite n_0 in Heqa.
+  compute in Heqa.
+  rewrite n_0 in n0.
+  omega.
+  rewrite H1 in Heqa; symmetry in Heqa.
+  apply (find_factor_mult (S (S n)) x) in Heqa; [auto | auto with arith].
+  apply (Nat.mul_le_mono_pos_r _ _ x) in n_small; [auto | omega].
+  rewrite Heqa in n_small.
+  rewrite Nat.mul_1_l in n_small.
+  assert (~ (S (S n)) < x). unfold not; intros SSn_x.
+  apply Nat.div_small in SSn_x; rewrite SSn_x in Heqa; simpl in Heqa; discriminate.
+  omega.
+  assert (S (S n) / x < S (S n)).
+  rewrite <- H1.
+  Search (_ / _ < _).
+  apply Nat.div_lt; [ auto with arith | auto ].
+  omega.
+Qed.
+
+Lemma prime_divisors_helper_equiv_mult_list : forall l i n, 1 < n <= i -> l = prime_divisors_helper n i -> mult_list l = n.
+Proof.
+  induction l.
+  intros i n n_bounded Heql.
+  symmetry in Heql.
+  apply prime_divisors_helper_inversion2 in Heql.
+  destruct Heql; [omega | simpl ; omega].
+  omega.
+  intros i n n_bounded Heql.
+  symmetry in Heql.
+  destruct i.
+  simpl in Heql; discriminate.
+  (* prime_divisors_helper_inversion is not helping me because it forces me to apply the IH criteria bounds in cases where no recursion was done *)
+  apply prime_divisors_helper_inversion in Heql.
+  destruct Heql as [def_of_a [[def_of_l a_neq_n] | [def_of_l a_eq_n]]].
+  simpl.
+  cut (1 < n / a <= i).
+  intros Cut.
+  rewrite (IHl _ _ Cut def_of_l).
+  symmetry in def_of_a. rewrite Nat.mul_comm. apply find_factor_mult ; [ omega | auto ].
+  assert (1 < a) as a_gt_1. symmetry in def_of_a. apply (find_factor_1_lt n a) in def_of_a ; [omega |omega].
+  symmetry in def_of_a. apply find_factor_mult in def_of_a ; [ auto | omega].
+  assert (~(n < a)).
+  unfold not.
+  contradict a_neq_n.
+  apply Nat.div_small in a_neq_n.
+  rewrite a_neq_n in def_of_a; omega.
+  assert (a < n) as a_lt_n. omega.
+  split.
+  (*
+    1 < n / a because...
+      it cannot be 0 because a < n
+      it cannot be 1 because a <> n and n / a * a = n so a fully divides n
+   *)
+  assert (~(n / a = 0 \/ n / a = 1)).
+  unfold not.
+  intros C.
+  destruct C as [n_div_a_eq_0 | n_div_a_eq_1].
+  rewrite n_div_a_eq_0 in def_of_a; omega.
+  rewrite n_div_a_eq_1 in def_of_a; omega.
+  omega.
+  (*
+    n / a <= i because...
+      a < n
+      So n / a < n (because 1 < a)
+      So n / a < S i
+      So n / a <= i
+   *)
+  Search (_ < S _).
+  Search (S _ <= S _).
+  apply (Nat.div_lt n a) in a_gt_1.
+  Search (_ < _ -> _ <= _ -> _).
+  destruct n_bounded as [n_gt_1 n_le_Si].
+  apply (Nat.lt_le_trans _ _ _ a_gt_1) in n_le_Si.
+  apply lt_n_Sm_le; assumption.
+  omega.
+  (* non-recursive time :) *)
+  rewrite def_of_l.
+  simpl.
+  rewrite Nat.mul_1_r; auto.
+  omega.
+Qed.
+
+Check prime_divisors.
+
+Theorem prime_divisors_equiv_mult_list : forall n, 1 < n -> mult_list (prime_divisors n) = n.
+Proof.
+  intros n n_bounded.
+  unfold prime_divisors.
+  remember (prime_divisors_helper n n) as l.
+  apply (prime_divisors_helper_equiv_mult_list _ n n) ; [ omega | assumption ].
+Qed.
