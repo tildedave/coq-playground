@@ -250,44 +250,6 @@ Lemma prime_divisors_helper_inversion2 : forall i n, n <= (S i) -> prime_divisor
   discriminate.
 Qed.
 
-Lemma prime_divisors_helper_inversion3 : forall i n x, 1 < n <= (S i) -> prime_divisors_helper n i = [x] -> x = n /\ find_factor n = x.
-Proof.
-  induction i.
-  intros n x n_lte_Si def_of_x.
-  simpl in def_of_x; discriminate.
-  intros n x n_lte_Si def_of_x.
-  unfold prime_divisors_helper in def_of_x.
-  remember (find_factor n) as a.
-  fold (prime_divisors_helper (n / a) i) in def_of_x.
-  destruct n; [ discriminate | destruct n; [ discriminate | destruct (Nat.eq_dec a (S (S n))) ]].
-  inversion def_of_x; auto.
-  (* this situation corresponds to n = 0 (so (S (S n)) = 2) *)
-  inversion def_of_x as [H1].
-  assert (1 < a) as a_gt_1. apply (find_factor_1_lt (S (S n)) a). auto with arith. symmetry in Heqa. assumption.
-  apply prime_divisors_helper_inversion2 in H.
-  split; [auto | auto].
-  destruct H as [i_0 | n_small].
-  rewrite i_0 in n_lte_Si.
-  assert (n = 0) as n_0. omega.
-  rewrite n_0 in Heqa.
-  compute in Heqa.
-  rewrite n_0 in n0.
-  omega.
-  rewrite H1 in Heqa; symmetry in Heqa.
-  apply (find_factor_mult (S (S n)) x) in Heqa; [auto | auto with arith].
-  apply (Nat.mul_le_mono_pos_r _ _ x) in n_small; [auto | omega].
-  rewrite Heqa in n_small.
-  rewrite Nat.mul_1_l in n_small.
-  assert (~ (S (S n)) < x). unfold not; intros SSn_x.
-  apply Nat.div_small in SSn_x; rewrite SSn_x in Heqa; simpl in Heqa; discriminate.
-  omega.
-  assert (S (S n) / x < S (S n)).
-  rewrite <- H1.
-  Search (_ / _ < _).
-  apply Nat.div_lt; [ auto with arith | auto ].
-  omega.
-Qed.
-
 Lemma prime_divisors_helper_equiv_mult_list : forall l i n, 1 < n <= i -> l = prime_divisors_helper n i -> mult_list l = n.
 Proof.
   induction l.
