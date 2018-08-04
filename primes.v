@@ -321,4 +321,129 @@ Section correctness_of_prime_divisors.
     apply (prime_divisors_helper_equiv_mult_list _ n n) ; [ omega | assumption ].
   Qed.
 
+  (*
+  Fixpoint find_factor_helper (m n i : nat) : nat :=
+    match i with
+      0 => n
+    | 1 => n
+    | (S p) => (if (Nat.eq_dec (n mod m) 0) then
+                  m
+                else find_factor_helper (m + 1) n p)
+    end.
+   *)
+
+  Lemma find_factor_simpl : forall i m n, 1 < m < n -> n mod m = 0 -> 2 < (S i) -> find_factor_helper m n (S i) = m -> find_factor_helper m n i = m.
+  Proof.
+    induction i.
+    intros m n m_bounded m_divides_n def_of_m.
+    omega.
+    intros m n m_bounded m_divides_n def_of_m.
+    simpl; rewrite m_divides_n; simpl.
+    intros.
+    destruct i.
+    omega.
+    assumption.
+  Qed.
+
+  Lemma find_factor_helper_0 : forall m n, find_factor_helper m n 0 = find_factor_helper (S m) n 0.
+  Proof.
+    intros; simpl; auto.
+  Qed.
+
+  Lemma sumboolF T P (b : {P} + {~ P}) x y : ~ P -> (if b then x else y) = y :> T.
+  Proof.
+    intros; destruct b; tauto.
+  Qed.
+
+  Lemma find_factor_helper_reduce : forall m n i, 1 < m -> 1 < (S i) -> find_factor_helper m n (S i) = if Nat.eq_dec (n mod m) 0 then m else find_factor_helper (m + 1) n i.
+  Proof.
+    induction m.
+    intros; omega.
+    intros n i m_bounded i_bounded.
+    destruct (Nat.eq_dec (n mod S m) 0) as [Sm_div_n | Sm_not_div_n].
+    simpl.
+    fold (n mod S m); rewrite Sm_div_n.
+    simpl.
+    destruct i; omega.
+    simpl.
+    fold (n mod S m).
+    destruct i.
+    simpl; reflexivity.
+    remember (n mod S m) as p.
+    rewrite sumboolF; [ reflexivity | assumption].
+  Qed.
+
+
+  Lemma find_factor_helper_returns_first_divisor : forall m i n x, 1 < m -> 1 < i -> m + i = n + 2 -> find_factor_helper m n i = x -> forall a, m < a < x -> n mod a <> 0.
+  Proof.
+    induction m.
+    intros; omega.
+    intros i n x m_bounded i_bounded m_i_bounded.
+    intros def_of_x.
+    assert (find_factor_helper (S m) n i = x) as def_of_x'. assumption.
+    unfold find_factor_helper in def_of_x.
+
+
+    apply (find_factor_helper_reduce (S m) n i) in def_of_x.
+    simpl in def_of_x.
+
+
+    rewrite Sm_not_div_n.
+      Search (Nat.eq_dec).
+
+      replace (if Nat.eq_dec p 0 then S m else find_factor_helper (S (m + 1)) n (S i)) with (find_factor_helper (S (m + 1)) n (S i)).
+      reflexivity.
+
+      simpl.
+
+    assert (m <= n) as m_le_n. omega.
+    assert (m < n) as m_lt_n. omega.
+    destruct (Nat.eq_dec (n mod m) 0) as [m_div_n | m_not_div_n].
+    destruct i.
+    rewrite <- find_factor_helper_0 in def_of_x'.
+    simpl in def_of_x'.
+
+    apply IHm.
+
+    rewrite m_div_n in def_of_x.
+
+    destruct i.
+    simpl in IHm.
+
+
+    intros m n x n_bounded m_bounded i_bounded.
+    intros def_of_x.
+    Search (_ <= _ -> {_ < _} + {_ = _}).
+    apply le_lt_eq_dec in i_bounded.
+    destruct i_bounded as [H_2_lt_Si | H_2_eq_Si].
+    assert (find_factor_helper m n (S i) = x) as def_of_x'; auto.
+    simpl in def_of_x.
+    destruct (Nat.eq_dec (n mod m) 0) as [m_div_n | m_not_div_n].
+    destruct i. intros; omega.
+    rewrite <- def_of_x in def_of_x'.
+    apply (find_factor_simpl (S i) m n m_bounded m_div_n H_2_lt_Si) in def_of_x'.
+
+    destruct i.
+    intros; omega.
+    simpl in def_of_x.
+    rewrite m_div_n in def_of_x; simpl in def_of_x.
+    rewrite <- def_of_x in def_of_x'.
+    apply (IHi m n) ; [auto | assumption | assumption | auto].
+
+    unfold find_factor_helper.
+    destruct i; [intros; omega | intros ;auto].
+
+    intros def_of_x a a_lt_x; omega.
+    intros m n x n_bounded m_bounded.
+
+    simpl.
+
+    destruct i.
+    intros; omega.
+forall i m n, 1 < m < n -> find_factor_helper m n i = m -> find_factor_helper m n (S i) = m
+
+
+
+
+
 End correctness_of_prime_divisors.

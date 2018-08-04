@@ -87,60 +87,44 @@ Lemma all_nat_gte_zero : forall m, m >= 0.
 Qed.
 
 Lemma denoteDigit_is_lt_10 : forall (d : digit), denoteDigit d < 10.
-  intros.
-  unfold denoteDigit.
-  elim d.
-  intros.
-  exact l.
+Proof.
+  intro d; unfold denoteDigit; elim d.
+  intros; assumption.
 Qed.
 
 Lemma denoteDigit_is_le_9 : forall (d : digit), denoteDigit d <= 9.
-  intros.
-  unfold denoteDigit.
-  elim d.
-  intros.
-  apply lt_le_S in l.
-  apply le_S_n in l.
-  exact l.
+Proof.
+  intro d.
+  assert (denoteDigit d < 10). apply denoteDigit_is_lt_10.
+  apply lt_n_Sm_le; assumption.
 Qed.
 
-Lemma blah : forall (a b c d : nat), a < d -> d + b <= c -> a + b < c.
-Proof.
-  intros.
-  - apply (lt_le_trans (a + b) (d + b) c).
-    apply (plus_lt_compat_r a d b H).
-    assumption.
-Qed.
+Require Import Omega.
 
 Definition addDigit (d1 : digit) (d2 : digit) : (digit * digit).
   pose (m := denoteDigit d1).
   pose (n := denoteDigit d2).
   destruct (lt_dec (m + n) 10) as [ TotalLt10 | TotalGt10 ].
   exact (D0, Digit (m + n) TotalLt10).
-  assert (m + n < 19) as SumMinus20.
 
   assert (m < 10). apply denoteDigit_is_lt_10.
   assert (n < 10). apply denoteDigit_is_lt_10.
-
-  apply (blah m n _ 10 H).
-  rewrite plus_comm.
-  apply (plus_lt_compat_r n 10 10) in H0.
-  auto with arith.
-  apply lt_le_S in SumMinus20.
-  apply (minus_le_compat_r _ _ 10) in SumMinus20.
-  apply not_lt in TotalGt10.
-  unfold ge in TotalGt10.
-  rewrite (Nat.sub_succ_l 10 (m + n) TotalGt10) in SumMinus20.
-  apply (le_S_gt _ (19 - 10)) in SumMinus20.
-  unfold gt in SumMinus20.
-  apply Nat.lt_lt_succ_r in SumMinus20.
-  assert (S (19 - 10) = 10).
-  auto with arith.
-  rewrite H in SumMinus20.
+  assert (m + n < 20) as SumMinus20.
+  replace 20 with (10 + 10).
+  apply plus_lt_compat; [ assumption | assumption].
+  ring.
+  cut (forall a b c, b <= a -> a < b + c -> a - b < c).
+  intros Cut.
+  replace 20 with (10 + 10) in SumMinus20.
+  apply Cut in SumMinus20.
   exact (D1, Digit (m + n - 10) SumMinus20).
+  apply not_lt in TotalGt10; unfold ge in TotalGt10; assumption.
+  ring.
+  intros; omega.
 Defined.
 
 Compute (denotePair (addDigit D3 D4)).
+Compute (denotePair (addDigit D8 D6)).
 
 Theorem addDigit_works_as_expected :
   forall d1 d2 : digit,
@@ -153,11 +137,10 @@ Proof.
   destruct (lt_dec (denoteDigit d1 + denoteDigit d2) 10).
   auto with arith.
   assert (10 * (match D1 with | Digit n0 _ => n0 end) = 10) as Ten.
-  auto.
+  auto with arith.
   rewrite Ten.
   apply not_lt in n.
   unfold ge in n.
-  Search (_ + _ - _).
   rewrite (Nat.add_sub_assoc _ _ 10 n).
   assert (10 + (denoteDigit d1 + denoteDigit d2) - 10 = (denoteDigit d1 + denoteDigit d2)).
   auto with arith.
@@ -165,7 +148,7 @@ Proof.
   auto with arith.
 Qed.
 
-Theorem addDigit_works_a_little_grittier :
+Theorem addDigit_replace :
   forall d1 d2 d3 d4 : digit,
     (addDigit d1 d2) = (d3, d4) -> (denoteDigit d1) + (denoteDigit d2) = 10 * (denoteDigit d3) + (denoteDigit d4).
 Proof.
@@ -216,34 +199,36 @@ Proof.
   apply (addDigit_bounded subtotal d3 rem2 total) in Heqp0.
   remember (addDigit rem1 rem2) as p.
   destruct p as (ignored, rem).
-  elim Heqp.
-  elim Heqp0.
-  (* mindless *)
-  intros. rewrite H0 in Heqp1. rewrite H1 in Heqp1. inversion Heqp1. inversion H. rewrite <- H5. rewrite H4. auto.
-  intros. rewrite H0 in Heqp1. rewrite H1 in Heqp1. inversion Heqp1. inversion H. rewrite <- H5. rewrite H4. auto.
-  elim Heqp0.
-  intros. rewrite H0 in Heqp1. rewrite H1 in Heqp1. inversion Heqp1. inversion H. rewrite <- H5. rewrite H4. auto.
-  intros. rewrite H0 in Heqp1. rewrite H1 in Heqp1. inversion Heqp1. inversion H. rewrite <- H5. rewrite H4. auto.
+  destruct (Heqp, Heqp0) as [[rem1_D0 | rem1_D1] [rem2_D0 | rem2_D1]].
+  - intros. rewrite rem1_D0, rem2_D0 in Heqp1.
+    inversion Heqp1; inversion H.
+    rewrite <- H3, H2.
+    auto.
+  - intros. rewrite rem1_D0, rem2_D1 in Heqp1.
+    inversion Heqp1; inversion H.
+    rewrite <- H3, H2.
+    auto.
+  - intros. rewrite rem1_D1, rem2_D0 in Heqp1.
+    inversion Heqp1; inversion H.
+    rewrite <- H3, H2.
+    auto.
+  - intros. rewrite rem1_D1, rem2_D1 in Heqp1.
+    inversion Heqp1; inversion H.
+    rewrite <- H3, H2.
+    auto.
 Qed.
 
 Lemma plus_reg_r : forall (a b c : nat), a + b = c + b <-> a = c.
 Proof.
   intros.
   induction b.
-  rewrite Nat.add_0_r.
-  rewrite Nat.add_0_r.
-  reflexivity.
-  rewrite <- plus_n_Sm.
-  rewrite <- plus_n_Sm.
+  rewrite Nat.add_0_r, Nat.add_0_r; reflexivity.
+  rewrite <- plus_n_Sm, <- plus_n_Sm.
   split.
+  intros HSab_eq_Scb.
+  apply eq_add_S, IHb in HSab_eq_Scb; assumption.
   intros.
-  apply eq_add_S in H.
-  apply IHb in H.
-  assumption.
-  intros.
-  rewrite <- IHb in H.
-  apply eq_S in H.
-  assumption.
+  apply eq_S, IHb; assumption.
 Qed.
 
 Theorem addThreeDigits_works : forall d1 d2 d3, denotePair (addThreeDigits d1 d2 d3) = denoteDigit d1 + denoteDigit d2 + denoteDigit d3.
@@ -257,25 +242,24 @@ Theorem addThreeDigits_works : forall d1 d2 d3, denotePair (addThreeDigits d1 d2
   destruct p3 as (ignored, rem).
   unfold denotePair.
   symmetry in Heqp1.
-  rewrite (addDigit_works_a_little_grittier d1 d2 rem1 subtotal Heqp1).
+  rewrite (addDigit_replace d1 d2 rem1 subtotal Heqp1).
   symmetry in Heqp2.
   rewrite <- plus_assoc.
-  rewrite (addDigit_works_a_little_grittier subtotal d3 rem2 total Heqp2).
+  rewrite (addDigit_replace subtotal d3 rem2 total Heqp2).
   rewrite plus_assoc.
   rewrite plus_reg_r.
   symmetry in Heqp1.
   symmetry in Heqp2.
-
-  pose (P := (addDigit_bounded _ _ _ _ Heqp1)).
-  pose (Q := (addDigit_bounded _ _ _ _ Heqp2)).
-
-  elim P.
-  elim Q.
-  intros. rewrite H. rewrite H0. rewrite H in Heqp3. rewrite H0 in Heqp3. inversion Heqp3. auto.
-  intros. rewrite H. rewrite H0. rewrite H in Heqp3. rewrite H0 in Heqp3. inversion Heqp3. auto.
-  elim Q.
-  intros. rewrite H. rewrite H0. rewrite H in Heqp3. rewrite H0 in Heqp3. inversion Heqp3. auto.
-  intros. rewrite H. rewrite H0. rewrite H in Heqp3. rewrite H0 in Heqp3. inversion Heqp3. auto.
+  destruct (addDigit_bounded _ _ _ _ Heqp1, addDigit_bounded _ _ _ _ Heqp2)
+    as [[rem1_D0 | rem1_D1] [rem2_D0 | rem2_D1]].
+  - intros; rewrite rem1_D0, rem2_D0. rewrite rem1_D0, rem2_D0 in Heqp3.
+    inversion Heqp3; auto.
+  - intros; rewrite rem1_D0, rem2_D1. rewrite rem1_D0, rem2_D1 in Heqp3.
+    inversion Heqp3; auto.
+  - intros; rewrite rem1_D1, rem2_D0. rewrite rem1_D1, rem2_D0 in Heqp3.
+    inversion Heqp3; auto.
+  - intros; rewrite rem1_D1, rem2_D1. rewrite rem1_D1, rem2_D1 in Heqp3.
+    inversion Heqp3; auto.
 Qed.
 
 Fixpoint addDigitList_helper_remainder (dl : list digit) (rem : digit) :=
@@ -311,16 +295,12 @@ Proof.
   rewrite IHdl.
   rewrite Nat.mul_add_distr_l.
   symmetry in Heqp.
-  apply addDigit_works_a_little_grittier in Heqp.
+  apply addDigit_replace in Heqp.
   symmetry in Heqp.
   rewrite Nat.add_comm in Heqp.
-  Search (_ + (_ + _)).
   rewrite Nat.add_shuffle3.
   rewrite Heqp.
-  rewrite Nat.add_comm.
-  Search (_ + _ + _).
-  rewrite Nat.add_shuffle0.
-  reflexivity.
+  ring.
 Qed.
 
 Fixpoint addDigitList_helper (dl1 dl2 : list digit) (rem : digit) :=
@@ -332,8 +312,6 @@ Fixpoint addDigitList_helper (dl1 dl2 : list digit) (rem : digit) :=
     let (rem', total) := addThreeDigits d1 d2 rem in
     total :: (addDigitList_helper tl1 tl2 rem')
   end.
-
-Search (_ ++ _).
 
 Lemma list_cons_app : forall (A : Type) (a : A) (l : (list A)), a :: l = [a] ++ l.
 Proof.
@@ -692,8 +670,6 @@ Qed.
 (* https://stackoverflow.com/questions/33302526/well-founded-recursion-in-coq *)
 Require Coq.Program.Tactics.
 Require Coq.Program.Wf.
-
-Require Import Omega.
 
 Program Fixpoint convertToDigitList (n : nat) { measure n } : (list digit) :=
   if eq_nat_dec n 0 then
