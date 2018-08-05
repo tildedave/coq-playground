@@ -620,10 +620,19 @@ Definition convertToDigitList (n : nat) : (list digit) :=
 Compute (convertToDigitList 123).
 
 Lemma div_zero_implies_small : (forall a b, b <> 0 -> a / b = 0 -> a < b).
-Admitted.
+Proof.
+  intros a b b_neq_0 a_div_b_eq_0.
+  apply (Nat.div_str_pos_iff a b) in b_neq_0.
+  omega.
+Qed.
+
 
 Lemma div_nonzero_implies_not_small : (forall a b, b <> 0 -> a / b <> 0 -> b <= a).
-Admitted.
+  intros a b b_neq_0.
+  apply (Nat.div_str_pos_iff a b) in b_neq_0.
+  intros a_b_neq_0.
+  omega.
+Qed.
 
 Lemma denoteDigitList_trivial : forall d : digit, denoteDigitList [d] = denoteDigit d.
 Proof.
@@ -633,14 +642,12 @@ Proof.
   ring.
 Qed.
 
-(* https://raw.githubusercontent.com/tchajed/strong-induction/master/StrongInduction.v *)
-
-Require Import StrongInduction.
+Require Import Arith Wf.
 
 Lemma convertToDigitList_helper_works :
   forall m i, m <= i -> denoteDigitList (convertToDigitList_helper m i) = m.
 Proof.
-  induction m using strong_induction.
+  induction m as [ m IHn ] using (well_founded_induction lt_wf).
   intros i m_bounded.
   unfold convertToDigitList_helper.
   destruct i.
@@ -654,7 +661,7 @@ Proof.
   intros m_lt_10_lt_m.
   Search (denoteDigitList (_ ++ _)).
   rewrite denoteDigitList_app.
-  rewrite H.
+  rewrite IHn.
   unfold length.
   rewrite denoteDigitList_trivial.
   unfold denoteDigit.
