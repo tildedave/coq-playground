@@ -679,52 +679,24 @@ Proof.
   auto.
 Qed.
 
-Lemma convertToDigitList_split :
-  forall dl m, convertToDigitList m = dl -> m <> 0 -> exists dl', dl = dl' ++ [Digit (m mod 10) (mod_is_lt m 10 TenGt0)].
+Theorem convertToDigitList_works : forall n, denoteDigitList (convertToDigitList n) = n.
 Proof.
-Admitted.
-
-Lemma convertToDigitList_works :
-  forall m, denoteDigitList (convertToDigitList m) = m.
-Proof.
-  (* https://sympa.inria.fr/sympa/arc/coq-club/2016-12/msg00019.html *)
-  induction m as [m IHm] using (well_founded_induction lt_wf).
-  remember (convertToDigitList m) as dl.
-
-  unfold convertToDigitList in Heqdl.
-  destruct (Nat.eq_dec m 0) in Heqdl.
-  rewrite e in Heqdl.
-  compute in Heqdl.
-  rewrite Heqdl.
-  unfold denoteDigitList.
-  unfold denoteDigitList_helper.
-  symmetry.
-  exact e.
-
-  symmetry in Heqdl.
-  apply (convertToDigitList_split) in Heqdl.
-  destruct Heqdl as [ dl' ].
-  rewrite H.
-  rewrite denoteDigitList_app.
-  unfold length.
-  assert ((convertToDigitList (m mod 10)) = [Digit (m mod 10) (mod_is_lt m 10 TenGt0)]).
+  intros n.
   unfold convertToDigitList.
-  (* not sure how to progress *)
-  (*
-  unfold denoteDigitList at 2.
-  unfold denoteDigitList_helper.
-  unfold denoteDigit.
-  unfold length.
-  Search (_ ^ 1).
-  rewrite Nat.pow_1_r.
-  rewrite Nat.mul_0_l.
-  rewrite Nat.add_0_l.
-   *)
-Admitted.
+  apply convertToDigitList_helper_works ; auto.
+Qed.
 
 Compute (convertToDigitList 123).
 
-(* Multiplication *)
+Theorem grade_school_addition_correct: forall m n, denoteDigitList (addDigitList (convertToDigitList m) (convertToDigitList n)) = m + n.
+Proof.
+  intros m n.
+  rewrite <- addDigitList_works.
+  repeat rewrite convertToDigitList_works.
+  reflexivity.
+Qed.
+
+  (* Multiplication *)
 
 (* 123 * 456 = (100 + 20 + 3) * (400 + 50 + 6) *)
 (* 100 * 400 + 100 * 50 + 100 * 6 + 20 * 400 + 20 * 50 + 20 * 6 + 3 * 400 + 3 * 50 + 3 * 6 *)
