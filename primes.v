@@ -321,59 +321,6 @@ Section correctness_of_prime_divisors.
     apply (prime_divisors_helper_equiv_mult_list _ n n) ; [ omega | assumption ].
   Qed.
 
-  Lemma find_factor_simpl : forall i m n, 1 < m < n -> n mod m = 0 -> 2 < (S i) -> find_factor_helper m n (S i) = m -> find_factor_helper m n i = m.
-  Proof.
-    induction i.
-    intros m n m_bounded m_divides_n def_of_m.
-    omega.
-    intros m n m_bounded m_divides_n def_of_m.
-    simpl; rewrite m_divides_n; simpl.
-    intros.
-    destruct i.
-    omega.
-    assumption.
-  Qed.
-
-  Lemma find_factor_helper_0 : forall m n, find_factor_helper m n 0 = find_factor_helper (S m) n 0.
-  Proof.
-    intros; simpl; auto.
-  Qed.
-
-  Lemma sumboolF T P (b : {P} + {~ P}) x y : ~ P -> (if b then x else y) = y :> T.
-  Proof.
-    intros; destruct b; tauto.
-  Qed.
-
-  Lemma find_factor_helper_reduce : forall m n i, 1 < m -> 1 < (S i) -> find_factor_helper m n (S i) = if Nat.eq_dec (n mod m) 0 then m else find_factor_helper (m + 1) n i.
-  Proof.
-    induction m.
-    intros; omega.
-    intros n i m_bounded i_bounded.
-    destruct (Nat.eq_dec (n mod S m) 0) as [Sm_div_n | Sm_not_div_n].
-    simpl.
-    fold (n mod S m); rewrite Sm_div_n.
-    simpl.
-    destruct i; omega.
-    simpl.
-    fold (n mod S m).
-    destruct i.
-    simpl; reflexivity.
-    remember (n mod S m) as p.
-    rewrite sumboolF; [ reflexivity | assumption].
-  Qed.
-
-
-  (*
-  Fixpoint find_factor_helper (m n i : nat) : nat :=
-    match i with
-      0 => n
-    | 1 => n
-    | (S p) => (if (Nat.eq_dec (n mod m) 0) then
-                  m
-                else find_factor_helper (m + 1) n p)
-    end.
-   *)
-
   (*
      If find_factor_helper m n i = x
      AND
@@ -390,7 +337,7 @@ Section correctness_of_prime_divisors.
       m <= n ->
       find_factor_helper m n i = x ->
       n mod x = 0 ->
-      forall a, m < a < x -> n mod a <> 0.
+      forall a, m <= a < x -> n mod a <> 0.
     induction i.
     intros; omega.
     destruct i.
@@ -416,12 +363,8 @@ Section correctness_of_prime_divisors.
     apply le_lt_or_eq in m_lt_a.
     destruct m_lt_a as [Sm_lt_a | Sm_eq_a].
     apply J; omega.
-    Search (_ + 1).
-    rewrite <- Nat.add_1_r in Sm_eq_a.
-    destruct HeqJ.
-    rewrite Sm_eq_a in H1.
-    (* blah *)
-  Admitted.
-
+    rewrite Sm_eq_a in m_not_div_n.
+    assumption.
+  Qed.
 
 End correctness_of_prime_divisors.
