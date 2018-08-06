@@ -331,18 +331,21 @@ Section correctness_of_prime_divisors.
      There's no element between initial m and result that satisfies n mod m = 0.
    *)
 
+  (* not sure why this isn't automatically imported *)
+  Notation "( x | y )" := (Nat.divide x y) (at level 0) : nat_scope.
+  Search (Nat.divide _).
+
   Lemma find_factor_helper_returns_first_divisor :
     forall i m n x,
       i = n - m + 2 ->
-      m <= n ->
+      1 < m <= n ->
       find_factor_helper m n i = x ->
-      n mod x = 0 ->
-      forall a, m <= a < x -> n mod a <> 0.
+      forall a, m <= a < x -> ~(a | n).
     induction i.
     intros; omega.
     destruct i.
     intros; omega.
-    intros m n x i_bounded m_bounded def_of_x n_divides_x.
+    intros m n x i_bounded m_bounded def_of_x.
     unfold find_factor_helper in def_of_x.
     fold (find_factor_helper (m + 1) n (S i)) in def_of_x.
     destruct (Nat.eq_dec n m) as [m_eq_n | m_neq_n].
@@ -353,8 +356,8 @@ Section correctness_of_prime_divisors.
     destruct (Nat.eq_dec (n mod m) 0) as [m_div_n | m_not_div_n].
     intros a; omega.
     assert ((S i) = n - (m + 1) + 2) as H1. omega.
-    assert (m + 1 <= n) as H2. omega.
-    remember (IHi (m + 1) _ x H1 H2 def_of_x n_divides_x) as J.
+    assert (1 < m + 1 <= n) as H2. omega.
+    remember (IHi (m + 1) _ x H1 H2 def_of_x) as J.
     intros a.
     intros a_bounded.
     destruct a_bounded as [m_lt_a a_lt_x].
@@ -364,7 +367,19 @@ Section correctness_of_prime_divisors.
     destruct m_lt_a as [Sm_lt_a | Sm_eq_a].
     apply J; omega.
     rewrite Sm_eq_a in m_not_div_n.
-    assumption.
+    unfold not.
+    intros a_divides_n.
+    rewrite <- Nat.mod_divide in a_divides_n; [ auto | auto].
+    rewrite <- Sm_eq_a.
+    omega.
+  Qed.
+
+  Theorem find_factor_returns_first_divisor : forall n x, 2 <= n -> find_factor n = x -> forall a, 2 <= a < x -> ~(a | n).
+  Proof.
+    intros n x n_bounded def_of_x.
+    unfold find_factor in def_of_x.
+    apply (find_factor_helper_returns_first_divisor n 2 n x);
+      [omega|auto|auto].
   Qed.
 
 End correctness_of_prime_divisors.
