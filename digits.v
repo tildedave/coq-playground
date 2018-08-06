@@ -679,7 +679,7 @@ Proof.
   auto.
 Qed.
 
-Theorem convertToDigitList_works : forall n, denoteDigitList (convertToDigitList n) = n.
+Theorem convertToDigitList_works : forall n : nat, denoteDigitList (convertToDigitList n) = n.
 Proof.
   intros n.
   unfold convertToDigitList.
@@ -695,6 +695,8 @@ Proof.
   repeat rewrite convertToDigitList_works.
   reflexivity.
 Qed.
+
+Recursive Extraction addDigitList convertToDigitList.
 
   (* Multiplication *)
 
