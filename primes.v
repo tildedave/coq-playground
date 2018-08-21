@@ -340,7 +340,7 @@ Section correctness_of_prime_divisors.
       i = n - m + 2 ->
       1 < m <= n ->
       find_factor_helper m n i = x ->
-      forall a, m <= a < x -> ~(a | n).
+      forall a, m <= a < x -> ~(a | x).
     induction i.
     intros; omega.
     destruct i.
@@ -369,17 +369,79 @@ Section correctness_of_prime_divisors.
     rewrite Sm_eq_a in m_not_div_n.
     unfold not.
     intros a_divides_n.
-    rewrite <- Nat.mod_divide in a_divides_n; [ auto | auto].
-    rewrite <- Sm_eq_a.
-    omega.
+    destruct HeqJ.
+    apply find_factor_helper_mult in def_of_x; [auto | omega].
+    rewrite Nat.mod_divide in def_of_x; [auto | omega].
+    unfold not in m_not_div_n.
+    apply (Nat.divide_trans a x n) in a_divides_n; [auto|auto].
+    apply Nat.mod_divide in a_divides_n; [auto | omega].
   Qed.
 
-  Theorem find_factor_returns_first_divisor : forall n x, 2 <= n -> find_factor n = x -> forall a, 2 <= a < x -> ~(a | n).
+  Theorem find_factor_returns_first_divisor : forall n x, 2 <= n -> find_factor n = x -> forall a, 2 <= a < x -> ~(a | x).
   Proof.
     intros n x n_bounded def_of_x.
     unfold find_factor in def_of_x.
     apply (find_factor_helper_returns_first_divisor n 2 n x);
       [omega|auto|auto].
   Qed.
+
+  Check In.
+
+  Theorem prime_divisors_contains_primes : forall l n, 1 < n -> prime_divisors n = l ->
+forall m, In m l -> forall a, 2 <= a < m -> ~(a | m).
+  Proof.
+    induction l.
+    intros; auto.
+    intros n n_bounded def_of_l m m_in_l.
+    unfold prime_divisors in def_of_l.
+    apply in_inv in m_in_l.
+    rewrite <- Nat.succ_pred in def_of_l at 2; [auto|omega].
+    apply (prime_divisors_helper_inversion (Nat.pred n) n) in def_of_l; [auto|omega].
+    destruct (m_in_l, def_of_l) as [[a_is_m | m_in_l'] [def_of_a def_of_l1]].
+    symmetry in def_of_a.
+    remember (find_factor_returns_first_divisor n a n_bounded def_of_a) as J.
+    destruct HeqJ.
+    rewrite a_is_m in J; assumption.
+    apply (IHl (n / a)); [auto|auto|auto].
+    Focus 2.
+    destruct def_of_l1.
+
+    Goal (forall i j n, 1 < n -> 1 < j <= i -> prime_divisors_helper n j = prime_divisors_helper n i).
+      induction i.
+      intros j n n_bounded j_bounded.
+      simpl; omega.
+      intros j n n_bounded j_bounded.
+      unfold prime_divisors_helper at 2.
+      fold prime_divisors_helper.
+      rewrite <- (IHi j (n / find_factor n)).
+      fold (prime_divisors_helper n _).
+
+    destruct n; [intros; omega | destruct n; [intros; omega | auto]].
+    compute in def_of_l.
+
+
+
+  Theorem find_factor_returns_prime : forall n x, 2 <= n -> find_factor n = x -> Znumtheory.prime (Z.of_nat x).
+  Proof.
+    intros n x n_bounded def_of_x.
+    rewrite <- (Znumtheory.prime_alt).
+    unfold Znumtheory.prime'.
+    split.
+    replace 1%Z with (Z.of_nat 1);
+      [apply inj_lt, (find_factor_1_lt n x); auto | auto].
+    remember (find_factor_returns_first_divisor n x n_bounded def_of_x) as J.
+    intros n0 n0_bounded.
+    unfold not, Nat.divide.
+    intros nz_divides_x.
+    unfold Znumtheory.Zdivide in nz_divides_x.
+    destruct nz_divides_x as [k x_eq_k_n0].
+    apply (J (Z.to_nat k)); [auto|auto].
+    Check (Z.of_nat).
+    Search (Z.of_nat _).
+    rewrite (x_eq_k_n0) in n0_bounded.
+
+    (* not sure what's next or if this even matters *)
+  Admitted.
+
 
 End correctness_of_prime_divisors.
