@@ -7,11 +7,6 @@ Inductive digit : Set :=
 Definition denoteDigit (d : digit) : nat :=
   match d with Digit n _ => n end.
 
-Definition denotePair p :=
-  match p with
-    (d1, d2) => 10 * (denoteDigit d1) + (denoteDigit d2)
-  end.
-
 Fixpoint denoteDigitList_helper (dl : list digit) (acc : nat) :=
   match dl with
   | [] => acc
@@ -101,11 +96,19 @@ Qed.
 
 Require Import Omega.
 
-Definition addDigit (d1 : digit) (d2 : digit) : (digit * digit).
+Inductive remainder := zero | one.
+
+Definition denotePair p :=
+  match p with
+  | (zero, d) => (denoteDigit d)
+  | (one, d) => 10 + (denoteDigit d)
+  end.
+
+Definition addDigit (d1 : digit) (d2 : digit) : (remainder * digit).
   pose (m := denoteDigit d1).
   pose (n := denoteDigit d2).
   destruct (lt_dec (m + n) 10) as [ TotalLt10 | TotalGt10 ].
-  exact (D0, Digit (m + n) TotalLt10).
+  exact (zero, Digit (m + n) TotalLt10).
 
   assert (m < 10). apply denoteDigit_is_lt_10.
   assert (n < 10). apply denoteDigit_is_lt_10.
@@ -117,7 +120,7 @@ Definition addDigit (d1 : digit) (d2 : digit) : (digit * digit).
   intros Cut.
   replace 20 with (10 + 10) in SumMinus20.
   apply Cut in SumMinus20.
-  exact (D1, Digit (m + n - 10) SumMinus20).
+  exact (one, Digit (m + n - 10) SumMinus20).
   apply not_lt in TotalGt10; unfold ge in TotalGt10; assumption.
   ring.
   intros; omega.
@@ -131,44 +134,12 @@ Theorem addDigit_works_as_expected :
           (denoteDigit d1) + (denoteDigit d2) = (denotePair (addDigit d1 d2)).
 Proof.
   intros.
-  unfold denotePair.
-  unfold denoteDigit.
-  unfold addDigit.
-  destruct (lt_dec (denoteDigit d1 + denoteDigit d2) 10).
-  auto with arith.
-  assert (10 * (match D1 with | Digit n0 _ => n0 end) = 10) as Ten.
-  auto with arith.
-  rewrite Ten.
-  apply not_lt in n.
-  unfold ge in n.
-  rewrite (Nat.add_sub_assoc _ _ 10 n).
-  assert (10 + (denoteDigit d1 + denoteDigit d2) - 10 = (denoteDigit d1 + denoteDigit d2)).
-  auto with arith.
-  rewrite H.
-  auto with arith.
-Qed.
-
-Theorem addDigit_replace :
-  forall d1 d2 d3 d4 : digit,
-    (addDigit d1 d2) = (d3, d4) -> (denoteDigit d1) + (denoteDigit d2) = 10 * (denoteDigit d3) + (denoteDigit d4).
-Proof.
-  intros.
-  rewrite addDigit_works_as_expected.
-  unfold denotePair.
-  rewrite H.
-  reflexivity.
-Qed.
-
-Lemma addDigit_bounded : forall (d1 d2 d3 d4 : digit), (d3, d4) = (addDigit d1 d2) -> d3 = D0 \/ d3 = D1.
-  intros.
-  unfold addDigit in H.
-  destruct (lt_dec (denoteDigit d1 + denoteDigit d2) 10).
-  left.
-  inversion H.
-  reflexivity.
-  right.
-  inversion H.
-  reflexivity.
+  unfold denotePair, denoteDigit, addDigit.
+  destruct (lt_dec (denoteDigit d1 + denoteDigit d2) 10) as [d1_plus_d2_lt_10 | d1_plus_d2_gte_10].
+  - auto with arith.
+  - apply not_lt in d1_plus_d2_gte_10.
+    fold (denoteDigit d1); fold (denoteDigit d2).
+    auto with arith.
 Qed.
 
 Theorem addDigit_assoc_r : forall (d1 d2 d3 : digit),
@@ -181,9 +152,26 @@ Proof.
   reflexivity.
 Qed.
 
-Definition addThreeDigits d1 d2 d3 : (digit * digit) :=
-  let (rem1, subtotal) := (addDigit d1 d2) in
-  let (rem2, total) := (addDigit subtotal d3) in
+Definition addDigitsWithRemainder (d1 d2 : digit) (r : remainder) : (remainder * digit).
+  destruct (addDigit d1 d2) as (r', subtotal).
+  case r.
+  exact (r', subtotal).
+  remember (denoteDigit subtotal) as n.
+  destruct (lt_dec (denoteDigit subtotal) 9) as [ SubtotalLt9 | SubtotalEq9 ].
+  apply lt_n_S in SubtotalLt9.
+  rewrite <- Heqn in SubtotalLt9.
+  exact (r', Digit (S n) SubtotalLt9).
+  (* this is the situation where d1 + d2 = 9 with one as r, so final answer is 10.
+     this means r' = zero by necessity. will need to show this in the theorem *)
+  exact (one, D0).
+Defined.
+
+Compute (addDigitsWithRemainder D3 D8 one).
+
+
+Definition addThreeDigits d1 d2 r : (r * digit) :=
+  let (r1, subtotal) := (addDigit d1 d2) in
+  let (r2, total) := (addDigit subtotal d3) in
   let (_, rem) := (addDigit rem1 rem2) in
   (rem, total).
 
@@ -309,7 +297,7 @@ Fixpoint addDigitList_helper (dl1 dl2 : list digit) (rem : digit) :=
   | ([], _) => addDigitList_helper_remainder dl2 rem
   | (_, []) => addDigitList_helper_remainder dl1 rem
   | (d1 :: tl1, d2 :: tl2) =>
-    let (rem', total) := addThreeDigits d1 d2 rem in
+    let (rem', total) := addDigitsWithRemainder d1 d2 rem in
     total :: (addDigitList_helper tl1 tl2 rem')
   end.
 
