@@ -96,32 +96,35 @@ Qed.
 
 Require Import Omega.
 
-Inductive remainder := zero | one.
+Inductive remainder := R0 | R1.
 
 Definition denotePair p :=
   match p with
-  | (zero, d) => (denoteDigit d)
-  | (one, d) => 10 + (denoteDigit d)
+  | (R0, d) => (denoteDigit d)
+  | (R1, d) => 10 + (denoteDigit d)
   end.
 
 Definition addDigit (d1 : digit) (d2 : digit) : (remainder * digit).
   pose (m := denoteDigit d1).
   pose (n := denoteDigit d2).
   destruct (lt_dec (m + n) 10) as [ TotalLt10 | TotalGt10 ].
-  exact (zero, Digit (m + n) TotalLt10).
+  exact (R0, Digit (m + n) TotalLt10).
 
-  assert (m < 10). apply denoteDigit_is_lt_10.
-  assert (n < 10). apply denoteDigit_is_lt_10.
-  assert (m + n < 20) as SumMinus20.
-  replace 20 with (10 + 10).
-  apply plus_lt_compat; [ assumption | assumption].
-  ring.
-  cut (forall a b c, b <= a -> a < b + c -> a - b < c).
+  assert (m <= 9). apply denoteDigit_is_le_9.
+  assert (n <= 9). apply denoteDigit_is_le_9.
+  assert (m + n <= 18) as SumMinus20.
+  replace 18 with (9 + 9).
+  apply plus_le_compat; [ assumption | assumption].
+  auto with arith.
+  cut (forall a b c, b <= a -> a <= b + c -> a - b <= c).
   intros Cut.
-  replace 20 with (10 + 10) in SumMinus20.
+  replace 18 with (9 + 9) in SumMinus20.
   apply Cut in SumMinus20.
-  exact (one, Digit (m + n - 10) SumMinus20).
-  apply not_lt in TotalGt10; unfold ge in TotalGt10; assumption.
+  Search (_ <= _ -> _ < _).
+  apply le_lt_n_Sm in SumMinus20.
+  assert (m + n - 10 < 10) as mPlusNLe10. omega.
+  exact (R1, Digit (m + n - 10) mPlusNLe10).
+  apply not_lt in TotalGt10; unfold ge in TotalGt10; omega.
   ring.
   intros; omega.
 Defined.
@@ -163,47 +166,73 @@ Definition addDigitsWithRemainder (d1 d2 : digit) (r : remainder) : (remainder *
   exact (r', Digit (S n) SubtotalLt9).
   (* this is the situation where d1 + d2 = 9 with one as r, so final answer is 10.
      this means r' = zero by necessity. will need to show this in the theorem *)
-  exact (one, D0).
+  exact (R1, D0).
 Defined.
 
-Compute (addDigitsWithRemainder D3 D8 one).
+(*Compute (addDigitsWithRemainder D3 D8 R0).*)
+Compute (addDigitsWithRemainder D3 D8 R1).
+Compute (addDigitsWithRemainder D2 D8 R1).
+Compute (addDigitsWithRemainder D1 D8 R1).
 
+Definition denoteRemainder r :=
+  match r with
+  | R0 => 0
+  | R1 => 1
+  end.
 
-Definition addThreeDigits d1 d2 r : (r * digit) :=
-  let (r1, subtotal) := (addDigit d1 d2) in
-  let (r2, total) := (addDigit subtotal d3) in
-  let (_, rem) := (addDigit rem1 rem2) in
-  (rem, total).
-
-Lemma addThreeDigits_bounded : forall (d1 d2 d3 d4 d5 : digit), (addThreeDigits d1 d2 d3) = (d4, d5) -> denoteDigit d4 <= 2.
+Lemma denotePair_S : forall r d H, denotePair (r, Digit (S (denoteDigit d)) H) = denotePair (r, d) + 1.
 Proof.
-  intros.
-  unfold addThreeDigits in H.
+  intros r d H.
+  unfold denotePair, denoteDigit; destruct d; rewrite Nat.add_1_r.
+  destruct r; reflexivity.
+Qed.
+
+Lemma addDigit_bounded : forall d1 d2, denotePair (addDigit d1 d2) <= 18.
+  intros d1 d2.
+  rewrite <- addDigit_works_as_expected.
+  remember (denoteDigit_is_le_9 d1).
+  remember (denoteDigit_is_le_9 d2).
+  omega.
+Qed.
+
+Lemma addDigit_R0 : forall d d1 d2, addDigit d1 d2 = (R0, d) -> denoteDigit d1 + denoteDigit d2 = denoteDigit d.
+  intros d d1 d2 def_of_d.
+  remember (denotePair (addDigit d1 d2)) as n.
+  rewrite <- addDigit_works_as_expected in Heqn.
+  unfold addDigit in def_of_d.
+  destruct (lt_dec (denoteDigit d1 + denoteDigit d2) 10).
+  inversion def_of_d.
+  unfold denoteDigit.
+  auto with arith.
+  inversion def_of_d.
+Qed.
+
+Theorem addDigitsWithRemainder_works: forall d1 d2 r, denotePair (addDigitsWithRemainder d1 d2 r) = denoteDigit d1 + denoteDigit d2 + denoteRemainder r.
+Proof.
+  intros d1 d2 r.
+  unfold addDigitsWithRemainder.
   remember (addDigit d1 d2) as p.
-  destruct p as (rem1, subtotal).
-  apply (addDigit_bounded d1 d2 rem1 subtotal) in Heqp.
-  remember (addDigit subtotal d3) as p.
-  destruct p as (rem2, total).
-  apply (addDigit_bounded subtotal d3 rem2 total) in Heqp0.
-  remember (addDigit rem1 rem2) as p.
-  destruct p as (ignored, rem).
-  destruct (Heqp, Heqp0) as [[rem1_D0 | rem1_D1] [rem2_D0 | rem2_D1]].
-  - intros. rewrite rem1_D0, rem2_D0 in Heqp1.
-    inversion Heqp1; inversion H.
-    rewrite <- H3, H2.
-    auto.
-  - intros. rewrite rem1_D0, rem2_D1 in Heqp1.
-    inversion Heqp1; inversion H.
-    rewrite <- H3, H2.
-    auto.
-  - intros. rewrite rem1_D1, rem2_D0 in Heqp1.
-    inversion Heqp1; inversion H.
-    rewrite <- H3, H2.
-    auto.
-  - intros. rewrite rem1_D1, rem2_D1 in Heqp1.
-    inversion Heqp1; inversion H.
-    rewrite <- H3, H2.
-    auto.
+  destruct p as (r', subtotal).
+  destruct r.
+  rewrite Heqp, <- addDigit_works_as_expected.
+  unfold denoteRemainder; auto with arith.
+  destruct (lt_dec (denoteDigit subtotal) 9).
+  rewrite denotePair_S.
+  rewrite Heqp, <- addDigit_works_as_expected.
+  unfold denoteRemainder; auto with arith.
+  (* must argue that subtotal = 9.  this is because ~(subtotal < 9), so obviously subtotal = 9 *)
+  assert (denoteDigit subtotal = 9) as SubtotalEq9.
+  remember (denoteDigit_is_lt_10 subtotal); omega.
+  induction r'.
+  symmetry in Heqp. apply addDigit_R0 in Heqp.
+  rewrite Heqp, SubtotalEq9. compute; auto with arith.
+  (* must argue that R1 is impossible because since subtotal = 9, so d1 + d2 can't be 19 *)
+  remember (addDigit_bounded d1 d2) as l.
+  destruct Heql.
+  rewrite <- Heqp in l.
+  unfold denotePair in l.
+  rewrite SubtotalEq9 in l.
+  omega.
 Qed.
 
 Lemma plus_reg_r : forall (a b c : nat), a + b = c + b <-> a = c.
