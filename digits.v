@@ -248,77 +248,11 @@ Proof.
   apply eq_S, IHb; assumption.
 Qed.
 
-Theorem addThreeDigits_works : forall d1 d2 d3, denotePair (addThreeDigits d1 d2 d3) = denoteDigit d1 + denoteDigit d2 + denoteDigit d3.
-  intros.
-  unfold addThreeDigits.
-  remember (addDigit d1 d2) as p1.
-  destruct p1 as (rem1, subtotal).
-  remember (addDigit subtotal d3) as p2.
-  destruct p2 as (rem2, total).
-  remember (addDigit rem1 rem2) as p3.
-  destruct p3 as (ignored, rem).
-  unfold denotePair.
-  symmetry in Heqp1.
-  rewrite (addDigit_replace d1 d2 rem1 subtotal Heqp1).
-  symmetry in Heqp2.
-  rewrite <- plus_assoc.
-  rewrite (addDigit_replace subtotal d3 rem2 total Heqp2).
-  rewrite plus_assoc.
-  rewrite plus_reg_r.
-  symmetry in Heqp1.
-  symmetry in Heqp2.
-  destruct (addDigit_bounded _ _ _ _ Heqp1, addDigit_bounded _ _ _ _ Heqp2)
-    as [[rem1_D0 | rem1_D1] [rem2_D0 | rem2_D1]].
-  - intros; rewrite rem1_D0, rem2_D0. rewrite rem1_D0, rem2_D0 in Heqp3.
-    inversion Heqp3; auto.
-  - intros; rewrite rem1_D0, rem2_D1. rewrite rem1_D0, rem2_D1 in Heqp3.
-    inversion Heqp3; auto.
-  - intros; rewrite rem1_D1, rem2_D0. rewrite rem1_D1, rem2_D0 in Heqp3.
-    inversion Heqp3; auto.
-  - intros; rewrite rem1_D1, rem2_D1. rewrite rem1_D1, rem2_D1 in Heqp3.
-    inversion Heqp3; auto.
-Qed.
-
-Fixpoint addDigitList_helper_remainder (dl : list digit) (rem : digit) :=
-  match dl with
-  | [] => [rem]
-  | d :: tl =>
-    let (rem', x) := addDigit d rem in
-    x :: addDigitList_helper_remainder tl rem'
-  end.
-
 Fixpoint denoteDigitList_backwards (dl : list digit) : nat :=
   match dl with
   | [] => 0
   | x :: dl => (denoteDigit x) + (10 * denoteDigitList_backwards dl)
   end.
-
-Theorem addDigitList_helper_remainder_works : forall dl rem, denoteDigitList_backwards (addDigitList_helper_remainder dl rem) = denoteDigitList_backwards dl + denoteDigit rem.
-Proof.
-  induction dl.
-  intros.
-  unfold denoteDigitList_backwards at 2.
-  unfold addDigitList_helper_remainder.
-  unfold denoteDigitList_backwards.
-  auto.
-
-  intros.
-  unfold addDigitList_helper_remainder.
-  fold addDigitList_helper_remainder.
-  remember (addDigit a rem) as p.
-  destruct p as (rem', x).
-  unfold denoteDigitList_backwards.
-  fold denoteDigitList_backwards.
-  rewrite IHdl.
-  rewrite Nat.mul_add_distr_l.
-  symmetry in Heqp.
-  apply addDigit_replace in Heqp.
-  symmetry in Heqp.
-  rewrite Nat.add_comm in Heqp.
-  rewrite Nat.add_shuffle3.
-  rewrite Heqp.
-  ring.
-Qed.
 
 Fixpoint addDigitList_helper (dl1 dl2 : list digit) (rem : digit) :=
   match (dl1, dl2) with
