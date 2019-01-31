@@ -115,7 +115,6 @@ Section group_laws.
 End group_laws.
 
 Section subgroups.
-
   Variables (A : Set) (op : A -> A -> A) (zero : A).
   Variable (Group : is_group A op zero).
 
@@ -149,6 +148,14 @@ Section subgroups.
     intros Ha Hb.
     apply H_closed.
     auto.
+  Qed.
+
+  Lemma inverse_subgroup: forall a H,
+      is_subgroup H -> H a = true -> exists b : A, H b = true /\ op a b = zero.
+    intros a H IsSubgroup H_a.
+    unfold is_subgroup in IsSubgroup.
+    destruct IsSubgroup as [_ [_ Inverse]].
+    apply (Inverse a); assumption.
   Qed.
 
   (* a in Hb -> Ha = Hb *)
@@ -216,7 +223,115 @@ Section subgroups.
     destruct X_exists as [x [H1 H2]]; auto.
     exists x; auto.
   Qed.
+
+  Lemma coset_reflexive: forall a H Ha, right_coset a H Ha -> Ha a = true.
+  Proof.
+    intros a H Ha.
+    intros Ha_coset.
+    unfold right_coset in Ha_coset.
+    destruct Ha_coset as [H_subgroup HCoset_membership].
+    unfold is_subgroup in H_subgroup.
+    destruct H_subgroup as [H_zero [H_closed _]].
+    apply (HCoset_membership a).
+    exists zero.
+    split; auto.
+    rewrite (group_zero_l A op zero Group); reflexivity.
+  Qed.
+
+  Theorem coset_representative:
+    forall a b H Ha Hb,
+      right_coset a H Ha /\ right_coset b H Hb ->
+      Hb a = true ->
+      forall c, Ha c = true <-> Hb c = true.
+  Proof.
+    intros a b H Ha Hb [Ha_Coset Hb_Coset].
+    intros Hb_a.
+    (* going to show that a is in both Ha Hb *)
+    remember (coset_reflexive a H Ha Ha_Coset) as Ha_a.
+    apply (coset_intersection a b H Ha Hb); auto.
+    exists a; auto.
+  Qed.
+
+  Theorem coset_inverse:
+    forall a b H Ha,
+      right_coset a H Ha -> Ha b = true -> (exists h, H h = true /\ op h a = b).
+    intros a b H Ha.
+    intros Ha_coset.
+    unfold right_coset in Ha_coset.
+    destruct Ha_coset as [H_subgroup Ha_coset].
+    apply (Ha_coset b).
+  Qed.
+
+  Theorem coset_mult: forall a b H Ha, right_coset a H Ha -> H b = true -> Ha (op b a) = true.
+    intros a b H Ha Ha_Coset Hb_true.
+    apply Ha_Coset.
+    exists b; auto.
+  Qed.
+
+  Theorem coset_zero:
+    forall a H Ha,
+      H a = true -> right_coset a H Ha -> right_coset zero H Ha.
+  Proof.
+    intros a H Ha Ha_true Ha_Coset.
+    assert (is_subgroup H) as IsSubgroup.
+    unfold right_coset in Ha_Coset; destruct Ha_Coset; auto.
+    remember (inverse_subgroup a H IsSubgroup Ha_true) as HA.
+    destruct HA as [a_inverse [H_a_inverse op_a_a_inverse_eq_zero]].
+    split.
+    assumption.
+    intros c.
+    split; intro Ha_c_true.
+    exists c; split.
+    apply (coset_inverse _ c H Ha) in Ha_Coset.
+    destruct Ha_Coset as [h [h_Subgroup h_op_a]].
+    rewrite <- h_op_a; apply (subgroup_op_closed h a H IsSubgroup h_Subgroup Ha_true).
+    assumption.
+    apply (group_zero_r A op zero Group).
+    destruct Ha_c_true as [c' [H_c' Heqc']].
+    rewrite (group_zero_r A op zero Group) in Heqc'.
+    (* showing that c is in the coset, assumption c is in the group *)
+    assert (H c = true) as Hc.  rewrite <- Heqc'. assumption.
+    (* I've lost the thread, I assume we must conjugate c *)
+    (* Show c * a^1 * a = c *)
+    destruct HeqHA.
+    apply (subgroup_op_closed c a_inverse H IsSubgroup Hc) in H_a_inverse.
+    (* want to transform right_coset a H Ha and H (op c a_inverse) = true into Ha c = true *)
+    (* right_coset a H Ha -> H b -> Ha (b a) *)
+    apply (coset_mult _ (op c a_inverse) H Ha Ha_Coset) in H_a_inverse.
+    rewrite <- (group_zero_r A op zero Group c).
+    apply (inverse_commutes A op zero Group) in op_a_a_inverse_eq_zero.
+    rewrite <- op_a_a_inverse_eq_zero.
+    repeat rewrite <- (group_assoc A op zero Group).
+    assumption.
+  Qed.
+
+  (* all the same facts are true for left cosets but I don't want to prove those now :) *)
+
+  (* TODO: normal subgroup *)
+  (* TODO: group mod subgroup *)
+  (* Show: group mod normal subgroup is a group *)
+
 End subgroups.
+
+Section quotient_groups.
+  Variables (A : Set) (op : A -> A -> A) (zero : A).
+  Variable (Group : is_group A op zero).
+  Variable (H: A -> bool).
+  Variable (Subgroup: is_subgroup A op zero H).
+
+  (* Universe of quotient groups is the coset universe *)
+
+  Definition quotient_group_zero :=
+    (* zero is coset based on subgroup membership *)
+    1.
+
+  Definition quotient_group_op :=
+    (* must
+
+  (* theorem should show is_group holds for a given quotient_group *)
+
+End quotient_groups.
+
 
 (* ring zero *)
 (* ring id *)
