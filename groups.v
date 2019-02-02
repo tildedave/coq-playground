@@ -29,43 +29,45 @@ Section group_laws.
   Variables (A : Set) (op : A -> A -> A) (inv : A -> A) (zero : A).
   Variable (Group : is_group A op inv zero).
 
-  Lemma inverse1 (a: A): op a (inv a) = zero.
+  Notation "x <*> y" := (op x y) (at level 50, left associativity).
+
+  Lemma inverse1 (a: A): a <*> (inv a) = zero.
     unfold is_group, is_inverse in Group.
     destruct Group as [_ HasInverse].
     apply HasInverse.
   Qed.
 
-  Lemma inverse2 (a: A): op (inv a) a = zero.
+  Lemma inverse2 (a: A): (inv a) <*> a = zero.
     unfold is_group, is_inverse in Group.
     destruct Group as [_ HasInverse].
     apply HasInverse.
   Qed.
 
-  Lemma inverse_commutes (a: A): op a (inv a) = op (inv a) a.
+  Lemma inverse_commutes (a: A): a <*> (inv a) = (inv a) <*> a.
     unfold is_group, is_inverse in Group.
     destruct Group as [_ HasInverse].
     rewrite inverse1. symmetry; apply HasInverse.
   Qed.
 
-  Lemma group_add_l: forall a b c, b = c -> op a b = op a c.
+  Lemma group_add_l: forall a b c, b = c -> a <*> b = a <*> c.
     intros a b c.
     intros H; rewrite H; reflexivity.
   Qed.
 
-  Lemma group_add_r: forall a b c, b = c -> op b a = op c a.
+  Lemma group_add_r: forall a b c, b = c -> b <*> a = c <*> a.
     intros a  b c.
     intros H; rewrite H; reflexivity.
   Qed.
 
-  Lemma group_zero_r: forall a, op a zero = a.
+  Lemma group_zero_r: forall a, a <*> zero = a.
     destruct Group as [[_ Zero] _]; apply Zero.
   Qed.
 
-  Lemma group_zero_l: forall a, op zero a = a.
+  Lemma group_zero_l: forall a, zero <*> a = a.
     destruct Group as [[_ Zero] _]; apply Zero.
   Qed.
 
-  Lemma group_assoc: forall a b c, op (op a b) c = op a (op b c).
+  Lemma group_assoc: forall a b c, (a <*> b) <*> c = a <*> (b <*> c).
     destruct Group as [[Assoc _] _]; auto.
   Qed.
 
@@ -126,11 +128,6 @@ Section group_laws.
     apply inverse_unique in H.
     symmetry; assumption.
   Qed.
-End group_laws.
-
-Section subgroups.
-  Variables (A : Set) (op : A -> A -> A) (inv : A -> A) (zero : A).
-  Variable (Group : is_group A op inv zero).
 
   (* subgroup_mem is a characteristic function.  not sure if it will need to
      be A -> Prop instead of a -> bool. *)
@@ -172,7 +169,7 @@ Section subgroups.
 
   Lemma inverse_subgroup2: forall a H, is_subgroup H -> is_mem H (inv a) -> is_mem H a.
     intros a H IsSubgroup H_inv_a.
-    rewrite <- (inverse_cancel A op inv zero Group).
+    rewrite <- inverse_cancel.
     apply inverse_subgroup1.
     auto.
     assumption.
@@ -215,10 +212,10 @@ Section subgroups.
     exists h.
     split. destruct ha_eq_b; assumption.
     destruct ha_eq_b as [h_Subgroup op_h_a_eq_b].
-    apply (group_cancel_l A op inv zero Group h _ _).
-    rewrite <- (group_assoc A op inv zero Group).
-    rewrite (inverse1 A op inv zero Group).
-    rewrite (group_zero_l A op inv zero Group).
+    apply (group_cancel_l h).
+    rewrite <- group_assoc.
+    rewrite inverse1.
+    rewrite group_zero_l.
     assumption.
   Qed.
 
@@ -231,10 +228,10 @@ Section subgroups.
     exists h.
     split. destruct ha_eq_b; assumption.
     destruct ha_eq_b as [h_Subgroup op_h_a_eq_b].
-    apply (group_cancel_r A op inv zero Group h _ _).
-    rewrite (group_assoc A op inv zero Group).
-    rewrite (inverse2 A op inv zero Group).
-    rewrite (group_zero_r A op inv zero Group).
+    apply (group_cancel_r h).
+    rewrite group_assoc.
+    rewrite inverse2.
+    rewrite group_zero_r.
     assumption.
   Qed.
 
@@ -267,7 +264,7 @@ Section subgroups.
     destruct Hb_x as [h2 [h2_subgroup h2_equality]].
     exists h1, h2.
     rewrite <- h2_equality in h1_equality.
-    rewrite (group_assoc A op inv zero Group).
+    rewrite group_assoc.
     auto.
   Qed.
 
@@ -290,8 +287,8 @@ Section subgroups.
     apply (subgroup_op_closed (inv h1) h2 H IsSubgroup h1_Subgroup) in h2_Subgroup.
     apply (subgroup_op_closed h _ H IsSubgroup h_Subgroup) in h2_Subgroup.
     rewrite a_definition in c_equality.
-    repeat rewrite <- (group_assoc A op inv zero Group) in c_equality.
-    rewrite <- (group_assoc A op inv zero Group) in h2_Subgroup.
+    repeat rewrite <- group_assoc in c_equality.
+    rewrite <- group_assoc in h2_Subgroup.
     exists (op (op h (inv h1)) h2).
     auto.
   Qed.
@@ -315,13 +312,13 @@ Section subgroups.
     intros a H Ha.
     intros Ha_coset.
     unfold right_coset in Ha_coset.
-    destruct Ha_coset as [H_subgroup HCoset_membership].
-    unfold is_subgroup in H_subgroup.
-    destruct H_subgroup as [H_zero [H_closed _]].
+    destruct Ha_coset as [h_Subgroup HCoset_membership].
+    unfold is_subgroup in h_Subgroup.
+    destruct h_Subgroup as [H_zero [H_closed _]].
     apply (HCoset_membership a).
     exists zero.
     split; auto.
-    rewrite (group_zero_l A op inv zero Group); reflexivity.
+    rewrite group_zero_l; reflexivity.
   Qed.
 
   Theorem coset_representative:
@@ -349,16 +346,16 @@ Section subgroups.
     intros a b c.
     split.
     intros a_eq.
-    apply (group_cancel_l A op inv zero Group (inv b) _ _).
-    rewrite <- (group_assoc A op inv zero Group).
-    rewrite (inverse2 A op inv zero Group).
-    rewrite (group_zero_l A op inv zero Group).
+    apply (group_cancel_l (inv b)).
+    rewrite <- group_assoc.
+    rewrite inverse2.
+    rewrite group_zero_l.
     assumption.
     intros c_eq.
-    apply (group_cancel_l A op inv zero Group b _ _).
-    rewrite <- (group_assoc A op inv zero Group).
-    rewrite (inverse1 A op inv zero Group).
-    rewrite (group_zero_l A op inv zero Group).
+    apply (group_cancel_l b).
+    rewrite <- group_assoc.
+    rewrite inverse1.
+    rewrite group_zero_l.
     assumption.
   Qed.
 
@@ -373,7 +370,7 @@ Section subgroups.
     intros c.
     split; intro Ha_c_true.
     exists c; split.
-    Focus 2. rewrite (group_zero_r A op inv zero Group); reflexivity.
+    Focus 2. rewrite group_zero_r; reflexivity.
     apply (coset_inverse_right _ c H Ha Ha_Coset) in Ha_c_true.
     destruct Ha_c_true as [h [h_Subgroup h_op_a]].
     apply (subgroup_op_closed h a H IsSubgroup h_Subgroup) in Ha_true.
@@ -382,31 +379,91 @@ Section subgroups.
     assumption.
     (* now must show c is in the Ha coset, given c is in the group *)
     destruct Ha_c_true as [c' [H_c Heqc']].
-    rewrite (group_zero_r A op inv zero Group) in Heqc'.
+    rewrite group_zero_r in Heqc'.
     rewrite Heqc' in H_c.
     (* I've lost the thread, I assume we must conjugate c *)
     (* Show c * a^-1 * a = c *)
     apply (inverse_subgroup a H IsSubgroup) in Ha_true.
     apply (subgroup_op_closed c (inv a) H IsSubgroup H_c) in Ha_true.
     apply (coset_mult _ (op c (inv a)) H Ha Ha_Coset) in Ha_true.
-    rewrite <- (group_zero_r A op inv zero Group c).
-    rewrite <- (inverse2 A op inv zero Group a).
-    rewrite (group_assoc A op inv zero Group) in Ha_true.
+    rewrite <- (group_zero_r c).
+    rewrite <- (inverse2 a).
+    rewrite group_assoc in Ha_true.
     assumption.
   Qed.
   (* all the same facts are true for left cosets but I don't want to prove those now :) *)
 
-  (* TODO: normal subgroup *)
-  (* TODO: group mod subgroup *)
-  (* Show: group mod normal subgroup is a group *)
+  Definition is_normal_subgroup (H: A -> bool) :=
+    is_subgroup H /\ forall (a h : A), is_mem H h -> is_mem H (a <*> h <*> inv a).
 
-End subgroups.
+  Lemma inverse_apply: forall a b, inv (a <*> b) = inv b <*> inv a.
+  Proof.
+    intros a b.
+    apply (group_cancel_l (a <*> b) _).
+    rewrite <- group_assoc.
+    rewrite inverse1.
+    repeat rewrite group_assoc.
+    rewrite <- (group_assoc b _ _).
+    rewrite inverse1.
+    rewrite group_zero_l.
+    rewrite inverse1; reflexivity.
+  Qed.
 
-Section quotient_groups.
-  Variables (A : Set) (op : A -> A -> A) (zero : A).
-  Variable (Group : is_group A op zero).
-  Variable (H: A -> bool).
-  Variable (Subgroup: is_subgroup A op zero H).
+  Require Import Setoid.
+
+  Lemma normal_subgroup_conjuation: forall a h H,
+      is_normal_subgroup H -> is_mem H h ->
+      is_mem H (a <*> h <*> inv a) <-> is_mem H ((inv a) <*> h <*> a).
+  Proof.
+    intros a h H IsNormalSubgroup h_Subgroup.
+    (* inv (a b) = inv b inv a *)
+    destruct IsNormalSubgroup as [IsSubgroup h_Membership].
+    split.
+    intros a_h_inv_a_Subgroup.
+    rewrite <- (inverse_cancel a) at 2.
+    apply (h_Membership (inv a)).
+    assumption.
+    intros inv_a_h_a_Subgroup.
+    apply h_Membership.
+    assumption.
+  Qed.
+
+  Theorem normal_subgroup_has_same_cosets : forall a H aH Ha,
+      is_normal_subgroup H -> left_coset a H aH -> right_coset a H Ha -> forall c, is_mem aH c <-> is_mem Ha c.
+  Proof.
+    intros a H aH Ha IsNormalSubgroup aH_coset Ha_coset.
+    intros c.
+    split.
+    intros aH_c.
+    apply (coset_extract_left a c H aH aH_coset) in aH_c.
+    destruct aH_c as [h [h_Subgroup c_equality]].
+    rewrite <- c_equality.
+    (* ah = c *)
+    (* so aha^{-1}a = c *)
+    (* and aha^{-1} is in the subgroup since H is normal *)
+    rewrite <- group_zero_r, <- (inverse2 a), <- group_assoc.
+    apply Ha_coset.
+    exists (a <*> h <*> inv a).
+    split.
+    Focus 2. reflexivity.
+    apply IsNormalSubgroup.
+    assumption.
+    intros Ha_c.
+    apply (coset_extract_right a c H Ha Ha_coset) in Ha_c.
+    destruct Ha_c as [h [h_Subgroup c_equality]].
+    rewrite <- c_equality.
+    (* ha = c *)
+    (* so aa^{-1}ha = c *)
+    (* and a^{-1}ha is in the subgroup since H is normal *)
+    rewrite <- group_zero_l, <- (inverse1 a), <- group_assoc.
+    apply aH_coset.
+    exists (inv a <*> h <*> a).
+    split.
+    apply (normal_subgroup_conjuation _ _ H IsNormalSubgroup). assumption.
+    apply IsNormalSubgroup.
+    assumption.
+    repeat rewrite group_assoc; reflexivity.
+  Qed.
 
   (* Universe of quotient groups is the coset universe, e.g. A -> bool *)
 
