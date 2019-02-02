@@ -9,27 +9,42 @@ Section group_definitions.
 
   Definition is_commutative (A: Set) (f: A -> A -> A) := forall a b, f a b = f b a.
 
-  Definition has_inverse (A: Set) (f: A -> A -> A) (z: A) := forall a, exists b, f a b = z /\ f b a = z.
+  Definition is_inverse (A: Set) (f: A -> A -> A) (inv: A -> A) (z: A) :=
+    forall a, f a (inv a) = z /\ f (inv a) a = z.
 
   Definition is_zero (A: Set) (f: A -> A -> A) (z: A) := forall a, f a z = a /\ f z a = a.
 
   Definition is_semigroup (A: Set) (op: A -> A -> A) (zero: A) := (is_assoc A op) /\ (is_zero A op zero).
 
-  Definition is_group (A: Set) (op: A -> A -> A) (zero: A) := is_semigroup A op zero /\ has_inverse A op zero.
+  Definition is_group (A: Set) (op: A -> A -> A) (inv: A -> A) (zero: A) :=
+    is_semigroup A op zero /\ is_inverse A op inv zero.
 
-  Definition is_abelian_group (A: Set) (op: A -> A -> A) (zero: A) := is_group A op zero /\ is_commutative A op.
+  Definition is_abelian_group (A: Set) (op: A -> A -> A) (inv: A -> A) (zero: A) :=
+    is_group A op inv zero /\ is_commutative A op.
 
 End group_definitions.
 
 Section group_laws.
 
-  Variables (A : Set) (op : A -> A -> A) (zero : A).
-  Variable (Group : is_group A op zero).
+  Variables (A : Set) (op : A -> A -> A) (inv : A -> A) (zero : A).
+  Variable (Group : is_group A op inv zero).
 
-  Lemma inverse: forall (a : A), exists (b : A), op a b = zero /\ op b a = zero.
-    unfold is_group, has_inverse in Group.
+  Lemma inverse1 (a: A): op a (inv a) = zero.
+    unfold is_group, is_inverse in Group.
     destruct Group as [_ HasInverse].
-    auto.
+    apply HasInverse.
+  Qed.
+
+  Lemma inverse2 (a: A): op (inv a) a = zero.
+    unfold is_group, is_inverse in Group.
+    destruct Group as [_ HasInverse].
+    apply HasInverse.
+  Qed.
+
+  Lemma inverse_commutes (a: A): op a (inv a) = op (inv a) a.
+    unfold is_group, is_inverse in Group.
+    destruct Group as [_ HasInverse].
+    rewrite inverse1. symmetry; apply HasInverse.
   Qed.
 
   Lemma group_add_l: forall a b c, b = c -> op a b = op a c.
@@ -55,41 +70,30 @@ Section group_laws.
   Qed.
 
   Lemma group_cancel_l: forall a b c, op a b = op a c -> b = c.
-    intros a.
-    remember (inverse a) as AInverseExists.
-    destruct AInverseExists as [ainverse HAInverse].
-    destruct HAInverse as [HAInverse1 HAInverse2].
-    intros b c OpABEqOpAC.
-    apply (group_add_l ainverse _ _) in OpABEqOpAC.
-    repeat rewrite <- group_assoc in OpABEqOpAC.
-    rewrite HAInverse2 in OpABEqOpAC.
-    repeat rewrite group_zero_l in OpABEqOpAC.
-    auto.
+    intros a b c OpABEqOpAC.
+    rewrite <- (group_zero_l b), <- (group_zero_l c).
+    rewrite <- (inverse2 a).
+    repeat rewrite group_assoc.
+    apply (group_add_l (inv a)).
+    assumption.
   Qed.
 
   Lemma group_cancel_r: forall a b c, op b a = op c a -> b = c.
-    intros a.
-    remember (inverse a) as AInverseExists.
-    destruct AInverseExists as [ainverse HAInverse].
-    destruct HAInverse as [HAInverse1 HAInverse2].
-    intros b c OpABEqOpAC.
-    apply (group_add_r ainverse _ _) in OpABEqOpAC.
-    repeat rewrite group_assoc in OpABEqOpAC.
-    rewrite HAInverse1 in OpABEqOpAC.
-    repeat rewrite group_zero_r in OpABEqOpAC.
-    auto.
+    intros a b c OpABEqOpAC.
+    rewrite <- (group_zero_r b), <- (group_zero_r c).
+    rewrite <- (inverse1 a).
+    repeat rewrite <- group_assoc.
+    apply (group_add_r (inv a)).
+    assumption.
   Qed.
 
   Theorem id_is_unique: forall a, (forall b, op a b = b) -> a = zero.
-    intros a HA.
-    remember (inverse a) as HAInverse.
-    destruct HAInverse as [a_inverse HAInverse].
-    apply (group_cancel_r a_inverse).
-    rewrite group_zero_l.
-    apply (HA a_inverse).
+    intros a ADef.
+    apply (group_cancel_r (inv a)).
+    rewrite group_zero_l; apply ADef.
   Qed.
 
-  Theorem inverse_commutes: forall a b, op a b = zero <-> op b a = zero.
+  Theorem op_zero_commutes: forall a b, op a b = zero <-> op b a = zero.
     intros a b.
     split.
     intro OpABZero.
@@ -106,17 +110,18 @@ Section group_laws.
     reflexivity.
   Qed.
 
-  Theorem inverse_unique: forall a b c, op a b = zero /\ op a c = zero -> b = c.
-    intros a b c.
-    intros [H1 H2].
+  Theorem inverse_unique: forall a b, op a b = zero -> b = inv a.
+    intros a b.
+    intros OpABZero.
     apply (group_cancel_l a _ _).
-    rewrite H1, H2; reflexivity.
+    rewrite inverse1.
+    assumption.
   Qed.
 End group_laws.
 
 Section subgroups.
-  Variables (A : Set) (op : A -> A -> A) (zero : A).
-  Variable (Group : is_group A op zero).
+  Variables (A : Set) (op : A -> A -> A) (inv : A -> A) (zero : A).
+  Variable (Group : is_group A op inv zero).
 
   (* subgroup_mem is a characteristic function.  not sure if it will need to
      be A -> Prop instead of a -> bool. *)
@@ -127,20 +132,18 @@ Section subgroups.
     (forall a b, subgroup_mem a = true /\ subgroup_mem b = true ->
                  subgroup_mem (op a b) = true) /\
     (* if an element is in the subgroup, its inverse is too *)
-    (forall a, subgroup_mem a = true ->
-               exists b, subgroup_mem b = true /\ op a b = zero).
+    (forall a, subgroup_mem a = true -> subgroup_mem (inv a) = true).
 
-  Definition left_coset (a: A) (subgroup_mem: A -> bool) (coset_mem: A -> bool) :=
-    is_subgroup subgroup_mem /\
-    forall (b: A), subgroup_mem b = true <-> coset_mem (op a b) = true.
+  Definition is_mem (mem: A -> bool) (a : A) := mem a = true.
 
-  Definition right_coset (a: A) (subgroup_mem: A -> bool) (coset_mem: A -> bool) :=
-    is_subgroup subgroup_mem /\
-    forall (c: A), coset_mem c = true <->
-                   exists b, subgroup_mem b = true /\ (op b a)  = c.
+  Definition left_coset (a: A) (H: A -> bool) (aH: A -> bool) :=
+    is_subgroup H /\ forall (c: A), is_mem aH c <-> exists b, is_mem H b /\ (op a b) = c.
+
+  Definition right_coset (a: A) (H: A -> bool) (Ha: A -> bool) :=
+    is_subgroup H /\ forall (c: A), is_mem Ha c <-> exists b, is_mem H b /\ (op b a)  = c.
 
   Lemma subgroup_op_closed: forall a b H,
-      is_subgroup H -> H a = true -> H b = true -> H (op a b) = true.
+      is_subgroup H -> is_mem H a -> is_mem H b -> is_mem H (op a b).
   Proof.
     intros a b H.
     unfold is_subgroup.
@@ -151,7 +154,7 @@ Section subgroups.
   Qed.
 
   Lemma inverse_subgroup: forall a H,
-      is_subgroup H -> H a = true -> exists b : A, H b = true /\ op a b = zero.
+      is_subgroup H -> is_mem H a -> is_mem H (inv a).
     intros a H IsSubgroup H_a.
     unfold is_subgroup in IsSubgroup.
     destruct IsSubgroup as [_ [_ Inverse]].
@@ -319,14 +322,20 @@ Section quotient_groups.
   Variable (H: A -> bool).
   Variable (Subgroup: is_subgroup A op zero H).
 
-  (* Universe of quotient groups is the coset universe *)
+  (* Universe of quotient groups is the coset universe, e.g. A -> bool *)
 
-  Definition quotient_group_zero :=
+  Definition quotient_group_zero := H.
     (* zero is coset based on subgroup membership *)
-    1.
 
-  Definition quotient_group_op :=
-    (* must
+  Definition quotient_group_op (a b: (A -> bool)) :=
+    (* a is one coset,
+       b is another coset
+       Ha Hb = H(ab).
+       Do we know this without a or b?  ;)
+       Maybe we need the cosets to come with their proofs that they are cosets.
+     *)
+    a.
+
 
   (* theorem should show is_group holds for a given quotient_group *)
 
