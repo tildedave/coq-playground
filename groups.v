@@ -117,6 +117,15 @@ Section group_laws.
     rewrite inverse1.
     assumption.
   Qed.
+
+  Theorem inverse_cancel: forall a, inv (inv a) = a.
+    intros a.
+    (* show (inv a) * a = zero *)
+    remember (inverse2 a) as H.
+    destruct HeqH.
+    apply inverse_unique in H.
+    symmetry; assumption.
+  Qed.
 End group_laws.
 
 Section subgroups.
@@ -153,7 +162,7 @@ Section subgroups.
     auto.
   Qed.
 
-  Lemma inverse_subgroup: forall a H,
+  Lemma inverse_subgroup1: forall a H,
       is_subgroup H -> is_mem H a -> is_mem H (inv a).
     intros a H IsSubgroup H_a.
     unfold is_subgroup in IsSubgroup.
@@ -161,55 +170,58 @@ Section subgroups.
     apply (Inverse a); assumption.
   Qed.
 
-  (* a in Hb -> Ha = Hb *)
-  Lemma coset_intersection_helper:
+  Lemma inverse_subgroup2: forall a H, is_subgroup H -> is_mem H (inv a) -> is_mem H a.
+    intros a H IsSubgroup H_inv_a.
+    rewrite <- (inverse_cancel A op inv zero Group).
+    apply inverse_subgroup1.
+    auto.
+    assumption.
+  Qed.
+
+  Lemma coset_intersection_helper_1:
     forall a b H Ha Hb,
       right_coset a H Ha /\ right_coset b H Hb ->
-      (exists x, (Ha x = true /\ Hb x = true)) ->
-                (forall c, Ha c = true -> Hb c = true).
+      (exists x, is_mem Ha x /\ is_mem Hb x) ->
+       exists h1 h2, is_mem H h1 /\ is_mem H h2 /\ a = op (op (inv h1) h2) b.
     intros a b H Ha Hb.
     unfold right_coset.
-    intros [Ha_Coset Hb_Coset] Intersection.
-    destruct Intersection as [x [Ha_x Hb_x]].
-    destruct Ha_Coset as [H_subgroup Ha_h1].
+    intros [[H_subgroup Ha_h1] [_ Hb_h2]] [x [Ha_x Hb_x]].
     apply Ha_h1 in Ha_x.
     destruct Ha_x as [h1 [h1_subgroup h1_equality]].
-    destruct Hb_Coset as [_ Hb_h2].
     apply Hb_h2 in Hb_x.
     destruct Hb_x as [h2 [h2_subgroup h2_equality]].
+    exists h1, h2.
+    rewrite <- h2_equality in h1_equality.
+    rewrite (group_assoc A op inv zero Group).
+    rewrite <- h1_equality.
+    rewrite <- (group_assoc A op inv zero Group).
+    rewrite (inverse2 A op inv zero Group).
+    rewrite (group_zero_l A op inv zero Group).
+    auto.
+  Qed.
+
+  (* a in Hb -> Ha = Hb *)
+  Lemma coset_intersection_helper_2:
+    forall a b H Ha Hb,
+      right_coset a H Ha /\ right_coset b H Hb ->
+      (exists x, is_mem Ha x /\ is_mem Hb x) -> (forall c, is_mem Ha c -> is_mem Hb c).
+    intros a b H Ha Hb.
+    intros Cosets Intersection.
+    apply (coset_intersection_helper_1 a b H Ha Hb Cosets) in Intersection.
+    destruct Cosets as [[_ Ha_coset] [IsSubgroup Hb_coset]].
+    destruct Intersection as [h1 [h2 [h1_Subgroup [h2_Subgroup a_definition]]]].
     intros c.
-    (* show a = h1_inverse h2 b *)
-    assert (exists h1_inverse, H h1_inverse = true /\
-                               op h1_inverse (op h2 b) = a) as H1_Inverse.
-    unfold is_subgroup in H_subgroup.
-    destruct H_subgroup as [_ [_ H_inverses]].
-    apply H_inverses in h1_subgroup.
-    destruct h1_subgroup as [h1_inverse h1_inverse_property].
-    exists h1_inverse.
-    split.
-    destruct h1_inverse_property; assumption.
-    apply (group_cancel_l A op zero Group h1 _ _).
-    rewrite <- (group_assoc A op zero Group).
-    destruct h1_inverse_property as [_ H1_Inverse_Rewrite].
-    rewrite H1_Inverse_Rewrite.
-    rewrite (group_zero_l A op zero Group).
-    rewrite h1_equality, h2_equality; reflexivity.
-    destruct H1_Inverse as [h1_inverse [h1_inverse_subgroup h1_inverse_eq_a]].
-    (* assert h1_inverse h2 is in the subgroup, then apply coset *)
-    assert (H (op h1_inverse h2) = true) as h1_inverse_h2_In_Subgroup.
-    unfold is_subgroup in H_subgroup.
-    destruct H_subgroup as [_ [H_closed _]].
-    assert (H h1_inverse = true /\ H h2 = true) as H'; auto.
-    (* Ha c = true -> Hb c = true *)
     intros Ha_c.
-    apply Ha_h1 in Ha_c.
-    destruct Ha_c as [h [H_in_Subgroup Ha_c]].
-    rewrite <- h1_inverse_eq_a in Ha_c.
-    repeat rewrite <- (group_assoc A op zero Group) in Ha_c.
-    apply (subgroup_op_closed h h1_inverse H H_subgroup H_in_Subgroup) in h1_inverse_subgroup.
-    apply (subgroup_op_closed _ h2 H H_subgroup h1_inverse_subgroup) in h2_subgroup.
-    apply (Hb_h2 c).
-    exists (op (op h h1_inverse) h2).
+    apply Hb_coset.
+    apply Ha_coset in Ha_c.
+    destruct Ha_c as [h [h_Subgroup c_equality]].
+    apply (inverse_subgroup1 h1 H IsSubgroup) in h1_Subgroup.
+    apply (subgroup_op_closed (inv h1) h2 H IsSubgroup h1_Subgroup) in h2_Subgroup.
+    apply (subgroup_op_closed h _ H IsSubgroup h_Subgroup) in h2_Subgroup.
+    rewrite a_definition in c_equality.
+    repeat rewrite <- (group_assoc A op inv zero Group) in c_equality.
+    rewrite <- (group_assoc A op inv zero Group) in h2_Subgroup.
+    exists (op (op h (inv h1)) h2).
     auto.
   Qed.
 
@@ -221,8 +233,8 @@ Section subgroups.
   Proof.
     intros a b H Ha Hb [Ha_Coset Hb_Coset] X_exists.
     split.
-    apply (coset_intersection_helper a b H); auto.
-    apply (coset_intersection_helper b a H); auto.
+    apply (coset_intersection_helper_2 a b H); auto.
+    apply (coset_intersection_helper_2 b a H); auto.
     destruct X_exists as [x [H1 H2]]; auto.
     exists x; auto.
   Qed.
