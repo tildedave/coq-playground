@@ -1,7 +1,17 @@
-(* a ring is a set with various properties
-   ring_mult
-   ring_add
- *)
+Require Import Coq.Bool.Bool.
+Require Import Setoid.
+
+Lemma bool_dec2 : forall b1 b2 b3 b4 : bool,
+    {b1 = b2 /\ b3 = b4} + {b1 <> b2 /\ b3 = b4} + {b1 = b2 /\ b3 <> b4} + {b1 <> b2 /\ b3 <> b4}.
+  intros b1 b2 b3 b4.
+  destruct (bool_dec b1 b2) as [b1_eq_b2 | b1_neq_b2].
+  destruct (bool_dec b3 b4) as [b3_eq_b4 | b3_neq_b4].
+  auto.
+  auto.
+  destruct (bool_dec b3 b4) as [b3_eq_b4 | b3_neq_b4].
+  auto.
+  auto.
+Qed.
 
 Section group_definitions.
   Definition is_assoc (A: Set) (f: A -> A -> A) := forall a b c,
@@ -165,8 +175,6 @@ Section group_laws.
     auto.
   Qed.
 
-  Require Import Coq.Bool.Bool.
-
   Lemma subgroup_inverse1: forall a H, is_subgroup H -> is_mem H a -> is_mem H (inv a).
     intros a H IsSubgroup.
     unfold is_subgroup in IsSubgroup.
@@ -293,6 +301,27 @@ Section group_laws.
     auto.
   Qed.
 
+  Lemma subgroup_inverse_non_member1: forall a H, is_subgroup H -> H a = false -> H (inv a) = false.
+    intros a H IsSubgroup.
+    intros Ha_false.
+    destruct (bool_dec (H (inv a)) true) as [Ha_inv_true | Ha_inv_false].
+    apply (subgroup_inverse _ _ IsSubgroup) in Ha_inv_true.
+    rewrite inverse_cancel in Ha_inv_true.
+    unfold is_mem in Ha_inv_true.
+    rewrite Ha_false in Ha_inv_true.
+    contradict Ha_inv_true.
+    auto.
+    apply not_true_is_false in Ha_inv_false; auto.
+  Qed.
+
+  Lemma subgroup_inverse_non_member2: forall a H, is_subgroup H -> H (inv a) = false -> H a = false.
+    intros a H IsSubgroup.
+    intros Ha_inv_false.
+    apply (subgroup_inverse_non_member1 (inv a) H IsSubgroup) in Ha_inv_false.
+    rewrite <- (inverse_cancel a).
+    assumption.
+  Qed.
+
   (* a in Hb -> Ha = Hb *)
   Lemma coset_intersection:
     forall a b H,
@@ -388,7 +417,14 @@ Section group_laws.
   Definition is_normal_subgroup (H: A -> bool) :=
     is_subgroup H /\ forall (a h : A), is_mem H h -> is_mem H (a <*> h <*> inv a).
 
-  Require Import Setoid.
+  Lemma normal_subgroup_intro: forall a h H,
+      is_normal_subgroup H -> is_mem H h ->
+      is_mem H (a <*> h <*> inv a).
+    intros a h H IsNormalSubgroup h_Subgroup.
+    destruct IsNormalSubgroup as [IsSubgroup Normality].
+    apply Normality.
+    assumption.
+  Qed.
 
   Lemma normal_subgroup_conjuation: forall a h H,
       is_normal_subgroup H -> is_mem H h ->
@@ -407,7 +443,57 @@ Section group_laws.
     assumption.
   Qed.
 
-  Theorem normal_subgroup_has_same_cosets : forall a H,
+  Theorem normal_subgroup_membership_commutes : forall a b H,
+      is_normal_subgroup H -> H (a <*> b) = H (b <*> a).
+    intros a b H IsNormalSubgroup.
+    assert (is_subgroup H) as IsSubgroup. destruct IsNormalSubgroup; auto.
+    destruct (bool_dec2 (H a) true (H b) true) as
+        [[[[Ha_true Hb_true] | [Ha_false Hb_true]] |
+           [Ha_true Hb_false]] | [Ha_false Hb_false]].
+    assert (H b = true) as Hb_true2. assumption.
+    apply (subgroup_op_closed a b H IsSubgroup Ha_true) in Hb_true.
+    apply (subgroup_op_closed b a H IsSubgroup Hb_true2) in Ha_true.
+    unfold is_mem in Ha_true, Hb_true.
+    rewrite Ha_true, Hb_true.
+    reflexivity.
+    apply not_true_is_false in Ha_false.
+    rewrite (subgroup_op_non_member_left a _ _ IsSubgroup),
+            (subgroup_op_non_member_right _ a _ IsSubgroup).
+    reflexivity.
+    auto.
+    auto.
+    apply not_true_is_false in Hb_false.
+    rewrite (subgroup_op_non_member_left b _ _ IsSubgroup),
+            (subgroup_op_non_member_right _ b _ IsSubgroup).
+    reflexivity.
+    auto.
+    auto.
+    (* this is silly but I need this later I think *)
+    assert (is_normal_subgroup H) as IsNormalSubgroup2. assumption.
+    destruct (bool_dec (H (a <*> b)) true) as [Hab_true | Hab_false].
+    rewrite Hab_true; symmetry.
+    (* ab \in H, WTS ba in H.  a^{-1}aba \in H *)
+    apply (normal_subgroup_intro (inv a)) in Hab_true.
+    autorewrite with core in Hab_true.
+    rewrite <- group_assoc, inverse2, group_zero_l in Hab_true.
+    assumption.
+    assumption.
+    apply not_true_is_false in Hab_false.
+    destruct (bool_dec (H (b <*> a)) true) as [Hba_true | Hba_false].
+    (* ba \in H, WTS ab in H (contradiction). b^{-1}bab \in H  *)
+    destruct IsNormalSubgroup as [_ Normality].
+    apply (Normality (inv b) _) in Hba_true.
+    autorewrite with core in Hba_true.
+    rewrite <- group_assoc, inverse2, group_zero_l in Hba_true.
+    contradict Hba_true.
+    unfold is_mem.
+    apply not_true_iff_false.
+    assumption.
+    apply not_true_is_false in Hba_false.
+    rewrite Hab_false, Hba_false; reflexivity.
+  Qed.
+
+  Theorem normal_subgroup_left_coset_iff_right_coset : forall a H,
       is_normal_subgroup H ->
       forall c, left_coset a H c = right_coset H a c.
   Proof.
@@ -416,62 +502,33 @@ Section group_laws.
     intros c.
     unfold left_coset.
     unfold right_coset.
-    destruct (bool_dec (H a) true) as [Ha_true | Ha_false].
-    fold (is_mem H a) in Ha_true.
-    rewrite <- (subgroup_inverse _ H IsSubgroup) in Ha_true.
-    rewrite (subgroup_mem_l _ _ H IsSubgroup), (subgroup_mem_r _ _ H IsSubgroup). reflexivity.
-    auto.
-    auto.
-    apply not_true_is_false in Ha_false.
-    destruct (bool_dec (H c) true) as [Hc_true | Hc_false].
-    rewrite (subgroup_op_non_member_left _ _ H IsSubgroup).
-    rewrite (subgroup_op_non_member_right _ _ H IsSubgroup).
-    reflexivity.
-    (* must show H a = false <-> H (inv a) = false *)
-    rewrite (subgroup_inverse _ H IsSubgroup) in Ha_false.
-
-    auto.
-
-    destruct (bool_dec (H (inv a <*> c)) true) as [H_inv_a_c_true | H_inv_a_c_false].
-
-    rewrite H_inv_a_c_true.
-    symmetry.
-    (* so aha^{-1}a = c *)
-
-    split.
-    intros aH_c.
-    apply (coset_extract_left a c H aH aH_coset) in aH_c.
-    destruct aH_c as [h [h_Subgroup c_equality]].
-    rewrite <- c_equality.
-    (* ah = c *)
-    (* and aha^{-1} is in the subgroup since H is normal *)
-    rewrite <- group_zero_r, <- (inverse2 a), <- group_assoc.
-    apply Ha_coset.
-    exists (a <*> h <*> inv a).
-    split.
-    Focus 2. reflexivity.
-    apply IsNormalSubgroup.
+    apply normal_subgroup_membership_commutes.
     assumption.
-    intros Ha_c.
-    apply (coset_extract_right a c H Ha Ha_coset) in Ha_c.
-    destruct Ha_c as [h [h_Subgroup c_equality]].
-    rewrite <- c_equality.
-    (* ha = c *)
-    (* so aa^{-1}ha = c *)
-    (* and a^{-1}ha is in the subgroup since H is normal *)
-    rewrite <- group_zero_l, <- (inverse1 a), <- group_assoc.
-    apply aH_coset.
-    exists (inv a <*> h <*> a).
-    split.
-    apply (normal_subgroup_conjuation _ _ H IsNormalSubgroup). assumption.
-    apply IsNormalSubgroup.
+  Qed.
+
+  Lemma normal_subgroup_coset_op : forall a b c d H,
+      is_normal_subgroup H ->
+      is_mem (right_coset H a) c -> is_mem (right_coset H b) d -> is_mem (right_coset H (a <*> b)) (c <*> d).
+    intros a b c d H IsNormalSubgroup.
+    assert (is_subgroup H) as IsSubgroup.  destruct IsNormalSubgroup; auto.
+    unfold is_mem, right_coset.
+    intros c_Coset d_Coset.
+    rewrite (normal_subgroup_membership_commutes _ _ H IsNormalSubgroup) in c_Coset.
+    fold (is_mem H (inv a <*> c)) in c_Coset.
+    fold (is_mem H (d <*> inv b)) in d_Coset.
+    apply (subgroup_op_closed _ _ H IsSubgroup c_Coset) in d_Coset.
+    rewrite group_assoc in d_Coset.
+    rewrite <- (group_assoc c d _) in d_Coset.
+    unfold is_mem in d_Coset.
+    rewrite (normal_subgroup_membership_commutes (inv a) _ H IsNormalSubgroup) in d_Coset.
+    rewrite inverse_apply.
+    rewrite <- group_assoc.
     assumption.
-    repeat rewrite group_assoc; reflexivity.
   Qed.
 
   (* Universe of quotient groups is the coset universe, e.g. A -> bool *)
 
-  Definition quotient_group_zero := H.
+  Definition quotient_group_zero (H : A -> bool) := H.
     (* zero is coset based on subgroup membership *)
 
   Definition quotient_group_op (a b: (A -> bool)) :=
