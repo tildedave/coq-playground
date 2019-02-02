@@ -71,6 +71,12 @@ Section group_laws.
     destruct Group as [[Assoc _] _]; auto.
   Qed.
 
+  Hint Rewrite inverse1.
+  Hint Rewrite inverse2.
+  Hint Rewrite group_assoc.
+  Hint Rewrite group_zero_l.
+  Hint Rewrite group_zero_r.
+
   Lemma group_cancel_l: forall a b c, op a b = op a c -> b = c.
     intros a b c OpABEqOpAC.
     rewrite <- (group_zero_l b), <- (group_zero_l c).
@@ -129,24 +135,24 @@ Section group_laws.
     symmetry; assumption.
   Qed.
 
+  Hint Rewrite inverse_cancel.
+
   (* subgroup_mem is a characteristic function.  not sure if it will need to
      be A -> Prop instead of a -> bool. *)
-  Definition is_subgroup (subgroup_mem: A -> bool) :=
+  Definition is_subgroup (H: A -> bool) :=
     (* 0 is a subgroup member *)
-    subgroup_mem zero = true /\
+    H zero = true /\
     (* subgroup is closed under operation *)
-    (forall a b, subgroup_mem a = true /\ subgroup_mem b = true ->
-                 subgroup_mem (op a b) = true) /\
+    (forall a b, H a = true /\ H b = true -> H (a <*> b) = true) /\
     (* if an element is in the subgroup, its inverse is too *)
-    (forall a, subgroup_mem a = true -> subgroup_mem (inv a) = true).
+    (forall a, H a = true -> H (inv a) = true).
 
   Definition is_mem (mem: A -> bool) (a : A) := mem a = true.
 
-  Definition left_coset (a: A) (H: A -> bool) (aH: A -> bool) :=
-    is_subgroup H /\ forall (c: A), is_mem aH c <-> exists b, is_mem H b /\ (op a b) = c.
-
-  Definition right_coset (a: A) (H: A -> bool) (Ha: A -> bool) :=
-    is_subgroup H /\ forall (c: A), is_mem Ha c <-> exists b, is_mem H b /\ (op b a)  = c.
+  (* c \in aH if b \in H such that ab = c, b = a^{-1}c *)
+  Definition left_coset (a: A) (H: A -> bool) := fun c => H ((inv a) <*> c).
+  (* c \in Ha if b \in H such that ba = c, b = c a^{-1} *)
+  Definition right_coset (H: A -> bool) (a: A) := fun c => H (c <*> (inv a)).
 
   Lemma subgroup_op_closed: forall a b H,
       is_subgroup H -> is_mem H a -> is_mem H b -> is_mem H (op a b).
@@ -159,186 +165,181 @@ Section group_laws.
     auto.
   Qed.
 
-  Lemma inverse_subgroup1: forall a H,
-      is_subgroup H -> is_mem H a -> is_mem H (inv a).
-    intros a H IsSubgroup H_a.
+  Require Import Coq.Bool.Bool.
+
+  Lemma subgroup_inverse1: forall a H, is_subgroup H -> is_mem H a -> is_mem H (inv a).
+    intros a H IsSubgroup.
     unfold is_subgroup in IsSubgroup.
     destruct IsSubgroup as [_ [_ Inverse]].
-    apply (Inverse a); assumption.
+    apply Inverse.
   Qed.
 
-  Lemma inverse_subgroup2: forall a H, is_subgroup H -> is_mem H (inv a) -> is_mem H a.
+  Lemma subgroup_inverse2: forall a H, is_subgroup H -> is_mem H (inv a) -> is_mem H a.
     intros a H IsSubgroup H_inv_a.
     rewrite <- inverse_cancel.
-    apply inverse_subgroup1.
+    apply subgroup_inverse1.
     auto.
     assumption.
   Qed.
 
-  Lemma inverse_subgroup: forall a H, is_subgroup H -> is_mem H (inv a) <-> is_mem H a.
+  Lemma subgroup_inverse: forall a H, is_subgroup H -> is_mem H (inv a) <-> is_mem H a.
   Proof.
     intros.
     split.
-    apply inverse_subgroup2; auto.
-    apply inverse_subgroup1; auto.
+    apply subgroup_inverse2; auto.
+    apply subgroup_inverse1; auto.
   Qed.
 
-  Lemma coset_extract_right:
-    forall a b H Ha, right_coset a H Ha -> is_mem Ha b -> exists h, is_mem H h /\ op h a = b.
+  Lemma inverse_apply: forall a b, inv (a <*> b) = inv b <*> inv a.
   Proof.
-    intros a b H Ha [IsSubgroup Ha_coset] Ha_b.
-    apply (Ha_coset b) in Ha_b.
-    destruct Ha_b as [h ha_eq_b].
-    exists h.
-    auto.
-  Qed.
-
-  Lemma coset_extract_left:
-    forall a b H aH, left_coset a H aH -> is_mem aH b -> exists h, is_mem H h /\ op a h = b.
-  Proof.
-    intros a b H aH [IsSubgroup aH_coset] aH_b.
-    apply (aH_coset b) in aH_b.
-    destruct aH_b as [h ha_eq_b].
-    exists h.
-    auto.
-  Qed.
-
-  Lemma coset_inverse_right:
-    forall a b H Ha, right_coset a H Ha -> is_mem Ha b -> exists h, is_mem H h /\ a = op (inv h) b.
-  Proof.
-    intros a b H Ha Coset Ha_b.
-    apply (coset_extract_right a b H Ha Coset) in Ha_b.
-    destruct Ha_b as [h ha_eq_b].
-    exists h.
-    split. destruct ha_eq_b; assumption.
-    destruct ha_eq_b as [h_Subgroup op_h_a_eq_b].
-    apply (group_cancel_l h).
+    intros a b.
+    apply (group_cancel_l (a <*> b) _).
     rewrite <- group_assoc.
     rewrite inverse1.
+    repeat rewrite group_assoc.
+    rewrite <- (group_assoc b _ _).
+    rewrite inverse1.
     rewrite group_zero_l.
-    assumption.
+    rewrite inverse1; reflexivity.
   Qed.
 
-  Lemma coset_inverse_left:
-    forall a b H aH, left_coset a H aH -> is_mem aH b -> exists h, is_mem H h /\ a = op b (inv h).
-  Proof.
-    intros a b H aH Coset aH_b.
-    apply (coset_extract_left a b H aH Coset) in aH_b.
-    destruct aH_b as [h ha_eq_b].
-    exists h.
-    split. destruct ha_eq_b; assumption.
-    destruct ha_eq_b as [h_Subgroup op_h_a_eq_b].
-    apply (group_cancel_r h).
-    rewrite group_assoc.
-    rewrite inverse2.
-    rewrite group_zero_r.
-    assumption.
-  Qed.
-
-  Lemma coset_implies_subgroup_right:
-    forall a H Ha, right_coset a H Ha -> is_subgroup H.
-  Proof.
-    intros a H Ha [IsSubgroup _].
-    assumption.
-  Qed.
-
-  Lemma coset_implies_subgroup_left:
-    forall a H aH, left_coset a H aH -> is_subgroup H.
-  Proof.
-    intros a H aH [IsSubgroup _].
-    assumption.
-  Qed.
-
-  (* don't think I need these for left cosets yet so we'll keep the proofs just for right cosets *)
   Lemma coset_intersection_helper_1:
-    forall a b H Ha Hb,
-      right_coset a H Ha /\ right_coset b H Hb ->
-      (exists x, is_mem Ha x /\ is_mem Hb x) ->
-       exists h1 h2, is_mem H h1 /\ is_mem H h2 /\ a = op (op (inv h1) h2) b.
-    intros a b H Ha Hb [Ha_coset Hb_coset].
-    remember (coset_implies_subgroup_right a H Ha Ha_coset) as IsSubgroup.
-    intros [x [Ha_x Hb_x]].
-    apply (coset_inverse_right a x H Ha Ha_coset) in Ha_x.
-    destruct Ha_x as [h1 [h1_subgroup h1_equality]].
-    apply (coset_extract_right b x H Hb Hb_coset) in Hb_x.
-    destruct Hb_x as [h2 [h2_subgroup h2_equality]].
-    exists h1, h2.
-    rewrite <- h2_equality in h1_equality.
-    rewrite group_assoc.
+    forall a b H,
+      is_subgroup H ->
+      (exists x, is_mem (right_coset H a) x /\  is_mem (right_coset H b) x) ->
+      exists h1 h2, is_mem H h1 /\ is_mem H h2 /\ a = op (op (inv h1) h2) b.
+    intros a b H IsSubgroup [x [Ha_x Hb_x]].
+    unfold is_mem, right_coset, left_coset in Ha_x, Hb_x.
+    exists (x <*> inv a), (x <*> inv b).
+    split; [assumption | split; [assumption | auto]].
+    rewrite inverse_apply.
+    repeat rewrite group_assoc.
+    rewrite <- (group_assoc (inv x) _ _).
+    repeat rewrite inverse2.
+    rewrite inverse_cancel.
+    repeat rewrite group_zero_r.
+    reflexivity.
+  Qed.
+
+  Lemma subgroup_op_non_member_right: forall a b H,
+      is_subgroup H -> H a = true /\ H b = false -> H (a <*> b) = false.
+    intros a b H IsSubgroup Ha_true.
+    (* Suppose ab were in the subgroup.  Then a^{-1} ab would be in the subgroup, so b is in the subgroup.
+         contradiction *)
+    destruct (bool_dec (H (a <*> b)) false) as [Hab_false | Hab_true].
+    assumption.
+    destruct Ha_true as [Ha_true Hb_false].
+    apply not_false_is_true in Hab_true.
+    apply (subgroup_op_closed (inv a) _ H IsSubgroup) in Hab_true.
+    rewrite <- group_assoc in Hab_true.
+    rewrite inverse2 in Hab_true.
+    rewrite group_zero_l in Hab_true.
+    unfold is_mem in Hab_true.
+    rewrite Hb_false in Hab_true.
+    contradict Hab_true.
+    auto.
+    apply (subgroup_inverse _ _ IsSubgroup).
+    auto.
+  Qed.
+
+  Lemma subgroup_op_non_member_left: forall a b H,
+      is_subgroup H -> H a = false /\ H b = true -> H (a <*> b) = false.
+    intros a b H IsSubgroup [Ha_false Hb_true].
+    (* not sure if there is a clever way to use right, so we just duplicate the logic above (for now) *)
+    (* Suppose ab were in the subgroup.  Then abb^{-1} would be in the subgroup, so a is in the subgroup.
+         contradiction *)
+    destruct (bool_dec (H (a <*> b)) false) as [Hab_false | Hab_true].
+    assumption.
+    apply not_false_is_true in Hab_true.
+    apply (subgroup_op_closed _ (inv b) H IsSubgroup) in Hab_true.
+    autorewrite with core in Hab_true.
+    unfold is_mem in Hab_true.
+    rewrite Ha_false in Hab_true.
+    contradict Hab_true.
+    auto.
+    apply (subgroup_inverse _ _ IsSubgroup).
+    auto.
+  Qed.
+
+  Lemma subgroup_mem_l:
+    forall a b H, is_subgroup H -> H a = true -> H (a <*> b) = H b.
+    intros a b H IsSubgroup.
+    intros Hb_true.
+    (* want to reason like .... H b = true
+       If H a = true, then obviously since a is in the subgroup.
+       If H a = false, then...
+     *)
+    destruct (bool_dec (H b) true) as [Ha_true | Ha_false].
+    rewrite Ha_true; apply (subgroup_op_closed _ _ H IsSubgroup Hb_true Ha_true).
+    apply not_true_is_false in Ha_false.
+    rewrite Ha_false.
+    apply (subgroup_op_non_member_right a b H IsSubgroup).
+    auto.
+  Qed.
+
+  Lemma subgroup_mem_r:
+    forall a b H, is_subgroup H -> H b = true -> H (a <*> b) = H a.
+    intros a b H IsSubgroup.
+    intros Hb_true.
+    (* want to reason like .... H b = true
+       If H a = true, then obviously since a is in the subgroup.
+       If H a = false, then...
+     *)
+    destruct (bool_dec (H a) true) as [Ha_true | Ha_false].
+    rewrite Ha_true; apply (subgroup_op_closed _ _ H IsSubgroup Ha_true Hb_true).
+    apply not_true_is_false in Ha_false.
+    rewrite Ha_false.
+    apply (subgroup_op_non_member_left a b H IsSubgroup).
     auto.
   Qed.
 
   (* a in Hb -> Ha = Hb *)
-  Lemma coset_intersection_helper_2:
-    forall a b H Ha Hb,
-      right_coset a H Ha /\ right_coset b H Hb ->
-      (exists x, is_mem Ha x /\ is_mem Hb x) -> (forall c, is_mem Ha c -> is_mem Hb c).
-    intros a b H Ha Hb.
-    intros Cosets Intersection.
-    apply (coset_intersection_helper_1 a b H Ha Hb Cosets) in Intersection.
-    destruct Cosets as [[_ Ha_coset] [IsSubgroup Hb_coset]].
+  Lemma coset_intersection:
+    forall a b H,
+      is_subgroup H ->
+      (exists x, is_mem (right_coset H a) x /\  is_mem (right_coset H b) x) ->
+      (forall c, (right_coset H a) c = (right_coset H b) c).
+    intros a b H IsSubgroup Intersection.
+    apply (coset_intersection_helper_1 a b H IsSubgroup) in Intersection.
     destruct Intersection as [h1 [h2 [h1_Subgroup [h2_Subgroup a_definition]]]].
     intros c.
-    intros Ha_c.
-    apply Hb_coset.
-    apply Ha_coset in Ha_c.
-    destruct Ha_c as [h [h_Subgroup c_equality]].
-    apply (inverse_subgroup1 h1 H IsSubgroup) in h1_Subgroup.
-    apply (subgroup_op_closed (inv h1) h2 H IsSubgroup h1_Subgroup) in h2_Subgroup.
-    apply (subgroup_op_closed h _ H IsSubgroup h_Subgroup) in h2_Subgroup.
-    rewrite a_definition in c_equality.
-    repeat rewrite <- group_assoc in c_equality.
-    rewrite <- group_assoc in h2_Subgroup.
-    exists (op (op h (inv h1)) h2).
-    auto.
+    unfold right_coset.
+    rewrite a_definition.
+    repeat rewrite inverse_apply.
+    rewrite inverse_cancel.
+    rewrite <- group_assoc.
+    apply (subgroup_inverse1 h2 H IsSubgroup) in h2_Subgroup.
+    apply (subgroup_op_closed (inv h2) h1 H IsSubgroup h2_Subgroup) in h1_Subgroup.
+    apply (subgroup_mem_r _ (inv h2 <*> h1) H IsSubgroup).
+    assumption.
   Qed.
 
-  Theorem coset_intersection:
-    forall a b H Ha Hb,
-      right_coset a H Ha /\ right_coset b H Hb ->
-      (exists x, (Ha x = true /\ Hb x = true)) ->
-                (forall c, Ha c = true <-> Hb c = true).
+  Lemma coset_reflexive: forall a H, is_subgroup H -> right_coset H a a = true.
   Proof.
-    intros a b H Ha Hb [Ha_Coset Hb_Coset] X_exists.
-    split.
-    apply (coset_intersection_helper_2 a b H); auto.
-    apply (coset_intersection_helper_2 b a H); auto.
-    destruct X_exists as [x [H1 H2]]; auto.
-    exists x; auto.
-  Qed.
-
-  Lemma coset_reflexive: forall a H Ha, right_coset a H Ha -> Ha a = true.
-  Proof.
-    intros a H Ha.
-    intros Ha_coset.
-    unfold right_coset in Ha_coset.
-    destruct Ha_coset as [h_Subgroup HCoset_membership].
-    unfold is_subgroup in h_Subgroup.
-    destruct h_Subgroup as [H_zero [H_closed _]].
-    apply (HCoset_membership a).
-    exists zero.
-    split; auto.
-    rewrite group_zero_l; reflexivity.
+    intros a H IsSubgroup.
+    unfold right_coset.
+    rewrite inverse1.
+    apply IsSubgroup.
   Qed.
 
   Theorem coset_representative:
-    forall a b H Ha Hb,
-      right_coset a H Ha /\ right_coset b H Hb ->
-      Hb a = true ->
-      forall c, Ha c = true <-> Hb c = true.
+    forall a b H,
+      is_subgroup H -> right_coset H b a = true ->
+      forall c, right_coset H a c = right_coset H b c.
   Proof.
-    intros a b H Ha Hb [Ha_Coset Hb_Coset].
+    intros a b H IsSubgroup.
     intros Hb_a.
     (* going to show that a is in both Ha Hb *)
-    remember (coset_reflexive a H Ha Ha_Coset) as Ha_a.
-    apply (coset_intersection a b H Ha Hb); auto.
+    remember (coset_reflexive a H IsSubgroup) as Ha_a.
+    apply (coset_intersection a b H IsSubgroup); auto.
     exists a; auto.
   Qed.
 
-  Theorem coset_mult: forall a b H Ha, right_coset a H Ha -> is_mem H b -> is_mem Ha (op b a).
-    intros a b H Ha Ha_Coset Hb_true.
-    apply Ha_Coset.
-    exists b; auto.
+  Theorem coset_mult: forall a b H, is_subgroup H -> is_mem H b -> is_mem (right_coset H a) (op b a).
+    intros a b H IsSubgroup Hb_true.
+    unfold right_coset, is_mem.
+    autorewrite with core.
+    auto.
   Qed.
 
   Lemma inverse_swap: forall a b c, a = op (inv b) c <-> op b a = c.
@@ -359,55 +360,33 @@ Section group_laws.
     assumption.
   Qed.
 
-  Theorem coset_zero:
-    forall a H Ha, is_mem H a -> right_coset a H Ha -> right_coset zero H Ha.
-  Proof.
-    intros a H Ha Ha_true Ha_Coset.
-    assert (is_subgroup H) as IsSubgroup.
-    unfold right_coset in Ha_Coset; destruct Ha_Coset; auto.
-    (* WTS: everything in Ha can be represented by something in H *)
-    split; auto.
-    intros c.
-    split; intro Ha_c_true.
-    exists c; split.
-    Focus 2. rewrite group_zero_r; reflexivity.
-    apply (coset_inverse_right _ c H Ha Ha_Coset) in Ha_c_true.
-    destruct Ha_c_true as [h [h_Subgroup h_op_a]].
-    apply (subgroup_op_closed h a H IsSubgroup h_Subgroup) in Ha_true.
-    apply inverse_swap in h_op_a.
-    rewrite <- h_op_a.
-    assumption.
-    (* now must show c is in the Ha coset, given c is in the group *)
-    destruct Ha_c_true as [c' [H_c Heqc']].
-    rewrite group_zero_r in Heqc'.
-    rewrite Heqc' in H_c.
-    (* I've lost the thread, I assume we must conjugate c *)
-    (* Show c * a^-1 * a = c *)
-    apply (inverse_subgroup a H IsSubgroup) in Ha_true.
-    apply (subgroup_op_closed c (inv a) H IsSubgroup H_c) in Ha_true.
-    apply (coset_mult _ (op c (inv a)) H Ha Ha_Coset) in Ha_true.
-    rewrite <- (group_zero_r c).
-    rewrite <- (inverse2 a).
-    rewrite group_assoc in Ha_true.
-    assumption.
+  Hint Rewrite inverse_swap.
+
+  Lemma inverse_zero : inv zero = zero.
+    apply (group_cancel_l zero).
+    rewrite inverse1.
+    rewrite group_zero_l.
+    reflexivity.
   Qed.
-  (* all the same facts are true for left cosets but I don't want to prove those now :) *)
+
+  Hint Rewrite inverse_zero.
+
+  Theorem coset_zero:
+    forall a H, is_subgroup H -> is_mem H a -> forall c, right_coset H a c = right_coset H zero c.
+  Proof.
+    intros a H IsSubgroup Ha_true.
+    (* WTS: everything in Ha can be represented by something in H *)
+    unfold right_coset.
+    intros c.
+    apply (subgroup_inverse _ _ IsSubgroup) in Ha_true.
+    rewrite (subgroup_mem_r _ _ H IsSubgroup).
+    autorewrite with core.
+    reflexivity.
+    auto.
+  Qed.
 
   Definition is_normal_subgroup (H: A -> bool) :=
     is_subgroup H /\ forall (a h : A), is_mem H h -> is_mem H (a <*> h <*> inv a).
-
-  Lemma inverse_apply: forall a b, inv (a <*> b) = inv b <*> inv a.
-  Proof.
-    intros a b.
-    apply (group_cancel_l (a <*> b) _).
-    rewrite <- group_assoc.
-    rewrite inverse1.
-    repeat rewrite group_assoc.
-    rewrite <- (group_assoc b _ _).
-    rewrite inverse1.
-    rewrite group_zero_l.
-    rewrite inverse1; reflexivity.
-  Qed.
 
   Require Import Setoid.
 
@@ -428,18 +407,43 @@ Section group_laws.
     assumption.
   Qed.
 
-  Theorem normal_subgroup_has_same_cosets : forall a H aH Ha,
-      is_normal_subgroup H -> left_coset a H aH -> right_coset a H Ha -> forall c, is_mem aH c <-> is_mem Ha c.
+  Theorem normal_subgroup_has_same_cosets : forall a H,
+      is_normal_subgroup H ->
+      forall c, left_coset a H c = right_coset H a c.
   Proof.
-    intros a H aH Ha IsNormalSubgroup aH_coset Ha_coset.
+    intros a H IsNormalSubgroup.
+    assert (is_subgroup H) as IsSubgroup.  destruct IsNormalSubgroup; auto.
     intros c.
+    unfold left_coset.
+    unfold right_coset.
+    destruct (bool_dec (H a) true) as [Ha_true | Ha_false].
+    fold (is_mem H a) in Ha_true.
+    rewrite <- (subgroup_inverse _ H IsSubgroup) in Ha_true.
+    rewrite (subgroup_mem_l _ _ H IsSubgroup), (subgroup_mem_r _ _ H IsSubgroup). reflexivity.
+    auto.
+    auto.
+    apply not_true_is_false in Ha_false.
+    destruct (bool_dec (H c) true) as [Hc_true | Hc_false].
+    rewrite (subgroup_op_non_member_left _ _ H IsSubgroup).
+    rewrite (subgroup_op_non_member_right _ _ H IsSubgroup).
+    reflexivity.
+    (* must show H a = false <-> H (inv a) = false *)
+    rewrite (subgroup_inverse _ H IsSubgroup) in Ha_false.
+
+    auto.
+
+    destruct (bool_dec (H (inv a <*> c)) true) as [H_inv_a_c_true | H_inv_a_c_false].
+
+    rewrite H_inv_a_c_true.
+    symmetry.
+    (* so aha^{-1}a = c *)
+
     split.
     intros aH_c.
     apply (coset_extract_left a c H aH aH_coset) in aH_c.
     destruct aH_c as [h [h_Subgroup c_equality]].
     rewrite <- c_equality.
     (* ah = c *)
-    (* so aha^{-1}a = c *)
     (* and aha^{-1} is in the subgroup since H is normal *)
     rewrite <- group_zero_r, <- (inverse2 a), <- group_assoc.
     apply Ha_coset.
