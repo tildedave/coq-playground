@@ -540,33 +540,6 @@ Section groups.
     Qed.
   End normal_subgroups.
 
-  Section homomorphisms.
-    Definition is_homomorphism (A: Set) op inv zero (B: Set) op' inv' zero' (h: A -> B) :=
-      is_group A op inv zero /\
-      is_group B op' inv' zero' /\
-      h zero = zero' /\
-      forall a b,
-        h (op a b) = op' (h a) (h b).
-
-    Lemma id_homomorphism : is_homomorphism A op inv zero A op inv zero (fun a => a).
-      unfold is_homomorphism.
-      auto.
-    Qed.
-
-    Lemma abelian_group_inv_homomorphism :
-      is_abelian_group A op inv zero ->
-      is_homomorphism A op inv zero A op inv zero (fun a => (inv a)).
-    Proof.
-      unfold is_abelian_group, is_commutative.
-      intros [_ IsCommutative].
-      unfold is_homomorphism.
-      split; [assumption | split; [assumption | split; [apply inverse_zero|auto]]].
-      intros a b.
-      rewrite IsCommutative, inverse_apply; reflexivity.
-    Qed.
-
-  End homomorphisms.
-
   (* Universe of quotient groups is the coset universe, e.g. A -> bool *)
 
   Definition Coset (H: A -> bool) (a : A) : Set :=
@@ -590,5 +563,48 @@ Section groups.
   (* theorem should show is_group holds for a given quotient_group *)
 
 End groups.
+
+Section homomorphisms.
+  Definition is_homomorphism (A: Set) op inv zero (B: Set) op' inv' zero' (h: A -> B) :=
+    is_group A op inv zero /\
+    is_group B op' inv' zero' /\
+    h zero = zero' /\
+    forall a b,
+      h (op a b) = op' (h a) (h b).
+
+  Lemma id_homomorphism : forall A op inv zero,
+      is_group A op inv zero -> is_homomorphism A op inv zero A op inv zero (fun a => a).
+    intros A op inv zero.
+    unfold is_homomorphism.
+    intros IsGroup.
+    auto.
+  Qed.
+
+  Lemma abelian_group_inv_homomorphism : forall A op inv zero,
+    is_abelian_group A op inv zero ->
+    is_homomorphism A op inv zero A op inv zero (fun a => (inv a)).
+  Proof.
+    intros A op inv zero.
+    unfold is_abelian_group, is_commutative.
+    intros [IsGroup IsCommutative].
+    unfold is_homomorphism.
+    split; [assumption | split; [assumption | split; [apply (inverse_zero A op inv zero IsGroup)|auto]]].
+    intros a b.
+    rewrite IsCommutative, (inverse_apply A op inv zero IsGroup). reflexivity.
+  Qed.
+
+  Lemma homomorphism_inverse : forall A op inv zero B op' inv' zero' h,
+      is_homomorphism A op inv zero B op' inv' zero' h ->
+      forall a,
+        h (inv a) = inv' (h a).
+    intros A op inv zero B op' inv' zero' h.
+    unfold is_homomorphism.
+    intros [Group [Group' [Zero Homomorphism]]].
+    intros a.
+    apply (group_cancel_l B op' inv' zero' Group' (h a) _ _).
+    rewrite <- Homomorphism.
+    rewrite (inverse1 A op inv zero Group).
+
+End homomorphisms.
 
 Check Coset.
