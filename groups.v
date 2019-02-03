@@ -593,10 +593,15 @@ Section homomorphisms.
     rewrite IsCommutative, (inverse_apply A op inv zero IsGroup). reflexivity.
   Qed.
 
-  Lemma homomorphism_inverse : forall A op inv zero B op' inv' zero' h,
+  Variables (A B : Set)
+            (op: A -> A -> A) (op': B -> B -> B)
+            (inv: A -> A) (inv': B -> B)
+            (zero : A) (zero' : B).
+
+  Lemma homomorphism_inverse : forall h,
       is_homomorphism A op inv zero B op' inv' zero' h ->
       forall a, h (inv a) = inv' (h a).
-    intros A op inv zero B op' inv' zero' h.
+    intros h.
     unfold is_homomorphism.
     intros [Group [Group' [Zero Homomorphism]]].
     intros a.
@@ -607,10 +612,10 @@ Section homomorphisms.
     assumption.
   Qed.
 
-  Lemma homomorphism_assoc : forall A op inv zero B op' inv' zero' h,
+  Lemma homomorphism_assoc : forall h,
       is_homomorphism A op inv zero B op' inv' zero' h ->
       forall a b c, op' (h (op a b)) (h c) = op' (h a) (h (op b c)).
-    intros A op inv zero B op' inv' zero' h.
+    intros h.
     unfold is_homomorphism.
     intros [Group [Group' [_ Homomorphism]]].
     intros a b c.
@@ -619,6 +624,92 @@ Section homomorphisms.
     rewrite Homomorphism.
     reflexivity.
   Qed.
+
+  (* NEXT: kernel of homomorphism is a normal subgroup, image of homomorphism is a subgroup *)
+  (* a \in kern(f) if f(a) = z *)
+
+  Definition is_kernel (h: A -> B) (k: A -> bool) :=
+    is_homomorphism A op inv zero B op' inv' zero' h /\
+    forall a, k a = true <-> (h a) = zero'.
+
+  Definition is_image (h: A -> B) (i: B -> bool) :=
+    is_homomorphism A op inv zero B op' inv' zero' h /\
+    forall b, i b = true <-> exists a, (h a) = b.
+
+  Lemma kernel_is_subgroup : forall h k,
+    is_kernel h k -> is_subgroup A op inv zero k.
+    intros h k.
+    intros IsKernel.
+    assert (is_kernel h k) as IsKernel2. assumption.
+    destruct IsKernel2 as [[IsGroup [IsGroup' [HomomorphismZero Homomorphism]]] DefinitionOfKernel].
+    unfold is_subgroup.
+    split.
+    apply DefinitionOfKernel; assumption.
+    split.
+    (* show kernel is closed under operation *)
+    intros a b.
+    rewrite (DefinitionOfKernel a), (DefinitionOfKernel b).
+    intros [ha_zero hb_zero].
+    apply DefinitionOfKernel.
+    rewrite Homomorphism.
+    rewrite ha_zero, hb_zero.
+    rewrite (group_zero_l B op' inv' zero' IsGroup').
+    reflexivity.
+    (* show kernel is closed under inverse *)
+    intros a.
+    rewrite (DefinitionOfKernel a), (DefinitionOfKernel (inv a)).
+    rewrite homomorphism_inverse.
+    intros ha_zero.
+    rewrite ha_zero.
+    rewrite (inverse_zero B op' inv' zero' IsGroup').
+    reflexivity.
+    destruct IsKernel.
+    auto.
+  Qed.
+
+  Lemma kernel_is_normal_subgroup: forall h k,
+    is_kernel h k -> is_normal_subgroup A op inv zero k.
+    intros h k IsKernel.
+    unfold is_normal_subgroup.
+    split; [apply (kernel_is_subgroup h k IsKernel) |auto].
+    intros a b.
+    unfold is_mem.
+    intros b_kernel.
+    destruct IsKernel as [IsHomomorphism DefinitionOfKernel].
+    rewrite DefinitionOfKernel.
+    assert (is_homomorphism A op inv zero B op' inv' zero' h) as IsHomomorphism2. auto.
+    destruct IsHomomorphism2 as [Group [Group' [HomomorphismZero Homomorphism]]].
+    repeat rewrite Homomorphism.
+    apply DefinitionOfKernel in b_kernel.
+    rewrite b_kernel.
+    rewrite (group_zero_r B op' inv' zero' Group').
+    rewrite (homomorphism_inverse h IsHomomorphism).
+    rewrite (inverse1 B op' inv' zero' Group').
+    reflexivity.
+  Qed.
+
+  Lemma image_is_subgroup : forall h i, is_image h i -> is_subgroup B op' inv' zero' i.
+    intros h i.
+    unfold is_image.
+    intros [IsHomomorphism IsImage].
+    unfold is_subgroup.
+    split; [auto|split; [auto | auto]].
+    (* show zero is in the image *)
+    destruct IsHomomorphism as [Group [Group' [HomomorphismZero Homomorphism]]].
+    apply (IsImage zero').
+    exists zero.
+    assumption.
+    (* show closed under operation *)
+    intros a b.
+    rewrite (IsImage a), (IsImage b).
+    intros [[a' a'_def] [b' b'_def]].
+    apply IsImage.
+    exists (op a' b').
+    destruct IsHomomorphism as [_ [_ [_ Homomorphism]]].
+    rewrite Homomorphism.
+    rewrite a'_def, b'_def; reflexivity.
+    (* show closed under inverse *)
+
 End homomorphisms.
 
 Check Coset.
