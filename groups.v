@@ -595,8 +595,7 @@ Section homomorphisms.
 
   Lemma homomorphism_inverse : forall A op inv zero B op' inv' zero' h,
       is_homomorphism A op inv zero B op' inv' zero' h ->
-      forall a,
-        h (inv a) = inv' (h a).
+      forall a, h (inv a) = inv' (h a).
     intros A op inv zero B op' inv' zero' h.
     unfold is_homomorphism.
     intros [Group [Group' [Zero Homomorphism]]].
@@ -604,7 +603,22 @@ Section homomorphisms.
     apply (group_cancel_l B op' inv' zero' Group' (h a) _ _).
     rewrite <- Homomorphism.
     rewrite (inverse1 A op inv zero Group).
+    rewrite (inverse1 B op' inv' zero' Group').
+    assumption.
+  Qed.
 
+  Lemma homomorphism_assoc : forall A op inv zero B op' inv' zero' h,
+      is_homomorphism A op inv zero B op' inv' zero' h ->
+      forall a b c, op' (h (op a b)) (h c) = op' (h a) (h (op b c)).
+    intros A op inv zero B op' inv' zero' h.
+    unfold is_homomorphism.
+    intros [Group [Group' [_ Homomorphism]]].
+    intros a b c.
+    rewrite Homomorphism.
+    rewrite (group_assoc B op' inv' zero' Group').
+    rewrite Homomorphism.
+    reflexivity.
+  Qed.
 End homomorphisms.
 
 Check Coset.
