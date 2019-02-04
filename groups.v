@@ -902,35 +902,22 @@ Section quotient_groups.
     (* injectivity shown \o/ *)
     (* must show surjectivity now *)
     unfold is_surjective.
-
-
-    intros A op inv zero H K I IsGroup IsNormalSubgroup CosetEquivalenceRelation IsKernel IsImage.
+    intros b.
     split.
-    unfold is_injective.
-    intros a b.
-    unfold quotient_mapping.
-
-    split.
-
-    intros CosetRepresentativeAreSame.
-    apply CosetEquivalenceRelation in CosetRepresentativeAreSame.
-    unfold left_coset, is_mem in CosetRepresentativeAreSame.
-
-        unfold coset_equivalence_relation in CosetEquivalenceRelation.
-    apply CosetEquivalenceRelation in CosetRepresentativeAreSame.
-
-      (* quotient_mapping A H
-
-
-(*
-  Definition is_kernel (h: A -> B) (k: A -> bool) :=
-    is_homomorphism A op inv zero B op' inv' zero' h /\
-    forall a, k a = true <-> (h a) = zero'.
-
-  Definition is_image (h: A -> B) (i: B -> bool) :=
-    is_homomorphism A op inv zero B op' inv' zero' h /\
-    forall b, i b = true <-> exists a, (h a) = b.
- *)
+    intros b_Image.
+    apply IsImage in b_Image.
+    destruct b_Image as [a a_def].
+    exists (CosetRepresentative A K a).
+    unfold canonical_isomorphism.
+    assumption.
+    intros a_Coset.
+    destruct a_Coset as [a a_isomorphism].
+    unfold canonical_isomorphism in a_isomorphism.
+    apply IsImage.
+    destruct a as [a].
+    exists a.
+    assumption.
+  Qed.
 
 End quotient_groups.
 
