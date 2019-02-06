@@ -1,5 +1,6 @@
 Require Import Coq.Bool.Bool.
 Require Import Setoid.
+Require Import Coq.Classes.Equivalence.
 
 Lemma bool_dec2 : forall b1 b2 b3 b4 : bool,
     {b1 = b2 /\ b3 = b4} + {b1 <> b2 /\ b3 = b4} + {b1 = b2 /\ b3 <> b4} + {b1 <> b2 /\ b3 <> b4}.
@@ -707,6 +708,7 @@ Section quotient_groups.
              (IsNormalSubgroup: is_normal_subgroup A op inv zero H) :=
     (fun a => CosetRepresentative A H a).
 
+
   (* must define quotient zero, quotient op, quotient inverse *)
 
   Definition quotient_zero (A : Set) (H: A -> bool) zero := CosetRepresentative A H zero.
@@ -778,9 +780,28 @@ Section quotient_groups.
     split; [assumption | split; [apply quotient_is_group; assumption|auto]].
   Qed.
 
-  Definition coset_equivalence_relation (A : Set) op inv (H : A -> bool) :=
-    forall a b, CosetRepresentative A H a = CosetRepresentative A H b <->
-                is_mem A (left_coset A op inv a H) b.
+
+  Definition repr (A : Set) (H : A -> bool) (a : Coset A H) : A.
+    destruct a; exact a.
+  Defined.
+
+  Definition coset_equivalence_relation (A : Set) (H : A -> bool) (op : A -> A -> A) (inv : A -> A) (zero : A)
+             (a b : Coset A H) :=
+    is_group A op inv zero ->
+    is_subgroup A op inv zero H ->
+    is_mem A (left_coset A op inv (repr A H a) H) (repr A H b).
+
+  Instance Coset_Equivalence (A : Set) (H: A -> bool) (op: A -> A -> A) (inv: A -> A) (zero: A):
+    Equivalence (coset_equivalence_relation A H op inv zero).
+  Proof.
+    unfold coset_equivalence_relation, is_mem, left_coset.
+    split.
+    intros x IsGroup IsSubgroup; simpl.
+    rewrite (inverse2 A op inv zero IsGroup); apply IsSubgroup.
+    unfold Symmetric.
+    intros x y.
+    intros x_y_equivalent.
+    intros IsGroup IsSubgroup; simpl.
 
   Definition is_injective (A: Set) (B: Set) (h: A -> B) (H : B -> bool) :=
     forall a b, H (h a) = true /\ H (h b) = true -> (h a) = (h b) <-> a = b.
@@ -841,16 +862,13 @@ Section quotient_groups.
     forall A op inv zero B op' inv' zero' h K I,
       is_group A op inv zero ->
       is_group B op' inv' zero' ->
-      (* coset equivalence relation should let us rewrite *)
       coset_equivalence_relation A op inv K ->
-      (* show the quotient_mapping is an isomorphism *)
-      (* must define these kernel/image maps somehow *)
       is_kernel A B op op' inv inv' zero zero' h K ->
       is_image A B op op' inv inv' zero zero' h I ->
       (* the quotient group is isomorphic to the image of the homomorphism.
          we take the canonical isomorphism defined above and show that it is:
          (1) a homomorphism (proven above)
-         (2) it is injective (coset equivalent relation is required)
+         (2) it is injective (coset equivalence relation is required)
          (3) it is surjective
        *)
       is_homomorphism
@@ -920,5 +938,31 @@ Section quotient_groups.
   Qed.
 
 End quotient_groups.
+
+Section group_examples.
+  Require Import Coq.ZArith.BinInt.
+  Require Import ZArithRing.
+  Local Open Scope Z_scope.
+
+  Lemma integers_with_addition_are_group : (is_group Z Z.add (fun n => - n)) Z.zero.
+    unfold is_group.
+    split.
+    unfold is_semigroup.
+    unfold is_assoc, is_zero.
+    split.
+    intros; ring.
+    intros; split.
+    rewrite Z.add_0_r; reflexivity.
+    rewrite Z.add_0_l; reflexivity.
+    unfold is_inverse.
+    intros a.
+    split.
+    rewrite Z.add_opp_diag_r.
+    reflexivity.
+    rewrite Z.add_comm, Z.add_opp_diag_r.
+    reflexivity.
+  Qed.
+
+
 
 Check Coset.
