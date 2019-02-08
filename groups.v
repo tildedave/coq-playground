@@ -21,7 +21,7 @@ Section group_definitions.
   Definition is_commutative (A: Set) (f: A -> A -> A) := forall a b, f a b = f b a.
 
   Definition is_inverse (A: Set) (f: A -> A -> A) (inv: A -> A) (z: A) :=
-    forall a, f a (inv a) = z /\ f (inv a) a = z.
+    forall a,  f a (inv a) = z /\ f (inv a) a = z.
 
   Definition is_zero (A: Set) (f: A -> A -> A) (z: A) := forall a, f a z = a /\ f z a = a.
 
@@ -37,55 +37,63 @@ End group_definitions.
 
 
 Section groups.
+  Structure Group : Type :=
+    {
+      A :> Set;
 
-  Variables (A : Set) (op : A -> A -> A) (inv : A -> A) (zero : A).
-  Variable (Group : is_group A op inv zero).
+      op : A -> A -> A ;
+      inv : A -> A ;
+      zero : A ;
+
+      op_assoc : forall a b c, op a (op b c) = op (op a b) c;
+      op_zero : forall a, op a zero = a /\ op zero a = a ;
+      op_inverse : forall a, op a (inv a) = zero /\ op (inv a) a = zero
+    }.
+
+  Arguments zero {g}.
+  Arguments op {g} _ _.
+  Arguments inv {g} _.
 
   Notation "x <*> y" := (op x y) (at level 50, left associativity).
 
-  Section group_laws.
+  Variable (G : Group).
 
-  Lemma inverse1 (a: A): a <*> (inv a) = zero.
-    unfold is_group, is_inverse in Group.
-    destruct Group as [_ HasInverse].
-    apply HasInverse.
+  Lemma inverse1 : forall (a : G), a <*> (inv a) = zero.
+    apply op_inverse.
   Qed.
 
-  Lemma inverse2 (a: A): (inv a) <*> a = zero.
-    unfold is_group, is_inverse in Group.
-    destruct Group as [_ HasInverse].
-    apply HasInverse.
+  Lemma inverse2 : forall (a: G), (inv a) <*> a = zero.
+    apply op_inverse.
   Qed.
 
-  Lemma inverse_commutes (a: A): a <*> (inv a) = (inv a) <*> a.
-    unfold is_group, is_inverse in Group.
-    destruct Group as [_ HasInverse].
-    rewrite inverse1. symmetry; apply HasInverse.
+  Lemma inverse_commutes : forall (a: G), a <*> (inv a) = (inv a) <*> a.
+    intros a.
+    rewrite inverse2; apply op_inverse.
   Qed.
 
-  Lemma group_add_l: forall a b c, b = c -> a <*> b = a <*> c.
+  Lemma group_add_l: forall (a b c : G), b = c -> a <*> b = a <*> c.
     intros a b c.
     intros H; rewrite H; reflexivity.
   Qed.
 
-  Lemma group_add_r: forall a b c, b = c -> b <*> a = c <*> a.
+  Lemma group_add_r: forall (a b c : G), b = c -> b <*> a = c <*> a.
     intros a  b c.
     intros H; rewrite H; reflexivity.
   Qed.
 
-  Lemma group_zero_r: forall a, a <*> zero = a.
-    destruct Group as [[_ Zero] _]; apply Zero.
+  Lemma group_zero_r: forall (a : G), a <*> zero = a.
+    apply op_zero.
   Qed.
 
-  Lemma group_zero_l: forall a, zero <*> a = a.
-    destruct Group as [[_ Zero] _]; apply Zero.
+  Lemma group_zero_l: forall (a : G), zero <*> a = a.
+    apply op_zero.
   Qed.
 
-  Lemma group_assoc: forall a b c, (a <*> b) <*> c = a <*> (b <*> c).
-    destruct Group as [[Assoc _] _]; auto.
+  Lemma group_assoc: forall (a b c : G), (a <*> b) <*> c = a <*> (b <*> c).
+    intros; rewrite op_assoc; reflexivity.
   Qed.
 
-  Lemma group_cancel_l: forall a b c, op a b = op a c -> b = c.
+  Lemma group_cancel_l: forall (a b c : G), a <*> b = a <*> c -> b = c.
     intros a b c OpABEqOpAC.
     rewrite <- (group_zero_l b), <- (group_zero_l c).
     rewrite <- (inverse2 a).
@@ -94,7 +102,7 @@ Section groups.
     assumption.
   Qed.
 
-  Lemma group_cancel_r: forall a b c, op b a = op c a -> b = c.
+  Lemma group_cancel_r: forall (a b c :G), b <*> a = c <*> a -> b = c.
     intros a b c OpABEqOpAC.
     rewrite <- (group_zero_r b), <- (group_zero_r c).
     rewrite <- (inverse1 a).
@@ -103,13 +111,13 @@ Section groups.
     assumption.
   Qed.
 
-  Theorem id_is_unique: forall a, (forall b, op a b = b) -> a = zero.
+  Theorem id_is_unique: forall a : G, (forall b : G, a <*> b = b) -> a = zero.
     intros a ADef.
     apply (group_cancel_r (inv a)).
     rewrite group_zero_l; apply ADef.
   Qed.
 
-  Theorem op_zero_commutes: forall a b, op a b = zero <-> op b a = zero.
+  Theorem op_zero_commutes: forall (a b : G), a <*> b = zero <-> b <*> a = zero.
     intros a b.
     split.
     intro OpABZero.
@@ -126,7 +134,7 @@ Section groups.
     reflexivity.
   Qed.
 
-  Theorem inverse_unique: forall a b, op a b = zero -> b = inv a.
+  Theorem inverse_unique: forall (a b : G), a <*> b = zero -> b = inv a.
     intros a b.
     intros OpABZero.
     apply (group_cancel_l a _ _).
@@ -134,7 +142,7 @@ Section groups.
     assumption.
   Qed.
 
-  Theorem inverse_cancel: forall a, inv (inv a) = a.
+  Theorem inverse_cancel: forall (a : G), inv (inv a) = a.
     intros a.
     (* show (inv a) * a = zero *)
     remember (inverse2 a) as H.
@@ -143,7 +151,7 @@ Section groups.
     symmetry; assumption.
   Qed.
 
-  Lemma inverse_apply: forall a b, inv (a <*> b) = inv b <*> inv a.
+  Lemma inverse_apply: forall (a b : G), inv (a <*> b) = inv b <*> inv a.
   Proof.
     intros a b.
     apply (group_cancel_l (a <*> b) _).
@@ -156,7 +164,7 @@ Section groups.
     rewrite inverse1; reflexivity.
   Qed.
 
-  Lemma inverse_swap: forall a b c, a = op (inv b) c <-> op b a = c.
+  Lemma inverse_swap: forall (a b c : G), a = (inv b) <*> c <-> b <*> a = c.
   Proof.
     intros a b c.
     split.
@@ -174,14 +182,12 @@ Section groups.
     assumption.
   Qed.
 
-  Lemma inverse_zero : inv zero = zero.
+  Lemma inverse_zero: @inv G zero = zero.
     apply (group_cancel_l zero).
     rewrite inverse1.
     rewrite group_zero_l.
     reflexivity.
   Qed.
-
-  End group_laws.
 
   Hint Rewrite inverse_swap.
   Hint Rewrite inverse_zero.
@@ -432,11 +438,21 @@ Section groups.
       is_subgroup H /\ forall (a h : A), is_mem H h -> is_mem H (a <*> h <*> inv a).
 
     Lemma normal_subgroup_intro: forall a h H,
-        is_normal_subgroup H -> is_mem H h ->
+        is_normal_subgroup H -> is_mem H h <->
         is_mem H (a <*> h <*> inv a).
-      intros a h H IsNormalSubgroup h_Subgroup.
+      intros a h H IsNormalSubgroup.
       destruct IsNormalSubgroup as [IsSubgroup Normality].
+      split.
+      intros h_Subgroup.
       apply Normality.
+      assumption.
+      intros h_conjugate.
+      apply (Normality (inv a) _) in h_conjugate.
+      repeat rewrite <- group_assoc in h_conjugate.
+      rewrite inverse_cancel in h_conjugate.
+      rewrite inverse2 in h_conjugate.
+      repeat rewrite group_assoc, inverse2 in h_conjugate.
+      rewrite group_zero_l, group_zero_r in h_conjugate.
       assumption.
     Qed.
 
@@ -788,7 +804,7 @@ Section quotient_groups.
   Definition coset_equivalence_relation (A : Set) (H : A -> bool) (op : A -> A -> A) (inv : A -> A) (zero : A)
              (a b : Coset A H) :=
     is_group A op inv zero ->
-    is_subgroup A op inv zero H ->
+    is_normal_subgroup A op inv zero H ->
     is_mem A (left_coset A op inv (repr A H a) H) (repr A H b).
 
   Instance Coset_Equivalence (A : Set) (H: A -> bool) (op: A -> A -> A) (inv: A -> A) (zero: A):
@@ -796,12 +812,36 @@ Section quotient_groups.
   Proof.
     unfold coset_equivalence_relation, is_mem, left_coset.
     split.
-    intros x IsGroup IsSubgroup; simpl.
-    rewrite (inverse2 A op inv zero IsGroup); apply IsSubgroup.
-    unfold Symmetric.
-    intros x y.
-    intros x_y_equivalent.
-    intros IsGroup IsSubgroup; simpl.
+    (* show reflexivity *)
+    intros x IsGroup IsNormalSubgroup; simpl.
+    rewrite (inverse2 A op inv zero IsGroup); apply IsNormalSubgroup.
+    (* show symmetry *)
+    intros x y; destruct x as [x], y as [y].
+    intros x_y.
+    intros IsGroup IsNormalSubgroup; simpl.
+    remember (x_y IsGroup IsNormalSubgroup) as Q; destruct HeqQ; simpl in Q. (* ??? *)
+(*    rewrite (normal_subgroup_membership_commutes A op inv zero IsGroup _ _ H IsNormalSubgroup) in Q.*)
+    fold (is_mem A H (op (inv y) x)).
+    rewrite <- (subgroup_inverse A op inv zero IsGroup _ H).
+    rewrite (inverse_apply A op inv zero IsGroup).
+    rewrite (inverse_cancel A op inv zero IsGroup).
+    auto.
+    destruct IsNormalSubgroup; auto.
+    (* show transitivitity *)
+    intros x y z; destruct x as [x], y as [y], z as [z].
+    intros x_y y_z.
+    intros IsGroup IsNormalSubgroup; simpl.
+    simpl in x_y, y_z.
+    remember (x_y IsGroup IsNormalSubgroup) as Q; destruct HeqQ; simpl in Q.
+    remember (y_z IsGroup IsNormalSubgroup) as Q'; destruct HeqQ'; simpl in Q'.
+    destruct IsNormalSubgroup as [IsSubgroup _].
+    apply (subgroup_op_closed A op inv zero _ _ H IsSubgroup Q) in Q'.
+    rewrite (group_assoc A op inv zero IsGroup) in Q'.
+    rewrite <- (group_assoc A op inv zero IsGroup y _ _) in Q'.
+    rewrite (inverse1 A op inv zero IsGroup) in Q'.
+    rewrite (group_zero_l A op inv zero IsGroup) in Q'.
+    assumption.
+  Qed.
 
   Definition is_injective (A: Set) (B: Set) (h: A -> B) (H : B -> bool) :=
     forall a b, H (h a) = true /\ H (h b) = true -> (h a) = (h b) <-> a = b.
@@ -857,12 +897,16 @@ Section quotient_groups.
     destruct IsKernel as [IsHomomorphism _]; apply IsHomomorphism.
   Qed.
 
+  Definition coset_equivalence_relation' (A : Set) op inv (H : A -> bool) :=
+    forall a b, CosetRepresentative A H a = CosetRepresentative A H b <->
+                is_mem A (left_coset A op inv a H) b.
+
   (* FIRST ISOMORPHISM THEOREM *)
   Theorem quotient_of_homomorphism_is_isomorphic_to_image :
     forall A op inv zero B op' inv' zero' h K I,
       is_group A op inv zero ->
       is_group B op' inv' zero' ->
-      coset_equivalence_relation A op inv K ->
+      coset_equivalence_relation' A op inv K ->
       is_kernel A B op op' inv inv' zero zero' h K ->
       is_image A B op op' inv inv' zero zero' h I ->
       (* the quotient group is isomorphic to the image of the homomorphism.
