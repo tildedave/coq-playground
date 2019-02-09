@@ -35,9 +35,8 @@ Section group_definitions.
 
 End group_definitions.
 
-
 Section groups.
-  Structure Group : Type :=
+  Structure Group : Type := makeGroup
     {
       A :> Set;
 
@@ -66,19 +65,19 @@ Section groups.
     apply op_inverse.
   Qed.
 
+  Hint Rewrite inverse1.
+  Hint Rewrite inverse2.
+
   Lemma inverse_commutes : forall (a: G), a <*> (inv a) = (inv a) <*> a.
-    intros a.
-    rewrite inverse2; apply op_inverse.
+    intros; autorewrite with core; auto.
   Qed.
 
   Lemma group_add_l: forall (a b c : G), b = c -> a <*> b = a <*> c.
-    intros a b c.
-    intros H; rewrite H; reflexivity.
+    intros; rewrite H; auto.
   Qed.
 
   Lemma group_add_r: forall (a b c : G), b = c -> b <*> a = c <*> a.
-    intros a  b c.
-    intros H; rewrite H; reflexivity.
+    intros; rewrite H; auto.
   Qed.
 
   Lemma group_zero_r: forall (a : G), a <*> zero = a.
@@ -88,6 +87,9 @@ Section groups.
   Lemma group_zero_l: forall (a : G), zero <*> a = a.
     apply op_zero.
   Qed.
+
+  Hint Rewrite group_zero_r.
+  Hint Rewrite group_zero_l.
 
   Lemma group_assoc: forall (a b c : G), (a <*> b) <*> c = a <*> (b <*> c).
     intros; rewrite op_assoc; reflexivity.
@@ -189,63 +191,91 @@ Section groups.
     reflexivity.
   Qed.
 
-  Hint Rewrite inverse_swap.
-  Hint Rewrite inverse_zero.
-  Hint Rewrite inverse1.
-  Hint Rewrite inverse2.
-  Hint Rewrite group_assoc.
-  Hint Rewrite group_zero_l.
-  Hint Rewrite group_zero_r.
-  Hint Rewrite inverse_cancel.
-  Hint Rewrite inverse_apply.
+  Section group_examples.
+    Require Import Coq.ZArith.BinInt.
+    Require Import ZArithRing.
+    Local Open Scope Z_scope.
+    Check Group.
+
+    Definition integer_group : Group.
+      remember (fun n => -n) as inv.
+      assert (forall a b c : Z, a + (b + c) = a + b + c) as Z_assoc.
+      intros; ring.
+      assert (forall a : Z, a + Z.zero = a /\ Z.zero + a = a) as Z_zero.
+      intros; rewrite Z.add_0_r, Z.add_0_l; auto.
+      assert (forall a : Z, a + (fun n => -n) a = Z.zero /\ (fun n => -n) a + a = Z.zero) as Z_inv.
+      intros; rewrite Z.add_opp_diag_r, Z.add_opp_diag_l. auto.
+      exact (makeGroup Z Z.add (fun n => - n) Z.zero Z_assoc Z_zero Z_inv).
+    Defined.
+
+    Check integer_group.
 
   Section subgroups.
 
-    (* subgroup_mem is a characteristic function.  not sure if it will need to
-     be A -> Prop instead of a -> bool. *)
-    Definition is_subgroup (H: A -> bool) :=
+    Definition is_mem (A: Set) (mem: A -> bool) (a : A) := mem a = true.
+
+    Arguments is_mem {A} _ _.
+
+    Theorem is_mem_dec (A : Set) (H : A -> bool) :
+      forall a, { is_mem H a } +  { ~(is_mem H a) }.
+      unfold is_mem. intros a.
+      apply (bool_dec (H a)).
+    Qed.
+
+  (* subgroup_mem is a characteristic function.
+     TODO: figure out how to do this nicer ;)
+   *)
+    Definition is_subgroup (G : Group) (H: G -> bool) :=
       (* 0 is a subgroup member *)
-      H zero = true /\
+      is_mem H zero /\
       (* subgroup is closed under operation *)
-      (forall a b, H a = true /\ H b = true -> H (a <*> b) = true) /\
+      (forall a b, is_mem H a /\ is_mem H b -> is_mem H (a <*> b)) /\
       (* if an element is in the subgroup, its inverse is too *)
-      (forall a, H a = true -> H (inv a) = true).
+      forall a, is_mem H a -> is_mem H (inv a).
 
-    Definition is_mem (mem: A -> bool) (a : A) := mem a = true.
+    Arguments is_subgroup {G} _.
 
-    Lemma subgroup_op_closed: forall a b H,
-        is_subgroup H -> is_mem H a -> is_mem H b -> is_mem H (op a b).
+    (* H is a subgroup *)
+    (* H is inductively defined, zero is in it,
+       if a is in it, inv a is in it, if a b is in it, a op b is in it
+       zero is a consequence of the other two
+     *)
+
+    Inductive Subgroup (G : Group) : Set :=
+      subgroup_zero : forall zero, Subgroup G.
+
+    Lemma subgroup_op_closed: forall (a b : G) H,
+        is_subgroup H -> is_mem H a -> is_mem H b -> is_mem H (a <*> b).
     Proof.
-      intros a b H.
-      unfold is_subgroup.
-      intros [_ [H_closed _]].
-      intros Ha Hb.
-      apply H_closed.
-      auto.
+      intros a b H IsSubgroup.
+      destruct IsSubgroup as [_ [H_closed _]].
+      intros; apply H_closed; auto.
     Qed.
 
-    Lemma subgroup_inverse1: forall a H, is_subgroup H -> is_mem H a -> is_mem H (inv a).
+    Lemma subgroup_inverse1: forall (a : G) H,
+        is_subgroup H -> is_mem H a -> is_mem H (inv a).
       intros a H IsSubgroup.
-      unfold is_subgroup in IsSubgroup.
-      destruct IsSubgroup as [_ [_ Inverse]].
-      apply Inverse.
+      destruct IsSubgroup as [_ [_ Inverse]]; apply Inverse.
     Qed.
 
-    Lemma subgroup_inverse2: forall a H, is_subgroup H -> is_mem H (inv a) -> is_mem H a.
+    Lemma subgroup_inverse2: forall (a : G) H,
+        is_subgroup H -> is_mem H (inv a) -> is_mem H a.
       intros a H IsSubgroup H_inv_a.
       rewrite <- inverse_cancel.
-      apply subgroup_inverse1.
-      auto.
-      assumption.
+      apply subgroup_inverse1; auto.
     Qed.
 
-    Lemma subgroup_inverse: forall a H, is_subgroup H -> is_mem H (inv a) <-> is_mem H a.
+    Lemma subgroup_inverse: forall (a : G) H,
+        is_subgroup H -> is_mem H (inv a) <-> is_mem H a.
     Proof.
-      intros.
+      intros. split; [apply subgroup_inverse2 | apply subgroup_inverse1].
+
+
       split.
       apply subgroup_inverse2; auto.
       apply subgroup_inverse1; auto.
     Qed.
+
 
     Lemma subgroup_op_non_member_right: forall a b H,
         is_subgroup H -> H a = true /\ H b = false -> H (a <*> b) = false.
