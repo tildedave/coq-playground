@@ -212,20 +212,27 @@ Section groups.
 
   Section subgroups.
 
-    Definition is_mem (A: Set) (mem: A -> bool) (a : A) := mem a = true.
+    Definition set (A : Set) := A -> bool.
+
+    Definition is_mem (A: Set) (H: set A) (a : A) := H a = true.
 
     Arguments is_mem {A} _ _.
 
-    Theorem is_mem_dec (A : Set) (H : A -> bool) :
+    Theorem is_mem_dec (A : Set) (H : set A) :
       forall a, { is_mem H a } +  { ~(is_mem H a) }.
       unfold is_mem. intros a.
       apply (bool_dec (H a)).
     Qed.
 
+    Theorem is_mem_contradict (A : Set) (H : set A) :
+      forall a, is_mem H a -> ~is_mem H a -> False.
+      intros a; auto.
+    Qed.
+
   (* subgroup_mem is a characteristic function.
      TODO: figure out how to do this nicer ;)
    *)
-    Definition is_subgroup (G : Group) (H: G -> bool) :=
+    Definition is_subgroup (G : Group) (H: set G) :=
       (* 0 is a subgroup member *)
       is_mem H zero /\
       (* subgroup is closed under operation *)
@@ -241,10 +248,7 @@ Section groups.
        zero is a consequence of the other two
      *)
 
-    Inductive Subgroup (G : Group) : Set :=
-      subgroup_zero : forall zero, Subgroup G.
-
-    Lemma subgroup_op_closed: forall (a b : G) H,
+    Lemma subgroup_op_closed: forall (a b : G) (H: set G),
         is_subgroup H -> is_mem H a -> is_mem H b -> is_mem H (a <*> b).
     Proof.
       intros a b H IsSubgroup.
@@ -252,117 +256,104 @@ Section groups.
       intros; apply H_closed; auto.
     Qed.
 
-    Lemma subgroup_inverse1: forall (a : G) H,
+    Lemma subgroup_inverse1: forall (a : G) (H: set G),
         is_subgroup H -> is_mem H a -> is_mem H (inv a).
       intros a H IsSubgroup.
       destruct IsSubgroup as [_ [_ Inverse]]; apply Inverse.
     Qed.
 
-    Lemma subgroup_inverse2: forall (a : G) H,
+    Lemma subgroup_inverse2: forall (a : G) (H: set G),
         is_subgroup H -> is_mem H (inv a) -> is_mem H a.
       intros a H IsSubgroup H_inv_a.
       rewrite <- inverse_cancel.
       apply subgroup_inverse1; auto.
     Qed.
 
-    Lemma subgroup_inverse: forall (a : G) H,
+    Lemma subgroup_inverse: forall (a : G) (H: set G),
         is_subgroup H -> is_mem H (inv a) <-> is_mem H a.
     Proof.
-      intros. split; [apply subgroup_inverse2 | apply subgroup_inverse1].
-
-
-      split.
+      intros. split.
       apply subgroup_inverse2; auto.
       apply subgroup_inverse1; auto.
     Qed.
 
-
-    Lemma subgroup_op_non_member_right: forall a b H,
-        is_subgroup H -> H a = true /\ H b = false -> H (a <*> b) = false.
-      intros a b H IsSubgroup Ha_true.
+    Lemma subgroup_op_non_member_right: forall a b (H: set G),
+        is_subgroup H -> is_mem H a -> ~is_mem H b -> ~is_mem H (a <*> b).
+      intros a b H IsSubgroup Ha_mem Hb_not_mem.
       (* Suppose ab were in the subgroup.  Then a^{-1} ab would be in the subgroup, so b is in the subgroup.
          contradiction *)
-      destruct (bool_dec (H (a <*> b)) false) as [Hab_false | Hab_true].
+      destruct (is_mem_dec _ H (a <*> b)) as [Hab_mem | Hab_not_mem].
+      apply (subgroup_op_closed (inv a) _ H IsSubgroup) in Hab_mem.
+      rewrite <- group_assoc, inverse2, group_zero_l in Hab_mem; auto.
+      apply (subgroup_inverse _ _ IsSubgroup); assumption.
       assumption.
-      destruct Ha_true as [Ha_true Hb_false].
-      apply not_false_is_true in Hab_true.
-      apply (subgroup_op_closed (inv a) _ H IsSubgroup) in Hab_true.
-      rewrite <- group_assoc in Hab_true.
-      rewrite inverse2 in Hab_true.
-      rewrite group_zero_l in Hab_true.
-      unfold is_mem in Hab_true.
-      rewrite Hb_false in Hab_true.
-      contradict Hab_true.
-      auto.
-      apply (subgroup_inverse _ _ IsSubgroup).
-      auto.
     Qed.
 
-    Lemma subgroup_op_non_member_left: forall a b H,
-        is_subgroup H -> H a = false /\ H b = true -> H (a <*> b) = false.
-      intros a b H IsSubgroup [Ha_false Hb_true].
+    Lemma subgroup_op_non_member_left: forall a b (H: set G),
+        is_subgroup H -> is_mem H b -> ~is_mem H a -> ~is_mem H (a <*> b).
+      intros a b H IsSubgroup Hb_mem Ha_not_mem.
       (* not sure if there is a clever way to use right, so we just duplicate the logic above (for now) *)
-      (* Suppose ab were in the subgroup.  Then abb^{-1} would be in the subgroup, so a is in the subgroup.
+      (* Suppose ab were in the subgroup.  Then a^{-1} ab would be in the subgroup, so b is in the subgroup.
          contradiction *)
-      destruct (bool_dec (H (a <*> b)) false) as [Hab_false | Hab_true].
+      destruct (is_mem_dec _ H (a <*> b)) as [Hab_mem | Hab_not_mem].
+      apply (subgroup_op_closed _ (inv b) H IsSubgroup) in Hab_mem.
+      rewrite group_assoc, inverse1, group_zero_r in Hab_mem; auto.
+      apply (subgroup_inverse _ _ IsSubgroup); assumption.
       assumption.
-      apply not_false_is_true in Hab_true.
-      apply (subgroup_op_closed _ (inv b) H IsSubgroup) in Hab_true.
-      autorewrite with core in Hab_true.
-      unfold is_mem in Hab_true.
-      rewrite Ha_false in Hab_true.
-      contradict Hab_true.
-      auto.
-      apply (subgroup_inverse _ _ IsSubgroup).
-      auto.
     Qed.
 
     Lemma subgroup_mem_l:
-      forall a b H, is_subgroup H -> H a = true -> H (a <*> b) = H b.
-      intros a b H IsSubgroup.
-      intros Hb_true.
-      (* want to reason like .... H b = true
-       If H a = true, then obviously since a is in the subgroup.
+      forall a b (H : set G),
+        is_subgroup H -> is_mem H a -> is_mem H (a <*> b) <-> is_mem H b.
+      intros a b H IsSubgroup Ha_mem.
+      (* want to reason like .... is_mem H b
+       If is_mem H a, then obviously since a is in the subgroup.
        If H a = false, then...
        *)
-      destruct (bool_dec (H b) true) as [Ha_true | Ha_false].
-      rewrite Ha_true; apply (subgroup_op_closed _ _ H IsSubgroup Hb_true Ha_true).
-      apply not_true_is_false in Ha_false.
-      rewrite Ha_false.
-      apply (subgroup_op_non_member_right a b H IsSubgroup).
-      auto.
+      destruct (is_mem_dec _ H b) as [Hb_mem | Hb_not_mem].
+      remember (subgroup_op_closed _ _ H IsSubgroup Ha_mem Hb_mem).
+      split; [intros; assumption | intros; assumption].
+      (* a is member, b not member, so these are proofs by contradiction *)
+      remember (subgroup_op_non_member_right a b _ IsSubgroup Ha_mem Hb_not_mem) as Hab_not_mem.
+      split.
+      intros Hab_mem.
+      contradict (is_mem_contradict _ _ _ Hab_mem Hab_not_mem).
+      intros Hb_mem.
+      contradict (is_mem_contradict _ _ _ Hb_mem Hb_not_mem).
     Qed.
 
-    Lemma subgroup_mem_r:
-      forall a b H, is_subgroup H -> H b = true -> H (a <*> b) = H a.
-      intros a b H IsSubgroup.
-      intros Hb_true.
-      (* want to reason like .... H b = true
-       If H a = true, then obviously since a is in the subgroup.
+    Lemma subgroup_mem_r: forall a b (H : set G),
+        is_subgroup H -> is_mem H b -> is_mem H (a <*> b) <-> is_mem H a.
+      intros a b H IsSubgroup Hb_mem.
+      (* want to reason like .... is_mem H b
+       If is_mem H a, then obviously since a is in the subgroup.
        If H a = false, then...
        *)
-      destruct (bool_dec (H a) true) as [Ha_true | Ha_false].
-      rewrite Ha_true; apply (subgroup_op_closed _ _ H IsSubgroup Ha_true Hb_true).
-      apply not_true_is_false in Ha_false.
-      rewrite Ha_false.
-      apply (subgroup_op_non_member_left a b H IsSubgroup).
-      auto.
+      destruct (is_mem_dec _ H a) as [Ha_mem | Ha_not_mem].
+      remember (subgroup_op_closed _ _ H IsSubgroup Ha_mem Hb_mem).
+      split; [intros; assumption | intros; assumption].
+      (* a is member, b not member, so these are proofs by contradiction *)
+      remember (subgroup_op_non_member_left a b _ IsSubgroup Hb_mem Ha_not_mem) as Hab_not_mem.
+      split.
+      intros Hab_mem.
+      contradict (is_mem_contradict _ _ _ Hab_mem Hab_not_mem).
+      intros Ha_mem.
+      contradict (is_mem_contradict _ _ _ Ha_mem Ha_not_mem).
     Qed.
 
-    Lemma subgroup_inverse_non_member1: forall a H, is_subgroup H -> H a = false -> H (inv a) = false.
+    Lemma subgroup_inverse_non_member1: forall a (H: set G),
+        is_subgroup H -> ~is_mem H a -> ~is_mem H (inv a).
       intros a H IsSubgroup.
-      intros Ha_false.
-      destruct (bool_dec (H (inv a)) true) as [Ha_inv_true | Ha_inv_false].
+      destruct (is_mem_dec _ H (inv a)) as [Ha_inv_true | Ha_inv_false].
       apply (subgroup_inverse _ _ IsSubgroup) in Ha_inv_true.
       rewrite inverse_cancel in Ha_inv_true.
-      unfold is_mem in Ha_inv_true.
-      rewrite Ha_false in Ha_inv_true.
-      contradict Ha_inv_true.
-      auto.
-      apply not_true_is_false in Ha_inv_false; auto.
+      intro Ha_false.
+      contradict (is_mem_contradict _ _ _ Ha_inv_true Ha_false).
+      intros; auto.
     Qed.
 
-    Lemma subgroup_inverse_non_member2: forall a H, is_subgroup H -> H (inv a) = false -> H a = false.
+    Lemma subgroup_inverse_non_member2: forall a (H: set G),
+        is_subgroup H -> ~is_mem H (inv a) -> ~is_mem H a.
       intros a H IsSubgroup.
       intros Ha_inv_false.
       apply (subgroup_inverse_non_member1 (inv a) H IsSubgroup) in Ha_inv_false.
@@ -375,12 +366,20 @@ Section groups.
   Section cosets.
 
     (* c \in aH if b \in H such that ab = c, b = a^{-1}c *)
-    Definition left_coset (a: A) (H: A -> bool) := fun c => H ((inv a) <*> c).
+    Definition left_coset (G: Group) (a : G) (H: set G) : set G := fun c => H ((inv a) <*> c).
     (* c \in Ha if b \in H such that ba = c, b = c a^{-1} *)
-    Definition right_coset (H: A -> bool) (a: A) := fun c => H (c <*> (inv a)).
+    Definition right_coset (G: Group) (H: set G) (a: G) : set G := fun c => H (c <*> (inv a)).
+
+    Arguments is_mem {A} _ _.
+    Arguments is_subgroup {G} _.
+    Arguments right_coset {G} _.
+    Arguments left_coset {G} _.
+
+    Check right_coset.
+    Check is_mem.
 
     Lemma coset_intersection_helper_1:
-      forall a b H,
+      forall (G : Group) a b (H: set G),
         is_subgroup H ->
         (exists x, is_mem (right_coset H a) x /\  is_mem (right_coset H b) x) ->
         exists h1 h2, is_mem H h1 /\ is_mem H h2 /\ a = op (op (inv h1) h2) b.
@@ -510,7 +509,7 @@ Section groups.
       destruct (bool_dec2 (H a) true (H b) true) as
           [[[[Ha_true Hb_true] | [Ha_false Hb_true]] |
             [Ha_true Hb_false]] | [Ha_false Hb_false]].
-      assert (H b = true) as Hb_true2. assumption.
+      assert (is_mem H b) as Hb_true2. assumption.
       apply (subgroup_op_closed a b H IsSubgroup Ha_true) in Hb_true.
       apply (subgroup_op_closed b a H IsSubgroup Hb_true2) in Ha_true.
       unfold is_mem in Ha_true, Hb_true.
@@ -877,7 +876,7 @@ Section quotient_groups.
     forall a b, H (h a) = true /\ H (h b) = true -> (h a) = (h b) <-> a = b.
 
   Definition is_surjective (A: Set) (B: Set) (h: A -> B) (H : B -> bool) :=
-    forall (b : B), H b = true <-> exists (a : A), h a = b.
+    forall (b : B), is_mem H b <-> exists (a : A), h a = b.
 
   (* basically this is trivial because the definition of image / surjective are the same *)
   Theorem quotient_mapping_is_surjective_to_image:
