@@ -30,9 +30,6 @@ Section group_definitions.
   Definition is_group (A: Set) (op: A -> A -> A) (inv: A -> A) (zero: A) :=
     is_semigroup A op zero /\ is_inverse A op inv zero.
 
-  Definition is_abelian_group (A: Set) (op: A -> A -> A) (inv: A -> A) (zero: A) :=
-    is_group A op inv zero /\ is_commutative A op.
-
 End group_definitions.
 
 Section groups.
@@ -48,6 +45,8 @@ Section groups.
       op_zero : forall a, op a zero = a /\ op zero a = a ;
       op_inverse : forall a, op a (inv a) = zero /\ op (inv a) a = zero
     }.
+
+  Definition abelian_group (G: Group) := is_commutative (A G) (op G).
 
   Arguments zero {g}.
   Arguments op {g} _ _.
@@ -105,10 +104,6 @@ Section groups.
   Lemma group_assoc: forall (a b c : G), (a <*> b) <*> c = a <*> (b <*> c).
     intros; rewrite op_assoc; reflexivity.
   Qed.
-
-  Hint Rewrite group_zero_r.
-  Hint Rewrite group_zero_l.
-  Hint Rewrite group_assoc.
 
   Lemma group_cancel_l: forall (a b c : G), a <*> b = a <*> c -> b = c.
     intros a b c OpABEqOpAC.
@@ -168,6 +163,15 @@ Section groups.
     symmetry; assumption.
   Qed.
 
+  Hint Rewrite inverse1.
+  Hint Rewrite inverse2.
+  Hint Rewrite inverse3.
+  Hint Rewrite inverse4.
+
+  Hint Rewrite group_zero_r.
+  Hint Rewrite group_zero_l.
+  Hint Rewrite group_assoc.
+
   Hint Rewrite inverse_cancel.
 
   Lemma inverse_apply: forall (a b : G), inv (a <*> b) = inv b <*> inv a.
@@ -218,6 +222,8 @@ Section groups.
     Defined.
 
     Check integer_group.
+
+  End group_examples.
 
   Section subgroups.
 
@@ -535,191 +541,191 @@ Section groups.
 
     Theorem normal_subgroup_membership_commutes : forall a b (H : set G),
         is_normal_subgroup H -> is_mem H (a <*> b) <-> is_mem H (b <*> a).
-      intros a b H IsNormalSubgroup.
-      rewrite (normal_subgroup_intro (inv a) _).
+      intros; rewrite (normal_subgroup_intro (inv a) _).
       autorewrite with core.
       reflexivity.
       assumption.
     Qed.
 
-    Theorem normal_subgroup_left_coset_iff_right_coset : forall a H,
+    Theorem normal_subgroup_left_coset_iff_right_coset : forall a (H : set G),
         is_normal_subgroup H ->
-        forall c, left_coset a H c = right_coset H a c.
+        forall c, is_mem (left_coset a H) c <-> is_mem (right_coset H a) c.
     Proof.
-      intros a H IsNormalSubgroup.
-      assert (is_subgroup H) as IsSubgroup.  destruct IsNormalSubgroup; auto.
-      intros c.
-      unfold left_coset.
-      unfold right_coset.
-      apply normal_subgroup_membership_commutes.
+      intros; apply normal_subgroup_membership_commutes.
       assumption.
     Qed.
 
-    Lemma normal_subgroup_coset_op : forall a b c d H,
+    Lemma normal_subgroups_are_subgroups : forall (H : set G),
+        is_normal_subgroup H -> is_subgroup H.
+    Proof.
+      unfold is_normal_subgroup; intros H IsNormalSubgroup.
+      destruct IsNormalSubgroup; assumption.
+    Qed.
+
+    Lemma coset_mem : forall a c (H : set G),
+        is_mem (right_coset H a) c <-> is_mem H (c <*> inv a).
+    Proof.
+      intros a c H.
+      unfold right_coset, is_mem.
+      reflexivity.
+    Qed.
+
+    Theorem normal_subgroup_coset_op : forall a b c d (H : set G),
         is_normal_subgroup H ->
-        is_mem (right_coset H a) c -> is_mem (right_coset H b) d -> is_mem (right_coset H (a <*> b)) (c <*> d).
+        is_mem (right_coset H a) c ->
+        is_mem (right_coset H b) d ->
+        is_mem (right_coset H (a <*> b)) (c <*> d).
+    Proof.
       intros a b c d H IsNormalSubgroup.
       assert (is_subgroup H) as IsSubgroup.  destruct IsNormalSubgroup; auto.
-      unfold is_mem, right_coset.
       intros c_Coset d_Coset.
-      rewrite (normal_subgroup_membership_commutes _ _ H IsNormalSubgroup) in c_Coset.
-      fold (is_mem H (inv a <*> c)) in c_Coset.
-      fold (is_mem H (d <*> inv b)) in d_Coset.
+(*      fold (is_mem H (c <*> d <*> inv (a <*> b))).      *)
+      rewrite coset_mem in c_Coset, d_Coset.
+      rewrite normal_subgroup_membership_commutes in c_Coset.
+      apply coset_mem.
       apply (subgroup_closed1 _ _ H IsSubgroup c_Coset) in d_Coset.
-      rewrite group_assoc in d_Coset.
-      rewrite <- (group_assoc c d _) in d_Coset.
-      unfold is_mem in d_Coset.
-      rewrite (normal_subgroup_membership_commutes (inv a) _ H IsNormalSubgroup) in d_Coset.
-      rewrite inverse_apply.
-      rewrite <- group_assoc.
+      rewrite (normal_subgroup_intro a) in d_Coset.
+      autorewrite with core in d_Coset.
+      rewrite group_assoc, inverse_apply.
+      assumption.
+      assumption.
       assumption.
     Qed.
   End normal_subgroups.
 
 End groups.
 
+Hint Rewrite inverse1.
+Hint Rewrite inverse2.
+Hint Rewrite inverse3.
+Hint Rewrite inverse4.
+
+Hint Rewrite group_zero_r.
+Hint Rewrite group_zero_l.
+Hint Rewrite group_assoc.
+
+Hint Rewrite inverse_cancel.
+Hint Rewrite inverse_zero.
+Hint Rewrite inverse_apply.
+
 Section homomorphisms.
-  Definition is_homomorphism (A: Set) op inv zero (B: Set) op' inv' zero' (h: A -> B) :=
-    is_group A op inv zero /\
-    is_group B op' inv' zero' /\
-    h zero = zero' /\
+  Definition is_homomorphism (G1 : Group) (G2: Group) (h: G1 -> G2) :=
+    h (zero G1) = (zero G2) /\
     forall a b,
-      h (op a b) = op' (h a) (h b).
+      h ((op G1) a b) = (op G2) (h a) (h b).
 
-  Lemma id_homomorphism : forall A op inv zero,
-      is_group A op inv zero -> is_homomorphism A op inv zero A op inv zero (fun a => a).
-    intros A op inv zero.
-    unfold is_homomorphism.
-    intros IsGroup.
-    auto.
-  Qed.
-
-  Lemma abelian_group_inv_homomorphism : forall A op inv zero,
-    is_abelian_group A op inv zero ->
-    is_homomorphism A op inv zero A op inv zero (fun a => (inv a)).
+  Lemma id_homomorphism : forall (G : Group),
+      is_homomorphism G G (fun a => a).
   Proof.
-    intros A op inv zero.
-    unfold is_abelian_group, is_commutative.
-    intros [IsGroup IsCommutative].
-    unfold is_homomorphism.
-    split; [assumption | split; [assumption | split; [apply (inverse_zero A op inv zero IsGroup)|auto]]].
-    intros a b.
-    rewrite IsCommutative, (inverse_apply A op inv zero IsGroup). reflexivity.
+    intros; unfold is_homomorphism; auto.
   Qed.
 
-  Variables (A B : Set)
-            (op: A -> A -> A) (op': B -> B -> B)
-            (inv: A -> A) (inv': B -> B)
-            (zero : A) (zero' : B).
-
-  Lemma homomorphism_inverse : forall h,
-      is_homomorphism A op inv zero B op' inv' zero' h ->
-      forall a, h (inv a) = inv' (h a).
-    intros h.
+  Lemma abelian_group_inv_homomorphism : forall (G : Group),
+    abelian_group G -> is_homomorphism G G (fun a => (inv G a)).
+  Proof.
+    intros G.
+    unfold abelian_group, is_commutative.
+    intros IsCommutative.
     unfold is_homomorphism.
-    intros [Group [Group' [Zero Homomorphism]]].
-    intros a.
-    apply (group_cancel_l B op' inv' zero' Group' (h a) _ _).
+    split; [apply inverse_zero | auto].
+    intros a b.
+    rewrite <- inverse_apply.
+    rewrite (IsCommutative a b).
+    reflexivity.
+  Qed.
+
+  Lemma homomorphism_inverse : forall (G1 G2 : Group) h,
+      is_homomorphism G1 G2 h -> forall a, h (inv G1 a) = inv G2 (h a).
+    intros G1 G2 h [Zero Homomorphism] a.
+    apply (group_cancel_l G2 (h a) _ _).
     rewrite <- Homomorphism.
-    rewrite (inverse1 A op inv zero Group).
-    rewrite (inverse1 B op' inv' zero' Group').
+    rewrite (inverse1 G1), (inverse1 G2).
     assumption.
   Qed.
 
-  Lemma homomorphism_assoc : forall h,
-      is_homomorphism A op inv zero B op' inv' zero' h ->
-      forall a b c, op' (h (op a b)) (h c) = op' (h a) (h (op b c)).
-    intros h.
-    unfold is_homomorphism.
-    intros [Group [Group' [_ Homomorphism]]].
-    intros a b c.
-    rewrite Homomorphism.
-    rewrite (group_assoc B op' inv' zero' Group').
-    rewrite Homomorphism.
+  Lemma homomorphism_assoc : forall (G1 G2: Group) h,
+      is_homomorphism G1 G2 h ->
+      forall a b c, op G2 (h (op G1 a b)) (h c) = op G2 (h a) (h (op G1 b c)).
+    intros G1 G2 h [Zero Homomorphism] a b c.
+    rewrite Homomorphism, (group_assoc G2), Homomorphism.
     reflexivity.
   Qed.
 
   (* NEXT: kernel of homomorphism is a normal subgroup, image of homomorphism is a subgroup *)
   (* a \in kern(f) if f(a) = z *)
 
-  Definition is_kernel (h: A -> B) (k: A -> bool) :=
-    is_homomorphism A op inv zero B op' inv' zero' h /\
-    forall a, k a = true <-> (h a) = zero'.
+  Definition is_kernel (G1 G2: Group) (h: G1 -> G2) (K: set (A G1)) :=
+    is_homomorphism G1 G2 h /\ forall a, is_mem _ K a <-> (h a) = (zero G2).
 
-  Definition is_image (h: A -> B) (i: B -> bool) :=
-    is_homomorphism A op inv zero B op' inv' zero' h /\
-    forall b, i b = true <-> exists a, (h a) = b.
+  Definition is_image (G1 G2: Group) (h: G1 -> G2) (I: set (A G2)) :=
+    is_homomorphism G1 G2 h /\ forall b, is_mem _ I b <-> exists a, (h a) = b.
 
-  Lemma kernel_is_subgroup : forall h k,
-    is_kernel h k -> is_subgroup A op inv zero k.
-    intros h k.
-    intros IsKernel.
-    assert (is_kernel h k) as IsKernel2. assumption.
-    destruct IsKernel2 as [[IsGroup [IsGroup' [HomomorphismZero Homomorphism]]] DefinitionOfKernel].
+  Lemma kernel_is_subgroup : forall (G1 G2: Group) H K,
+    is_kernel G1 G2 H K -> is_subgroup G1 K.
+    intros G1 G2 H K [IsHomomorphism IsKernel].
     unfold is_subgroup.
     split.
-    apply DefinitionOfKernel; assumption.
-    split.
+    (* show zero mapped to zero *)
+    apply IsKernel, IsHomomorphism.
     (* show kernel is closed under operation *)
+    split.
     intros a b.
-    rewrite (DefinitionOfKernel a), (DefinitionOfKernel b).
-    intros [ha_zero hb_zero].
-    apply DefinitionOfKernel.
+    rewrite (IsKernel a), (IsKernel b).
+    intros [Ha_zero Hb_zero].
+    apply IsKernel.
+    destruct IsHomomorphism as [_ Homomorphism].
     rewrite Homomorphism.
-    rewrite ha_zero, hb_zero.
-    rewrite (group_zero_l B op' inv' zero' IsGroup').
-    reflexivity.
+    rewrite Ha_zero, Hb_zero.
+    autorewrite with core; reflexivity.
     (* show kernel is closed under inverse *)
     intros a.
-    rewrite (DefinitionOfKernel a), (DefinitionOfKernel (inv a)).
-    rewrite homomorphism_inverse.
+    rewrite (IsKernel a), (IsKernel (inv _ a)), homomorphism_inverse.
     intros ha_zero.
     rewrite ha_zero.
-    rewrite (inverse_zero B op' inv' zero' IsGroup').
+    autorewrite with core.
     reflexivity.
-    destruct IsKernel.
-    auto.
+    assumption.
   Qed.
 
-  Lemma kernel_is_normal_subgroup: forall h k,
-    is_kernel h k -> is_normal_subgroup A op inv zero k.
-    intros h k IsKernel.
+  Lemma kernel_is_normal_subgroup: forall (G1 G2 : Group) h K,
+    is_kernel G1 G2 h K -> is_normal_subgroup _ K.
+    intros G1 G2 h K IsKernel.
     unfold is_normal_subgroup.
-    split; [apply (kernel_is_subgroup h k IsKernel) |auto].
-    intros a b.
-    unfold is_mem.
-    intros b_kernel.
-    destruct IsKernel as [IsHomomorphism DefinitionOfKernel].
-    rewrite DefinitionOfKernel.
-    assert (is_homomorphism A op inv zero B op' inv' zero' h) as IsHomomorphism2. auto.
-    destruct IsHomomorphism2 as [Group [Group' [HomomorphismZero Homomorphism]]].
+    split; [apply (kernel_is_subgroup _ _ h K); assumption | auto].
+    destruct IsKernel as [IsHomomorphism IsKernel].
+    intros a b b_kernel.
+    apply IsKernel.
+    apply IsKernel in b_kernel.
+    assert (is_homomorphism G1 G2 h) as IsHomomorphism2. assumption.
+    destruct IsHomomorphism2 as [Zero Homomorphism].
     repeat rewrite Homomorphism.
-    apply DefinitionOfKernel in b_kernel.
     rewrite b_kernel.
-    rewrite (group_zero_r B op' inv' zero' Group').
-    rewrite (homomorphism_inverse h IsHomomorphism).
-    rewrite (inverse1 B op' inv' zero' Group').
+    autorewrite with core.
+    rewrite homomorphism_inverse.
+    autorewrite with core.
     reflexivity.
+    assumption.
   Qed.
 
-  Lemma image_is_subgroup : forall h i, is_image h i -> is_subgroup B op' inv' zero' i.
-    intros h i.
+  Lemma image_is_subgroup : forall (G1 G2: Group) h I,
+      is_image G1 G2 h I -> is_subgroup _ I.
+    intros G1 G2 h I.
     unfold is_image.
     intros [IsHomomorphism IsImage].
     unfold is_subgroup.
     split; [auto|split; [auto | auto]].
     (* show zero is in the image *)
-    destruct IsHomomorphism as [Group [Group' [HomomorphismZero Homomorphism]]].
-    apply (IsImage zero').
-    exists zero.
+    destruct IsHomomorphism as [Zero Homomorphism].
+    apply (IsImage (zero _)).
+    exists (zero _).
     assumption.
     (* show closed under operation *)
     intros a b.
     rewrite (IsImage a), (IsImage b).
     intros [[a' a'_def] [b' b'_def]].
     apply IsImage.
-    exists (op a' b').
-    destruct IsHomomorphism as [_ [_ [_ Homomorphism]]].
+    exists (op G1 a' b').
+    destruct IsHomomorphism as [Zero Homomorphism].
     rewrite Homomorphism.
     rewrite a'_def, b'_def; reflexivity.
     (* show closed under inverse *)
@@ -727,10 +733,11 @@ Section homomorphisms.
     rewrite (IsImage a).
     intros [a' a'_def].
     apply IsImage.
-    exists (inv a').
-    rewrite (homomorphism_inverse h IsHomomorphism).
+    exists (inv G1 a').
+    rewrite homomorphism_inverse.
     rewrite a'_def.
     reflexivity.
+    assumption.
   Qed.
 End homomorphisms.
 
