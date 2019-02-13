@@ -743,193 +743,120 @@ End homomorphisms.
 
 Section quotient_groups.
 
-  Inductive Coset (A : Set) (H: A -> bool) :=
-  | CosetRepresentative (a : A) : Coset A H.
+  (* represent coset equivalence how?
+     well, I can definitely prove equivalence relationship for
+     left_coset, right cosets, etc. *)
 
-  Definition quotient (A : Set) op inv zero (H : A -> bool)
-             (IsNormalSubgroup: is_normal_subgroup A op inv zero H) :=
-    (fun a => CosetRepresentative A H a).
+  Arguments right_coset {G} _ _.
 
+  Inductive coset (G : Group) (H: set G) :=
+  | coset_repr (a : G) : coset G H.
+
+  Arguments coset_repr {G} _ _.
+  Arguments coset {G} _.
+  Arguments is_mem {A}.
+
+  (* not sure how to do this without an axiom *)
+  Axiom coset_right : forall (G : Group) (H: set G) a b,
+      is_mem (right_coset H b) a -> coset_repr H a = coset_repr H b.
+
+  Definition quotient_mapping (G : Group) (H : set G) :=
+    (fun a => coset_repr H a).
 
   (* must define quotient zero, quotient op, quotient inverse *)
 
-  Definition quotient_zero (A : Set) (H: A -> bool) zero := CosetRepresentative A H zero.
+  Definition quotient_zero (G : Group) (H: set G) := coset_repr H (zero G).
 
-  Definition quotient_op (A : Set) (H: A -> bool) (op : A -> A -> A) : (Coset A H -> Coset A H -> Coset A H).
+  Definition quotient_op (G : Group) (H: set G) :
+    coset H -> coset H -> coset H.
     intros a b.
+    (* this is dumb,but basically we just don't care about the coset repr *)
     destruct a as [a].
     destruct b as [b].
-    exact (CosetRepresentative A H (op a b)).
+    exact (coset_repr H ((op G) a b)).
   Defined.
 
-  Definition quotient_inv (A : Set) (H: A -> bool) (inv: A -> A): (Coset A H -> Coset A H).
+  Definition quotient_inv (G : Group) (H: set G): coset H -> coset H.
     intros a.
     destruct a as [a].
-    exact (CosetRepresentative A H (inv a)).
+    exact (coset_repr H ((inv G) a)).
   Defined.
 
-  Definition quotient_mapping (A: Set) (H: A -> bool) := fun a => CosetRepresentative A H a.
+  Arguments quotient_mapping {G} _.
+  Arguments quotient_inv {G} _.
+  Arguments quotient_op {G} _.
+  Arguments quotient_zero {G} _.
 
-  Theorem quotient_is_group :
-    forall A op inv zero H,
-      is_group A op inv zero ->
-      is_normal_subgroup A op inv zero H ->
-      is_group (Coset A H)
-               (quotient_op A H op)
-               (quotient_inv A H inv)
-               (quotient_zero A H zero).
-  Proof.
-    intros A op inv zero H IsGroup IsNormalSubgroup.
-    unfold is_group.
-    split.
-    unfold is_semigroup.
-    split.
-    (* prove associativity *)
-    unfold is_assoc.
-    intros a b c.
-    unfold quotient_op.
-    destruct a as [a], b as [b], c as [c].
-    rewrite (group_assoc A op inv zero IsGroup).
-    reflexivity.
-    (* prove zero *)
-    unfold is_zero.
-    intros a.
-    destruct a as [a].
-    unfold quotient_zero.
-    unfold quotient_op.
-    rewrite (group_zero_r A op inv zero IsGroup), (group_zero_l A op inv zero IsGroup).
+  Definition quotient_group (G: Group) (H: set G) : Group.
+    apply (makeGroup (coset H)
+                     (quotient_op H)
+                     (quotient_inv H)
+                     (quotient_zero H)).
+    (* show quotient op associative *)
+    intros [a] [b] [c].
+    unfold quotient_op; autorewrite with core; reflexivity.
+    (* show quotient zero *)
+    intros [a].
+    unfold quotient_op, quotient_zero; autorewrite with core; auto.
+    intros [a].
+    unfold quotient_op, quotient_inv, quotient_zero; autorewrite with core.
     auto.
-    (* prove inverse *)
-    unfold is_inverse.
-    intros a.
-    destruct a as [a].
-    unfold quotient_zero, quotient_op, quotient_inv.
-    rewrite (inverse1 A op inv zero IsGroup), (inverse2 A op inv zero IsGroup).
-    auto.
-  Qed.
+  Defined.
+
+  Arguments quotient_group {G} _.
 
   Theorem quotient_is_homomorphism :
-    forall A op inv zero H,
-      is_group A op inv zero ->
-      is_normal_subgroup A op inv zero H ->
-      is_homomorphism A op inv zero (Coset A H)
-                      (quotient_op A H op)
-                      (quotient_inv A H inv)
-                      (quotient_zero A H zero)
-                      (quotient_mapping A H).
-    intros A op inv zero H IsGroup IsNormalSubgroup.
-    unfold is_homomorphism.
-    split; [assumption | split; [apply quotient_is_group; assumption|auto]].
-  Qed.
-
-
-  Definition repr (A : Set) (H : A -> bool) (a : Coset A H) : A.
-    destruct a; exact a.
-  Defined.
-
-  Definition coset_equivalence_relation (A : Set) (H : A -> bool) (op : A -> A -> A) (inv : A -> A) (zero : A)
-             (a b : Coset A H) :=
-    is_group A op inv zero ->
-    is_normal_subgroup A op inv zero H ->
-    is_mem A (left_coset A op inv (repr A H a) H) (repr A H b).
-
-  Instance Coset_Equivalence (A : Set) (H: A -> bool) (op: A -> A -> A) (inv: A -> A) (zero: A):
-    Equivalence (coset_equivalence_relation A H op inv zero).
+    forall (G : Group) (H : set G),
+      is_homomorphism G (quotient_group H) (quotient_mapping H).
   Proof.
-    unfold coset_equivalence_relation, is_mem, left_coset.
-    split.
-    (* show reflexivity *)
-    intros x IsGroup IsNormalSubgroup; simpl.
-    rewrite (inverse2 A op inv zero IsGroup); apply IsNormalSubgroup.
-    (* show symmetry *)
-    intros x y; destruct x as [x], y as [y].
-    intros x_y.
-    intros IsGroup IsNormalSubgroup; simpl.
-    remember (x_y IsGroup IsNormalSubgroup) as Q; destruct HeqQ; simpl in Q. (* ??? *)
-(*    rewrite (normal_subgroup_membership_commutes A op inv zero IsGroup _ _ H IsNormalSubgroup) in Q.*)
-    fold (is_mem A H (op (inv y) x)).
-    rewrite <- (subgroup_inverse A op inv zero IsGroup _ H).
-    rewrite (inverse_apply A op inv zero IsGroup).
-    rewrite (inverse_cancel A op inv zero IsGroup).
-    auto.
-    destruct IsNormalSubgroup; auto.
-    (* show transitivitity *)
-    intros x y z; destruct x as [x], y as [y], z as [z].
-    intros x_y y_z.
-    intros IsGroup IsNormalSubgroup; simpl.
-    simpl in x_y, y_z.
-    remember (x_y IsGroup IsNormalSubgroup) as Q; destruct HeqQ; simpl in Q.
-    remember (y_z IsGroup IsNormalSubgroup) as Q'; destruct HeqQ'; simpl in Q'.
-    destruct IsNormalSubgroup as [IsSubgroup _].
-    apply (subgroup_closed1 A op inv zero _ _ H IsSubgroup Q) in Q'.
-    rewrite (group_assoc A op inv zero IsGroup) in Q'.
-    rewrite <- (group_assoc A op inv zero IsGroup y _ _) in Q'.
-    rewrite (inverse1 A op inv zero IsGroup) in Q'.
-    rewrite (group_zero_l A op inv zero IsGroup) in Q'.
-    assumption.
+    intros; unfold is_homomorphism; auto.
   Qed.
 
-  Definition is_injective (A: Set) (B: Set) (h: A -> B) (H : B -> bool) :=
-    forall a b, H (h a) = true /\ H (h b) = true -> (h a) = (h b) <-> a = b.
+  Definition is_injective (A: Set) (B: Set) (h: A -> B) (H : set B) :=
+    forall a b, is_mem H (h a) /\ is_mem H (h b) -> (h a) = (h b) <-> a = b.
 
-  Definition is_surjective (A: Set) (B: Set) (h: A -> B) (H : B -> bool) :=
+  Definition is_surjective (A: Set) (B: Set) (h: A -> B) (H : set B) :=
     forall (b : B), is_mem H b <-> exists (a : A), h a = b.
 
   (* basically this is trivial because the definition of image / surjective are the same *)
   Theorem quotient_mapping_is_surjective_to_image:
-    forall A op inv zero H I,
-      is_image A (Coset A H)
-                op (quotient_op A H op)
-                inv (quotient_inv A H inv)
-                zero (quotient_zero A H zero)
-                (quotient_mapping A H) I ->
-      is_surjective A (Coset A H) (quotient_mapping A H) I.
+    forall (G : Group) (H : set G) I,
+      is_image G (quotient_group H) (quotient_mapping H) I ->
+      is_surjective G (quotient_group H) (quotient_mapping H) I.
   Proof.
-    intros A op inv zero H I IsImage.
+    intros G H I IsImage.
+    unfold is_surjective.
     intros b; apply IsImage.
   Qed.
 
-  Definition canonical_isomorphism (A B: Set) (H : A -> bool) (h : A -> B) (a : Coset A H) : B.
+  Definition canonical_isomorphism (G1 G2: Group) (H : set G1) (h : G1 -> G2)
+             (a : coset H) : G2.
     destruct a as [a].
     exact (h a).
   Defined.
 
-  Lemma canonical_isomorphism_is_homomorphism:
-    forall A op inv zero B op' inv' zero' h K,
-      is_group A op inv zero ->
-      is_group B op' inv' zero' ->
-      is_kernel A B op op' inv inv' zero zero' h K ->
-      is_homomorphism
-        (Coset A K) (quotient_op A K op) (quotient_inv A K inv) (quotient_zero A K zero)
-        B op' inv' zero'
-        (canonical_isomorphism A B K h).
-  Proof.
-    intros A op inv zero B op' inv' zero' h K.
-    intros IsGroup IsGroup' IsKernel.
-    unfold is_homomorphism.
-    split.
-    apply quotient_is_group.
-    exact IsGroup.
-    apply (kernel_is_normal_subgroup A B op op' inv inv' zero zero' h K).
-    exact IsKernel.
-    split; [exact IsGroup' | auto].
-    split.
-    unfold canonical_isomorphism.
-    unfold quotient_zero.
-    destruct IsKernel as [IsHomomorphism]; apply IsHomomorphism.
-    intros a b.
-    unfold canonical_isomorphism, quotient_op.
-    destruct a as [a], b as [b].
-    destruct IsKernel as [IsHomomorphism _]; apply IsHomomorphism.
-  Qed.
-
-  Definition coset_equivalence_relation' (A : Set) op inv (H : A -> bool) :=
-    forall a b, CosetRepresentative A H a = CosetRepresentative A H b <->
-                is_mem A (left_coset A op inv a H) b.
-
   (* FIRST ISOMORPHISM THEOREM *)
   Theorem quotient_of_homomorphism_is_isomorphic_to_image :
-    forall A op inv zero B op' inv' zero' h K I,
+    forall (G1 G2 : Group) (h : G1 -> G2) (K : set G1) (I : set G2),
+      is_homomorphism G1 G2 h ->
+      is_kernel G1 G2 h K ->
+      is_image G1 G2 h I ->
+      (* homomorphism, injective, and surjective *)
+      let h' := (canonical_isomorphism G1 G2 K h) in
+      is_homomorphism (quotient_group K) G2 h' /\
+      is_injective (quotient_group K) G2 h' I /\
+      is_surjective (quotient_group K) G2 h' I.
+  Proof.
+    intros G1 G2 h K I IsHomomorphism IsKernel IsImage.
+    (* todo: more *)
+    split.
+    unfold is_homomorphism.
+    split.
+    unfold canonical_isomorphism, quotient_groups.
+
+    unfold quotient_group.
+
+           A op inv zero B op' inv' zero' h K I,
       is_group A op inv zero ->
       is_group B op' inv' zero' ->
       coset_equivalence_relation' A op inv K ->
