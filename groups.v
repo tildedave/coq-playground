@@ -835,6 +835,21 @@ Section quotient_groups.
     exact (h a).
   Defined.
 
+  Lemma canonical_isomorphism_is_homomorphism :
+    forall (G1 G2 : Group) (h : G1 -> G2) (K : set G1),
+      is_homomorphism G1 G2 h ->
+      is_kernel G1 G2 h K ->
+      is_homomorphism (quotient_group K) G2 (canonical_isomorphism G1 G2 K h).
+  Proof.
+    intros G1 G2 h K IsHomomorphism IsKernel.
+    unfold is_homomorphism.
+    split.
+    (* zero maps to zero *)
+    simpl; apply IsHomomorphism.
+    intros [a] [b].
+    apply IsHomomorphism.
+  Qed.
+
   (* FIRST ISOMORPHISM THEOREM *)
   Theorem quotient_of_homomorphism_is_isomorphic_to_image :
     forall (G1 G2 : Group) (h : G1 -> G2) (K : set G1) (I : set G2),
@@ -848,41 +863,23 @@ Section quotient_groups.
       is_surjective (quotient_group K) G2 h' I.
   Proof.
     intros G1 G2 h K I IsHomomorphism IsKernel IsImage.
-    (* todo: more *)
     split.
-    unfold is_homomorphism.
-    split.
-    unfold canonical_isomorphism, quotient_groups.
-
-    unfold quotient_group.
-
-           A op inv zero B op' inv' zero' h K I,
-      is_group A op inv zero ->
-      is_group B op' inv' zero' ->
-      coset_equivalence_relation' A op inv K ->
-      is_kernel A B op op' inv inv' zero zero' h K ->
-      is_image A B op op' inv inv' zero zero' h I ->
-      (* the quotient group is isomorphic to the image of the homomorphism.
-         we take the canonical isomorphism defined above and show that it is:
-         (1) a homomorphism (proven above)
-         (2) it is injective (coset equivalence relation is required)
-         (3) it is surjective
-       *)
-      is_homomorphism
-        (Coset A K) (quotient_op A K op) (quotient_inv A K inv) (quotient_zero A K zero)
-        B op' inv' zero'
-        (canonical_isomorphism A B K h) /\
-      is_injective (Coset A K) B (canonical_isomorphism A B K h) I /\
-      is_surjective (Coset A K) B (canonical_isomorphism A B K h) I.
-  Proof.
-    intros A op inv zero B op' inv' zero' h K I.
-    intros IsGroup IsGroup' CosetEquivalenceRelation IsKernel IsImage.
-    assert (is_homomorphism A op inv zero B op' inv' zero' h) as IsHomomorphism2. destruct IsImage; auto.
-    split.
-    apply canonical_isomorphism_is_homomorphism; [assumption|assumption|auto].
+    apply canonical_isomorphism_is_homomorphism; assumption.
     split.
     (* show injectivity *)
     unfold is_injective.
+    intros [a] [b] [a_image b_image].
+    apply IsImage in a_image.
+    apply IsImage in b_image.
+    destruct a_image as [a' a'_def].
+    destruct b_image as [b' b'_def].
+    rewrite <- a'_def, <- b'_def.
+    split.
+    intros.
+    apply coset_right.
+
+    (* show injectivity *)
+    rewrite
     intros a b.
     destruct a as [a], b as [b].
     unfold canonical_isomorphism.
