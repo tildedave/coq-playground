@@ -908,31 +908,3 @@ Section quotient_groups.
   Qed.
 
 End quotient_groups.
-
-Section group_examples.
-  Require Import Coq.ZArith.BinInt.
-  Require Import ZArithRing.
-  Local Open Scope Z_scope.
-
-  Lemma integers_with_addition_are_group : (is_group Z Z.add (fun n => - n)) Z.zero.
-    unfold is_group.
-    split.
-    unfold is_semigroup.
-    unfold is_assoc, is_zero.
-    split.
-    intros; ring.
-    intros; split.
-    rewrite Z.add_0_r; reflexivity.
-    rewrite Z.add_0_l; reflexivity.
-    unfold is_inverse.
-    intros a.
-    split.
-    rewrite Z.add_opp_diag_r.
-    reflexivity.
-    rewrite Z.add_comm, Z.add_opp_diag_r.
-    reflexivity.
-  Qed.
-
-
-
-Check Coset.
