@@ -460,7 +460,7 @@ Section groups.
 
     Theorem coset_representative:
       forall a b (H : set G),
-        is_subgroup H -> right_coset H b a = true ->
+        is_subgroup H -> is_mem (right_coset H b) a ->
         forall c, is_mem (right_coset H a) c <-> is_mem (right_coset H b) c.
     Proof.
       intros a b H IsSubgroup.
@@ -803,11 +803,9 @@ Section quotient_groups.
     auto.
   Defined.
 
-  Arguments quotient_group {G} _.
-
   Theorem quotient_is_homomorphism :
     forall (G : Group) (H : set G),
-      is_homomorphism G (quotient_group H) (quotient_mapping H).
+      is_homomorphism G (quotient_group G H) (quotient_mapping H).
   Proof.
     intros; unfold is_homomorphism; auto.
   Qed.
@@ -821,8 +819,8 @@ Section quotient_groups.
   (* basically this is trivial because the definition of image / surjective are the same *)
   Theorem quotient_mapping_is_surjective_to_image:
     forall (G : Group) (H : set G) I,
-      is_image G (quotient_group H) (quotient_mapping H) I ->
-      is_surjective G (quotient_group H) (quotient_mapping H) I.
+      is_image G (quotient_group G H) (quotient_mapping H) I ->
+      is_surjective G (quotient_group G H) (quotient_mapping H) I.
   Proof.
     intros G H I IsImage.
     unfold is_surjective.
@@ -839,7 +837,8 @@ Section quotient_groups.
     forall (G1 G2 : Group) (h : G1 -> G2) (K : set G1),
       is_homomorphism G1 G2 h ->
       is_kernel G1 G2 h K ->
-      is_homomorphism (quotient_group K) G2 (canonical_isomorphism G1 G2 K h).
+      is_homomorphism (quotient_group G1 K) G2
+                      (canonical_isomorphism G1 G2 K h).
   Proof.
     intros G1 G2 h K IsHomomorphism IsKernel.
     unfold is_homomorphism.
@@ -850,6 +849,8 @@ Section quotient_groups.
     apply IsHomomorphism.
   Qed.
 
+  Hint Rewrite inverse1.
+
   (* FIRST ISOMORPHISM THEOREM *)
   Theorem quotient_of_homomorphism_is_isomorphic_to_image :
     forall (G1 G2 : Group) (h : G1 -> G2) (K : set G1) (I : set G2),
@@ -858,9 +859,9 @@ Section quotient_groups.
       is_image G1 G2 h I ->
       (* homomorphism, injective, and surjective *)
       let h' := (canonical_isomorphism G1 G2 K h) in
-      is_homomorphism (quotient_group K) G2 h' /\
-      is_injective (quotient_group K) G2 h' I /\
-      is_surjective (quotient_group K) G2 h' I.
+      is_homomorphism (quotient_group G1 K) G2 h' /\
+      is_injective (quotient_group G1 K) G2 h' I /\
+      is_surjective (quotient_group G1 K) G2 h' I.
   Proof.
     intros G1 G2 h K I IsHomomorphism IsKernel IsImage.
     split.
@@ -869,11 +870,54 @@ Section quotient_groups.
     (* show injectivity *)
     unfold is_injective.
     intros [a] [b] [a_image b_image].
+    unfold canonical_isomorphism.
+    (* idea is that since a / b are mapped to the same thing, they're in the
+       same coset of the quotient with the kernel *)
+    split.
+    intro H.
+    apply (coset_right _ _ a b), IsKernel.
+    apply (group_cancel_r _ (h b) _ _).
+    autorewrite with core.
+    destruct IsHomomorphism as [Zero Homomorphism].
+    repeat rewrite Homomorphism.
+    autorewrite with core.
+
+
+    rewrite IsHomomorphism.
+
+    apply IsKernel.
+    apply (group_add_r _ (h (inv _ b)) (h a) (h b)) in H.
+    destruct IsHomomorphism as [Zero Homomorphism].
+    repeat rewrite <- Homomorphism in H.
+    rewrite inverse1 in H.
+    rewrite Zero in H.
+    assumption.
+    intros H; inversion H; reflexivity.
+    (* show surjectivity *)
+
+    destruct H.
+
+    intros; auto.
+
+    autorewrite with core in H.
+      in H.
+
+    autorewrite with core in H.
+
     apply IsImage in a_image.
     apply IsImage in b_image.
     destruct a_image as [a' a'_def].
     destruct b_image as [b' b'_def].
+
+    apply IsHomomorphism.
+
+    unfold canonical_isomorphism.
     rewrite <- a'_def, <- b'_def.
+    split.
+    intros.
+
+    coset_right
+
     split.
     intros.
     apply coset_right.
