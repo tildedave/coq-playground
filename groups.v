@@ -614,10 +614,11 @@ Section homomorphisms.
     forall a b,
       h ((op G1) a b) = (op G2) (h a) (h b).
 
-  Lemma id_homomorphism : forall (G : Group),
-      is_homomorphism G G (fun a => a).
+  Lemma id_homomorphism : forall (G : Group), is_homomorphism G G (fun a => a).
   Proof.
-    intros; unfold is_homomorphism; auto.
+    intros.
+    unfold is_homomorphism.
+    auto.
   Qed.
 
   Lemma abelian_group_inv_homomorphism : forall (G : Group),
@@ -629,9 +630,18 @@ Section homomorphisms.
     unfold is_homomorphism.
     split; [apply inverse_zero | auto].
     intros a b.
-    rewrite <- inverse_apply.
-    rewrite (IsCommutative a b).
+    rewrite <- inverse_apply, (IsCommutative _ _).
     reflexivity.
+  Qed.
+
+  Lemma homomorphism : forall (G1 G2 : Group) (h : G1 -> G2),
+      is_homomorphism G1 G2 h -> forall a b, h (op G1 a b) = op G2 (h a) (h b).
+    intros G1 G2 h Homomorphism; apply Homomorphism.
+  Qed.
+
+  Lemma homomorphism_zero : forall (G1 G2 : Group) h,
+      is_homomorphism G1 G2 h -> h (zero G1) = zero G2.
+    intros G1 G2 h Homomorphism; apply Homomorphism.
   Qed.
 
   Lemma homomorphism_inverse : forall (G1 G2 : Group) h,
@@ -875,104 +885,26 @@ Section quotient_groups.
        same coset of the quotient with the kernel *)
     split.
     intro H.
-    apply (coset_right _ _ a b), IsKernel.
-    apply (group_cancel_r _ (h b) _ _).
+    apply (coset_right _ _ a b), IsKernel, (group_cancel_r _ (h b) _ _).
+    rewrite (homomorphism _ _ _ IsHomomorphism).
+    rewrite (homomorphism_inverse _ _ _ IsHomomorphism).
     autorewrite with core.
-    destruct IsHomomorphism as [Zero Homomorphism].
-    repeat rewrite Homomorphism.
-    autorewrite with core.
-
-
-    rewrite IsHomomorphism.
-
-    apply IsKernel.
-    apply (group_add_r _ (h (inv _ b)) (h a) (h b)) in H.
-    destruct IsHomomorphism as [Zero Homomorphism].
-    repeat rewrite <- Homomorphism in H.
-    rewrite inverse1 in H.
-    rewrite Zero in H.
     assumption.
     intros H; inversion H; reflexivity.
     (* show surjectivity *)
-
-    destruct H.
-
-    intros; auto.
-
-    autorewrite with core in H.
-      in H.
-
-    autorewrite with core in H.
-
-    apply IsImage in a_image.
-    apply IsImage in b_image.
-    destruct a_image as [a' a'_def].
-    destruct b_image as [b' b'_def].
-
-    apply IsHomomorphism.
-
-    unfold canonical_isomorphism.
-    rewrite <- a'_def, <- b'_def.
-    split.
-    intros.
-
-    coset_right
-
-    split.
-    intros.
-    apply coset_right.
-
-    (* show injectivity *)
-    rewrite
-    intros a b.
-    destruct a as [a], b as [b].
-    unfold canonical_isomorphism.
-    destruct IsImage as [IsHomomorphism IsImage].
-    repeat rewrite IsImage.
-    intros [[a' a'_def] [b' b'_def]].
-    split.
-    intros ha_eq_hb.
-    apply CosetEquivalenceRelation.
-    unfold is_mem, left_coset.
-    (*apply (group_add_l B op' (inv' (h a)) _ _) in ha_eq_hb.*)
-    apply IsKernel.
-    destruct IsHomomorphism2 as [_ [_ [_ Homomorphism]]].
-    rewrite Homomorphism.
-    apply (group_add_l B op' (inv' (h a)) _ _) in ha_eq_hb.
-    rewrite (inverse2 B op' inv' zero' IsGroup') in ha_eq_hb.
-    symmetry in ha_eq_hb.
-    rewrite (homomorphism_inverse A B op op' inv inv' zero zero' h).
-    assumption.
-    assumption.
-    intros cosets_equal.
-    apply CosetEquivalenceRelation in cosets_equal.
-    unfold is_mem, left_coset in cosets_equal.
-    apply IsKernel in cosets_equal.
-    apply (group_cancel_l B op' inv' zero' IsGroup' (inv' (h a))).
-    rewrite (inverse2 B op' inv' zero' IsGroup').
-    symmetry.
-    destruct IsHomomorphism2 as [_ [_ [_ Homomorphism]]].
-    rewrite Homomorphism in cosets_equal.
-    rewrite <- (homomorphism_inverse A B op op' inv inv' zero zero' h IsHomomorphism).
-    assumption.
-    (* injectivity shown \o/ *)
-    (* must show surjectivity now *)
     unfold is_surjective.
     intros b.
     split.
-    intros b_Image.
-    apply IsImage in b_Image.
-    destruct b_Image as [a a_def].
-    exists (CosetRepresentative A K a).
+    intros ImageB.
+    apply IsImage in ImageB.
+    destruct ImageB as [b' b'_def].
+    exists (coset_repr _ b').
+    simpl; assumption.
     unfold canonical_isomorphism.
-    assumption.
-    intros a_Coset.
-    destruct a_Coset as [a a_isomorphism].
-    unfold canonical_isomorphism in a_isomorphism.
+    intros Coset.
+    destruct Coset as [[a']].
     apply IsImage.
-    destruct a as [a].
-    exists a.
-    assumption.
+    exists a'; assumption.
   Qed.
 
 End quotient_groups.
