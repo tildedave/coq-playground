@@ -253,10 +253,20 @@ Section groups.
     Qed.
 
 
+    Structure subgroup (G : Group) : Type := makeSubgroup
+    {
+      subgroup_mem :> set G;
+      subgroup_zero : is_mem subgroup_mem zero;
+      subgroup_closed :
+        forall a b, is_mem subgroup_mem a /\ is_mem subgroup_mem b -> is_mem subgroup_mem (a <*> b);
+      subgroup_inverse :
+        forall a, is_mem subgroup_mem a -> is_mem subgroup_mem (inv a)
+    }.
+
   (* subgroup_mem is a characteristic function.
      TODO: figure out how to do this nicer ;)
    *)
-    Definition is_subgroup (G : Group) (H: set G) :=
+    Definition is_subgroup (G : Group) (H: subgroup G) :=
       (* 0 is a subgroup member *)
       is_mem H zero /\
       (* subgroup is closed under operation *)
@@ -272,81 +282,76 @@ Section groups.
        zero is a consequence of the other two
      *)
 
-    Lemma subgroup_closed1: forall (a b : G) (H: set G),
-        is_subgroup H -> is_mem H a -> is_mem H b -> is_mem H (a <*> b).
+    Lemma subgroup_closed1: forall (H: subgroup G) (a b : G),
+        is_mem H a -> is_mem H b -> is_mem H (a <*> b).
     Proof.
-      intros a b H IsSubgroup.
-      destruct IsSubgroup as [_ [H_closed _]].
-      intros; apply H_closed; auto.
+      intros; apply subgroup_closed; auto.
     Qed.
 
-    Lemma subgroup_closed2: forall (a b : G) (H: set G),
-        is_subgroup H -> is_mem H a -> is_mem H b -> is_mem H (b <*> a).
+    Lemma subgroup_closed2: forall (H : subgroup G) (a b : G),
+        is_mem H a -> is_mem H b -> is_mem H (b <*> a).
     Proof.
-      intros a b H IsSubgroup.
-      destruct IsSubgroup as [_ [H_closed _]].
-      intros; apply H_closed; auto.
+      intros; apply subgroup_closed; auto.
     Qed.
 
-    Lemma subgroup_inverse1: forall (a : G) (H: set G),
-        is_subgroup H -> is_mem H a -> is_mem H (inv a).
-      intros a H IsSubgroup.
-      destruct IsSubgroup as [_ [_ Inverse]]; apply Inverse.
+    Lemma subgroup_inverse1: forall (H: subgroup G) (a : G),
+        is_mem H a -> is_mem H (inv a).
+      intros; apply subgroup_inverse; auto.
     Qed.
 
-    Lemma subgroup_inverse2: forall (a : G) (H: set G),
-        is_subgroup H -> is_mem H (inv a) -> is_mem H a.
-      intros a H IsSubgroup H_inv_a.
-      rewrite <- inverse_cancel.
-      apply subgroup_inverse1; auto.
+    Lemma subgroup_inverse2: forall (H: subgroup G) (a : G),
+        is_mem H (inv a) -> is_mem H a.
+      intros H a.
+      intros.
+      rewrite <- (inverse_cancel a).
+      apply subgroup_inverse; assumption.
     Qed.
 
-    Lemma subgroup_inverse: forall (a : G) (H: set G),
-        is_subgroup H -> is_mem H (inv a) <-> is_mem H a.
+    Lemma subgroup_inverse3: forall (H: subgroup G) (a : G),
+        is_mem H (inv a) <-> is_mem H a.
     Proof.
-      intros. split.
-      apply subgroup_inverse2; auto.
-      apply subgroup_inverse1; auto.
+      intros.
+      split; [apply subgroup_inverse2 | apply subgroup_inverse1].
     Qed.
 
-    Lemma subgroup_op_non_member_right: forall a b (H: set G),
-        is_subgroup H -> is_mem H a -> ~is_mem H b -> ~is_mem H (a <*> b).
-      intros a b H IsSubgroup Ha_mem Hb_not_mem.
+    Lemma subgroup_op_non_member_right: forall (H: subgroup G) (a b : G),
+        is_mem H a -> ~is_mem H b -> ~is_mem H (a <*> b).
+      intros H a b Ha_mem Hb_not_mem.
       (* Suppose ab were in the subgroup.  Then a^{-1} ab would be in the subgroup, so b is in the subgroup.
          contradiction *)
       destruct (is_mem_dec _ H (a <*> b)) as [Hab_mem | Hab_not_mem].
-      apply (subgroup_closed1 (inv a) _ H IsSubgroup) in Hab_mem.
-      rewrite <- group_assoc, inverse2, group_zero_l in Hab_mem; auto.
-      apply (subgroup_inverse _ _ IsSubgroup); assumption.
+      apply (subgroup_closed1 _ (inv a) _) in Hab_mem.
+      autorewrite with core in Hab_mem; auto.
+      apply subgroup_inverse; assumption.
       assumption.
     Qed.
 
-    Lemma subgroup_op_non_member_left: forall a b (H: set G),
-        is_subgroup H -> is_mem H b -> ~is_mem H a -> ~is_mem H (a <*> b).
-      intros a b H IsSubgroup Hb_mem Ha_not_mem.
+    Lemma subgroup_op_non_member_left: forall (H : subgroup G) (a b : G),
+        is_mem H b -> ~is_mem H a -> ~is_mem H (a <*> b).
+      intros H a b Hb_mem Ha_not_mem.
       (* not sure if there is a clever way to use right, so we just duplicate the logic above (for now) *)
       (* Suppose ab were in the subgroup.  Then a^{-1} ab would be in the subgroup, so b is in the subgroup.
          contradiction *)
       destruct (is_mem_dec _ H (a <*> b)) as [Hab_mem | Hab_not_mem].
-      apply (subgroup_closed1 _ (inv b) H IsSubgroup) in Hab_mem.
-      rewrite group_assoc, inverse1, group_zero_r in Hab_mem; auto.
-      apply (subgroup_inverse _ _ IsSubgroup); assumption.
+      apply (subgroup_closed1 _ _ (inv b)) in Hab_mem.
+      autorewrite with core in Hab_mem; auto.
+      apply subgroup_inverse; assumption.
       assumption.
     Qed.
 
     Lemma subgroup_mem_l:
-      forall a b (H : set G),
-        is_subgroup H -> is_mem H a -> is_mem H (a <*> b) <-> is_mem H b.
-      intros a b H IsSubgroup Ha_mem.
+      forall (H : subgroup G) a b,
+        is_mem H a -> is_mem H (a <*> b) <-> is_mem H b.
+      intros H a b Ha_mem.
       (* want to reason like .... is_mem H b
        If is_mem H a, then obviously since a is in the subgroup.
        If H a = false, then...
        *)
       destruct (is_mem_dec _ H b) as [Hb_mem | Hb_not_mem].
-      remember (subgroup_closed1 _ _ H IsSubgroup Ha_mem Hb_mem).
+      remember (subgroup_closed1 _ _ _ Ha_mem Hb_mem).
       split; [intros; assumption | intros; assumption].
       (* a is member, b not member, so these are proofs by contradiction *)
-      remember (subgroup_op_non_member_right a b _ IsSubgroup Ha_mem Hb_not_mem) as Hab_not_mem.
+      remember (subgroup_op_non_member_right _ a b Ha_mem Hb_not_mem) as Hab_not_mem.
       split.
       intros Hab_mem.
       contradict (is_mem_contradict _ _ _ Hab_mem Hab_not_mem).
@@ -354,18 +359,18 @@ Section groups.
       contradict (is_mem_contradict _ _ _ Hb_mem Hb_not_mem).
     Qed.
 
-    Lemma subgroup_mem_r: forall a b (H : set G),
-        is_subgroup H -> is_mem H b -> is_mem H (a <*> b) <-> is_mem H a.
-      intros a b H IsSubgroup Hb_mem.
+    Lemma subgroup_mem_r: forall (H : subgroup G) a b,
+        is_mem H b -> is_mem H (a <*> b) <-> is_mem H a.
+      intros H a b Hb_mem.
       (* want to reason like .... is_mem H b
        If is_mem H a, then obviously since a is in the subgroup.
        If H a = false, then...
        *)
       destruct (is_mem_dec _ H a) as [Ha_mem | Ha_not_mem].
-      remember (subgroup_closed1 _ _ H IsSubgroup Ha_mem Hb_mem).
+      remember (subgroup_closed1 _ _ _ Ha_mem Hb_mem).
       split; [intros; assumption | intros; assumption].
       (* a is member, b not member, so these are proofs by contradiction *)
-      remember (subgroup_op_non_member_left a b _ IsSubgroup Hb_mem Ha_not_mem) as Hab_not_mem.
+      remember (subgroup_op_non_member_left _ a b Hb_mem Ha_not_mem) as Hab_not_mem.
       split.
       intros Hab_mem.
       contradict (is_mem_contradict _ _ _ Hab_mem Hab_not_mem).
@@ -373,22 +378,22 @@ Section groups.
       contradict (is_mem_contradict _ _ _ Ha_mem Ha_not_mem).
     Qed.
 
-    Lemma subgroup_inverse_non_member1: forall a (H: set G),
-        is_subgroup H -> ~is_mem H a -> ~is_mem H (inv a).
-      intros a H IsSubgroup.
+    Lemma subgroup_inverse_non_member1: forall (H: subgroup G) a,
+        ~is_mem H a -> ~is_mem H (inv a).
+      intros H a.
       destruct (is_mem_dec _ H (inv a)) as [Ha_inv_true | Ha_inv_false].
-      apply (subgroup_inverse _ _ IsSubgroup) in Ha_inv_true.
+      apply subgroup_inverse in Ha_inv_true.
       rewrite inverse_cancel in Ha_inv_true.
       intro Ha_false.
       contradict (is_mem_contradict _ _ _ Ha_inv_true Ha_false).
       intros; auto.
     Qed.
 
-    Lemma subgroup_inverse_non_member2: forall a (H: set G),
-        is_subgroup H -> ~is_mem H (inv a) -> ~is_mem H a.
-      intros a H IsSubgroup.
+    Lemma subgroup_inverse_non_member2: forall (H: subgroup G) a,
+        ~is_mem H (inv a) -> ~is_mem H a.
+      intros H a.
       intros Ha_inv_false.
-      apply (subgroup_inverse_non_member1 (inv a) H IsSubgroup) in Ha_inv_false.
+      apply (subgroup_inverse_non_member1 _ (inv a)) in Ha_inv_false.
       rewrite <- (inverse_cancel a).
       assumption.
     Qed.
@@ -410,11 +415,10 @@ Section groups.
     Check right_coset.
 
     Lemma coset_intersection_helper_1:
-      forall a b (H: set G),
-        is_subgroup H ->
+      forall a b (H: subgroup G),
         (exists x, is_mem (right_coset H a) x /\  is_mem (right_coset H b) x) ->
         exists h1 h2, is_mem H h1 /\ is_mem H h2 /\ a = op (op (inv h1) h2) b.
-      intros a b H IsSubgroup [x [Ha_x Hb_x]].
+      intros a b H [x [Ha_x Hb_x]].
       unfold right_coset, left_coset in Ha_x, Hb_x.
       exists (x <*> inv a), (x <*> inv b).
       split; [assumption | split; [assumption | auto]].
@@ -424,12 +428,11 @@ Section groups.
 
     (* a in Hb -> Ha = Hb *)
     Lemma coset_intersection:
-      forall a b (H : set G),
-        is_subgroup H ->
+      forall a b (H: subgroup G),
         (exists x, is_mem (right_coset H a) x /\ is_mem (right_coset H b) x) ->
         (forall c, is_mem (right_coset H a) c <-> is_mem (right_coset H b) c).
-      intros a b H IsSubgroup Intersection.
-      apply (coset_intersection_helper_1 a b H IsSubgroup) in Intersection.
+      intros a b H Intersection.
+      apply (coset_intersection_helper_1 a b H) in Intersection.
       destruct Intersection as [h1 [h2 [h1_Subgroup [h2_Subgroup a_definition]]]].
       intros c.
       unfold right_coset.
@@ -437,8 +440,8 @@ Section groups.
       repeat rewrite inverse_apply.
       rewrite inverse_cancel.
       rewrite <- group_assoc.
-      apply (subgroup_inverse1 h2 H IsSubgroup) in h2_Subgroup.
-      apply (subgroup_closed1 (inv h2) h1 H IsSubgroup h2_Subgroup) in h1_Subgroup.
+      apply (subgroup_inverse1 _ h2) in h2_Subgroup.
+      apply (subgroup_closed1 _ (inv h2) h1 h2_Subgroup) in h1_Subgroup.
       (* must get rid of the coset definitions in order to apply
          subgroup_mem_r *)
       unfold is_mem.
@@ -446,52 +449,53 @@ Section groups.
       rewrite <- (group_assoc c _ _).
       fold (@is_mem (A G) H (c <*> (inv b <*> inv h2 <*> h1))).
       fold (@is_mem (A G) H (c <*> inv b)).
-      apply (subgroup_mem_r _ (inv h2 <*> h1) H IsSubgroup).
+      apply (subgroup_mem_r _ _ (inv h2 <*> h1)).
       assumption.
     Qed.
 
-    Lemma coset_reflexive: forall a (H : set G), is_subgroup H -> is_mem (right_coset H a) a.
+    Lemma coset_reflexive: forall a (H: subgroup G),
+        is_mem (right_coset H a) a.
     Proof.
-      intros a H IsSubgroup.
+      intros a H.
       unfold right_coset, is_mem.
       rewrite inverse1.
-      apply IsSubgroup.
+      apply subgroup_zero.
     Qed.
 
     Theorem coset_representative:
-      forall a b (H : set G),
-        is_subgroup H -> is_mem (right_coset H b) a ->
+      forall a b (H: subgroup G),
+        is_mem (right_coset H b) a ->
         forall c, is_mem (right_coset H a) c <-> is_mem (right_coset H b) c.
     Proof.
       intros a b H IsSubgroup.
       intros Hb_a.
       (* going to show that a is in both Ha Hb *)
-      remember (coset_reflexive a H IsSubgroup) as Ha_a.
-      apply (coset_intersection a b H IsSubgroup); auto.
+      remember (coset_reflexive a H) as Ha_a.
+      apply (coset_intersection a b _); auto.
       exists a; auto.
     Qed.
 
-    Theorem coset_mult: forall a b (H : set G),
-        is_subgroup H -> is_mem H b -> is_mem (right_coset H a) (op b a).
-      intros a b H IsSubgroup Hb_true.
+    Theorem coset_mult: forall a b (H: subgroup G),
+        is_mem H b -> is_mem (right_coset H a) (op b a).
+      intros a b H Hb_true.
       unfold right_coset, is_mem.
       autorewrite with core; auto.
     Qed.
 
-    Theorem coset_zero: forall a (H: set G),
-        is_subgroup H -> is_mem H a ->
+    Theorem coset_zero: forall a (H: subgroup G),
+        is_mem H a ->
         forall c, is_mem (right_coset H a) c <-> is_mem (right_coset H zero) c.
     Proof.
-      intros a H IsSubgroup Ha_true.
+      intros a H Ha_true.
       (* WTS: everything in Ha can be represented by something in H *)
       unfold right_coset.
       intros c.
-      apply (subgroup_inverse _ _ IsSubgroup) in Ha_true.
+      apply subgroup_inverse in Ha_true.
       unfold is_mem.
       fold (is_mem H (c <*> inv a)).
       fold (is_mem H (c <*> inv a)).
       autorewrite with core.
-      rewrite (subgroup_mem_r _ _ H IsSubgroup Ha_true).
+      rewrite (subgroup_mem_r _ _ _ Ha_true).
       autorewrite with core.
       reflexivity.
     Qed.
@@ -506,63 +510,56 @@ Section groups.
     Arguments right_coset {G} _.
     Arguments left_coset {G} _.
 
-    Definition is_normal_subgroup (H: set G) :=
-      is_subgroup H /\ forall (a h : G), is_mem H h -> is_mem H (a <*> h <*> inv a).
+    Structure normal_subgroup (G : Group) :=
+      {
+        normal_subgroup_mem :> subgroup G ;
+        normal_subgroup_conjugation: forall (a h : G), is_mem normal_subgroup_mem h -> is_mem normal_subgroup_mem (a <*> h <*> inv a)
+      }.
 
-    Lemma normal_subgroup_intro: forall a h H,
-        is_normal_subgroup H ->
+    Arguments normal_subgroup_conjugation {G} _.
+
+    Lemma normal_subgroup_intro: forall a h (H : normal_subgroup G),
         is_mem H h <-> is_mem H (a <*> h <*> inv a).
-      intros a h H IsNormalSubgroup.
-      destruct IsNormalSubgroup as [IsSubgroup Normality].
+    Proof.
+      intros a h H.
       split.
       intros h_Subgroup.
-      apply Normality.
+      apply normal_subgroup_conjugation.
       assumption.
       intros h_conjugate.
-      apply (Normality (inv a) _) in h_conjugate.
+      apply (normal_subgroup_conjugation _ (inv a)) in h_conjugate.
       autorewrite with core in h_conjugate.
       assumption.
     Qed.
 
-    Lemma normal_subgroup_conjuation: forall a h H,
-        is_normal_subgroup H -> is_mem H h ->
+    Lemma normal_subgroup_conj_rewrite: forall a h (H : normal_subgroup G),
+        is_mem H h ->
         is_mem H (a <*> h <*> inv a) <-> is_mem H ((inv a) <*> h <*> a).
     Proof.
-      intros a h H IsNormalSubgroup h_Subgroup.
+      intros a h H h_Subgroup.
       (* inv (a b) = inv b inv a *)
-      destruct IsNormalSubgroup as [IsSubgroup h_Membership].
       split.
       intros.
       rewrite <- (inverse_cancel a) at 2.
-      apply (h_Membership (inv a)).
+      apply (normal_subgroup_conjugation _ (inv a)).
       assumption.
-      intros; apply h_Membership; assumption.
+      intros; apply normal_subgroup_conjugation; assumption.
     Qed.
 
-    Theorem normal_subgroup_membership_commutes : forall a b (H : set G),
-        is_normal_subgroup H -> is_mem H (a <*> b) <-> is_mem H (b <*> a).
+    Theorem normal_subgroup_membership_commutes : forall a b (H: normal_subgroup G),
+        is_mem H (a <*> b) <-> is_mem H (b <*> a).
       intros; rewrite (normal_subgroup_intro (inv a) _).
       autorewrite with core.
       reflexivity.
-      assumption.
     Qed.
 
-    Theorem normal_subgroup_left_coset_iff_right_coset : forall a (H : set G),
-        is_normal_subgroup H ->
+    Theorem normal_subgroup_left_coset_iff_right_coset : forall a (H: normal_subgroup G),
         forall c, is_mem (left_coset a H) c <-> is_mem (right_coset H a) c.
     Proof.
       intros; apply normal_subgroup_membership_commutes.
-      assumption.
     Qed.
 
-    Lemma normal_subgroups_are_subgroups : forall (H : set G),
-        is_normal_subgroup H -> is_subgroup H.
-    Proof.
-      unfold is_normal_subgroup; intros H IsNormalSubgroup.
-      destruct IsNormalSubgroup; assumption.
-    Qed.
-
-    Lemma coset_mem : forall a c (H : set G),
+    Lemma coset_mem : forall a c (H: subgroup G),
         is_mem (right_coset H a) c <-> is_mem H (c <*> inv a).
     Proof.
       intros a c H.
@@ -570,25 +567,20 @@ Section groups.
       reflexivity.
     Qed.
 
-    Theorem normal_subgroup_coset_op : forall a b c d (H : set G),
-        is_normal_subgroup H ->
+    Theorem normal_subgroup_coset_op : forall a b c d (H: normal_subgroup G),
         is_mem (right_coset H a) c ->
         is_mem (right_coset H b) d ->
         is_mem (right_coset H (a <*> b)) (c <*> d).
     Proof.
-      intros a b c d H IsNormalSubgroup.
-      assert (is_subgroup H) as IsSubgroup.  destruct IsNormalSubgroup; auto.
+      intros a b c d H.
       intros c_Coset d_Coset.
-(*      fold (is_mem H (c <*> d <*> inv (a <*> b))).      *)
       rewrite coset_mem in c_Coset, d_Coset.
       rewrite normal_subgroup_membership_commutes in c_Coset.
       apply coset_mem.
-      apply (subgroup_closed1 _ _ H IsSubgroup c_Coset) in d_Coset.
+      apply (subgroup_closed1 _ _ _ c_Coset) in d_Coset.
       rewrite (normal_subgroup_intro a) in d_Coset.
       autorewrite with core in d_Coset.
       rewrite group_assoc, inverse_apply.
-      assumption.
-      assumption.
       assumption.
     Qed.
   End normal_subgroups.
@@ -759,7 +751,7 @@ Section quotient_groups.
 
   Arguments right_coset {G} _ _.
 
-  Inductive coset (G : Group) (H: set G) :=
+  Inductive coset (G : Group) (H: subgroup G) :=
   | coset_repr (a : G) : coset G H.
 
   Arguments coset_repr {G} _ _.
@@ -767,17 +759,17 @@ Section quotient_groups.
   Arguments is_mem {A}.
 
   (* not sure how to do this without an axiom *)
-  Axiom coset_right : forall (G : Group) (H: set G) a b,
+  Axiom coset_right : forall (G : Group) (H: subgroup G) a b,
       is_mem (right_coset H b) a -> coset_repr H a = coset_repr H b.
 
-  Definition quotient_mapping (G : Group) (H : set G) :=
+  Definition quotient_mapping (G : Group) (H: subgroup G) :=
     (fun a => coset_repr H a).
 
   (* must define quotient zero, quotient op, quotient inverse *)
 
-  Definition quotient_zero (G : Group) (H: set G) := coset_repr H (zero G).
+  Definition quotient_zero (G : Group) (H: subgroup G) := coset_repr H (zero G).
 
-  Definition quotient_op (G : Group) (H: set G) :
+  Definition quotient_op (G : Group) (H: subgroup G) :
     coset H -> coset H -> coset H.
     intros a b.
     (* this is dumb,but basically we just don't care about the coset repr *)
@@ -786,7 +778,7 @@ Section quotient_groups.
     exact (coset_repr H ((op G) a b)).
   Defined.
 
-  Definition quotient_inv (G : Group) (H: set G): coset H -> coset H.
+  Definition quotient_inv (G : Group) (H: subgroup G): coset H -> coset H.
     intros a.
     destruct a as [a].
     exact (coset_repr H ((inv G) a)).
@@ -797,7 +789,7 @@ Section quotient_groups.
   Arguments quotient_op {G} _.
   Arguments quotient_zero {G} _.
 
-  Definition quotient_group (G: Group) (H: set G) : Group.
+  Definition quotient_group (G: Group) (H: subgroup G) : Group.
     apply (makeGroup (coset H)
                      (quotient_op H)
                      (quotient_inv H)
@@ -814,7 +806,7 @@ Section quotient_groups.
   Defined.
 
   Theorem quotient_is_homomorphism :
-    forall (G : Group) (H : set G),
+    forall (G : Group) (H: subgroup G),
       is_homomorphism G (quotient_group G H) (quotient_mapping H).
   Proof.
     intros; unfold is_homomorphism; auto.
@@ -828,7 +820,7 @@ Section quotient_groups.
 
   (* basically this is trivial because the definition of image / surjective are the same *)
   Theorem quotient_mapping_is_surjective_to_image:
-    forall (G : Group) (H : set G) I,
+    forall (G : Group) (H: subgroup G) I,
       is_image G (quotient_group G H) (quotient_mapping H) I ->
       is_surjective G (quotient_group G H) (quotient_mapping H) I.
   Proof.
@@ -837,7 +829,7 @@ Section quotient_groups.
     intros b; apply IsImage.
   Qed.
 
-  Definition canonical_isomorphism (G1 G2: Group) (H : set G1) (h : G1 -> G2)
+  Definition canonical_isomorphism (G1 G2: Group) (H: subgroup G1) (h : G1 -> G2)
              (a : coset H) : G2.
     destruct a as [a].
     exact (h a).
