@@ -2,18 +2,6 @@ Require Import Coq.Bool.Bool.
 Require Import Setoid.
 Require Import Coq.Classes.Equivalence.
 
-Lemma bool_dec2 : forall b1 b2 b3 b4 : bool,
-    {b1 = b2 /\ b3 = b4} + {b1 <> b2 /\ b3 = b4} + {b1 = b2 /\ b3 <> b4} + {b1 <> b2 /\ b3 <> b4}.
-  intros b1 b2 b3 b4.
-  destruct (bool_dec b1 b2) as [b1_eq_b2 | b1_neq_b2].
-  destruct (bool_dec b3 b4) as [b3_eq_b4 | b3_neq_b4].
-  auto.
-  auto.
-  destruct (bool_dec b3 b4) as [b3_eq_b4 | b3_neq_b4].
-  auto.
-  auto.
-Qed.
-
 Section group_definitions.
   Definition is_assoc (A: Set) (f: A -> A -> A) := forall a b c,
     f (f a b) c = f a (f b c).
@@ -664,7 +652,7 @@ Section homomorphisms.
   Arguments kernel_mem {G1} {G2} _ _.
   Arguments image_mem {G1} {G2} _ _.
 
-  Lemma kernel_is_subgroup : forall (G1 G2: Group) h (K : kernel G1 G2 h),
+  Lemma kernel_subgroup : forall (G1 G2: Group) h (K : kernel G1 G2 h),
       subgroup G1.
   Proof.
     intros G1 G2 h K.
@@ -687,11 +675,11 @@ Section homomorphisms.
     reflexivity.
   Defined.
 
-  Lemma kernel_is_normal_subgroup:
+  Lemma kernel_normal_subgroup:
     forall G1 G2 h (K : kernel G1 G2 h), normal_subgroup G1.
   Proof.
     intros G1 G2 h K.
-    apply (makeNormalSubgroup _ (kernel_is_subgroup _ _ _ K)).
+    apply (makeNormalSubgroup _ (kernel_subgroup _ _ _ K)).
     intros a b b_kernel.
     apply kernel_mem.
     apply kernel_mem in b_kernel.
@@ -703,7 +691,7 @@ Section homomorphisms.
     reflexivity.
   Defined.
 
-  Lemma image_is_subgroup : forall G1 G2 h (I: image G1 G2 h), subgroup G2.
+  Lemma image_subgroup : forall G1 G2 h (I: image G1 G2 h), subgroup G2.
     intros G1 G2 h I.
     apply (makeSubgroup _ I).
     (* show zero is in the image *)
@@ -733,13 +721,15 @@ Section quotient_groups.
      well, I can definitely prove equivalence relationship for
      left_coset, right cosets, etc. *)
 
+  Arguments kernel_subgroup {G1} {G2} {h}.
+  Arguments kernel_normal_subgroup {G1} {G2} {h}.
+  Arguments image_subgroup {G1} {G2} {h}.
+
   Arguments right_coset {G} _ _.
 
-  (* Coset G H, comes with a proof that the representative is in the coset *)
   Structure coset (G: Group) (H: subgroup G) : Type := makeCoset
     {
-      repr : G ;
-      coset_mem_repr := exists a, is_mem _ (right_coset H a) repr
+      repr :> G ;
     }.
 
   Arguments is_mem {A}.
@@ -805,39 +795,81 @@ Section quotient_groups.
     intros; rewrite Heqh; auto.
   Qed.
 
-  Definition is_injective (A: Set) (B: Set) (h: A -> B) (H : set B) :=
+  (* Old definitions, require term rewriting.  I think in Coq terms per type
+     are unique - need to understand if there's some way to define a structure
+     that comes with a rewriting rule on it. *)
+
+  Definition is_injective' (A: Set) (B: Set) (h: A -> B) (H : set B) :=
     forall a b, is_mem H (h a) /\ is_mem H (h b) -> (h a) = (h b) <-> a = b.
 
-  Definition is_surjective (A: Set) (B: Set) (h: A -> B) (H : set B) :=
+  Definition is_surjective' (A: Set) (B: Set) (h: A -> B) (H : set B) :=
     forall (b : B), is_mem H b <-> exists (a : A), h a = b.
+
+  (* New definitions, I can prove things with these, but they lock in the
+     concept of mapping explicitly to cosets, so the statement of the first iso
+     theorem is less general *)
+  Check Equivalence.
+
+  Definition coset_repr G H (a : coset G H) : G.
+    destruct a as [a].
+    exact a.
+  Defined.
+
+  Arguments coset_repr {G} {H} _.
+
+  (* a and b are equivalent if there is some c that *)
+
+  Definition coset_equivalence (G: Group) H (a b: coset G H) :=
+    exists c,
+      is_mem (right_coset H c) (coset_repr a) /\
+      is_mem (right_coset H c) (coset_repr b).
+
+  Instance Coset_Equivalence G H: Equivalence (coset_equivalence G H).
+  Proof.
+    unfold coset_equivalence, coset_repr.
+    split.
+    unfold Reflexive; intros x.
+    exists (coset_repr x).
+    split; [apply coset_reflexive | apply coset_reflexive].
+    unfold Symmetric; intros x y [c [x_c y_c]].
+    exists c.
+    split; [auto|auto].
+    unfold Transitive; intros x y z.
+    intros [c1 [x_c1 y_c1]] [c2 [y_c2 z_c2]].
+    (* this is easy but annoying *)
+  Admitted.
+
+  Arguments coset_equivalence {G} {H}.
+
+  Check coset_equivalence.
+
+  Definition is_injective_equiv (G1 G2: Group) (h: G1 -> G2)
+             (equiv: G1 -> G1 -> Prop) :=
+      forall a b,
+        h a = h b -> (* a and b in same coset *)
+        equiv a b.
+
+  Definition is_surjective (G1 G2: Group) (h: G1 -> G2) H :=
+    forall b, is_mem H b <-> exists a, h a = b.
 
   (* basically this is trivial because the definition of image / surjective are the same *)
   Theorem quotient_mapping_is_surjective_to_image:
     forall G H (I: image G _ (quotient_homomorphism G H)),
       is_surjective _ _ (quotient_homomorphism G H) I.
   Proof.
-    intros G H I.
-    unfold is_surjective.
-    intros b; apply image_mem.
+    intros G H I b.
+    apply image_mem.
   Qed.
 
-  Definition quotient_group_kernel G1 G2 h (K : kernel G1 G2 h) : Group.
-  Proof.
-    apply (quotient_group G1).
-    apply normal_subgroup_mem.
-    apply (kernel_is_normal_subgroup _ _ h K).
-  Defined.
-
   Definition canonical_mapping G1 G2 h (K: kernel G1 G2 h)
-             (a : quotient_group_kernel _ _ _ K) : G2.
+             (a : quotient_group G1 (kernel_subgroup K)) : G2.
     destruct a as [a].
     exact (h a).
   Defined.
-  Check canonical_mapping.
 
   Definition canonical_isomorphism :
     forall G1 G2 h (K : kernel G1 G2 h),
-      homomorphism (quotient_group_kernel _ _ _ K) G2.
+      homomorphism (quotient_group G1 (kernel_subgroup K)) G2.
   Proof.
     intros G1 G2 h K.
     apply (makeHomomorphism _ _ (canonical_mapping G1 G2 h K)).
@@ -846,48 +878,136 @@ Section quotient_groups.
     apply homomorphism_apply.
   Defined.
 
-  Hint Rewrite inverse1.
+  (* if canonical isomorphism maps two members to the same element of G2, they
+     are in the same coset of K *)
+
+  Lemma homomorphism_right_coset:
+    forall G1 G2 h (K: kernel G1 G2 h),
+      forall (a b: G1),
+      h a = h b -> is_mem (right_coset (kernel_subgroup K) a) b.
+    intros G1 G2 h K.
+    intros a b ha_eq_b.
+    unfold right_coset, is_mem; simpl.
+    apply kernel_mem.
+    rewrite homomorphism_apply, <- ha_eq_b.
+    rewrite <- homomorphism_apply.
+    autorewrite with core.
+    apply homomorphism_zero.
+  Qed.
+
+  Lemma canonical_isomorphism_rewrite:
+    forall G1 G2 h (K: kernel G1 G2 h) a b,
+      (canonical_isomorphism G1 G2 h K) {| repr := a |} =
+      (canonical_isomorphism G1 G2 h K) {| repr := b |} ->
+      let K_Subgroup := kernel_subgroup K in
+      is_mem (right_coset K_Subgroup a) b.
+  Proof.
+    intros G1 G2 h K a b.
+    simpl.
+    apply homomorphism_right_coset.
+  Qed.
+
+  (* coset equivalence relation solves this, but obviously the coset
+     equivalence relation could be trivial and just say everything is
+     equivalent to everything. what prevents this?
+     do we need to make sure all our statements are true up to equivalence?
+     (seems like I should prove that the homomorphism restricts to the
+     equivalence relation.) *)
+
+  Lemma canonical_isomorphism_restricted :
+    forall G1 G2 h (K: kernel G1 G2 h),
+      let h' := (canonical_isomorphism G1 G2 h K) in
+      forall a b,
+      h' a = h' b <-> coset_equivalence a b.
+  Proof.
+    intros G1 G2 h K.
+    simpl.
+    intros a b.
+    unfold canonical_mapping.
+    destruct a as [a].
+    destruct b as [b].
+    unfold coset_equivalence.
+    split.
+    intros ha_eq_hb.
+    apply (homomorphism_right_coset _ _ _ K) in ha_eq_hb.
+    exists a.
+    split; [apply coset_reflexive | auto].
+    (* feels like all of this can be done by the rewriting system :| *)
+    intros [c [c_in_a c_in_b]].
+    unfold is_mem, right_coset in c_in_a, c_in_b.
+    simpl in c_in_a, c_in_b.
+    apply kernel_mem in c_in_a.
+    apply kernel_mem in c_in_b.
+    rewrite homomorphism_apply in c_in_a, c_in_b.
+    rewrite homomorphism_inverse in c_in_a.
+    rewrite homomorphism_inverse in c_in_b.
+    apply (group_add_r _ (h c)) in c_in_a.
+    apply (group_add_r _ (h c)) in c_in_b.
+    autorewrite with core in c_in_a.
+    autorewrite with core in c_in_b.
+    rewrite c_in_a, c_in_b.
+    reflexivity.
+  Qed.
+
+  Definition quotient_group_repr G K (a : quotient_group G K) : coset G K.
+    destruct a as [a].
+    exact (makeCoset _ _ a).
+  Defined.
+
+  Arguments quotient_group_repr {G} {K}.
+
+  Definition quotient_group_equivalence G K (a b: quotient_group G K) : Prop.
+    exact (coset_equivalence (quotient_group_repr a) (quotient_group_repr b)).
+  Defined.
+
+  Arguments quotient_group_equivalence {G} {K} _ _.
+
+  Lemma canonical_isomorphism_injectivity : forall G1 G2 h K,
+      let iso := canonical_isomorphism G1 G2 h K in
+      forall a b,
+      iso a = iso b -> quotient_group_equivalence a b.
+  Proof.
+    intros G1 G2 h K.
+    intros iso a b.
+    destruct a as [a].
+    destruct b as [b].
+    intros H.
+    apply canonical_isomorphism_rewrite in H.
+    unfold quotient_group_equivalence, coset_equivalence.
+    simpl.
+    exists a.
+    split; [apply coset_reflexive | assumption].
+  Qed.
 
   (* FIRST ISOMORPHISM THEOREM *)
   Theorem quotient_of_homomorphism_is_isomorphic_to_image :
     forall G1 G2 h (K: kernel G1 G2 h) (I: image G1 G2 h),
       (* homomorphism, injective, and surjective *)
       let h' := (canonical_isomorphism G1 G2 h K) in
-      is_injective _ _ h' I /\ is_surjective _ _ h' I.
+      let I_Subgroup := image_subgroup I in
+      let K_Subgroup := kernel_subgroup K in
+      is_injective_equiv (quotient_group G1 K_Subgroup) G2 h'
+                         quotient_group_equivalence /\
+      is_surjective (quotient_group G1 K_Subgroup) G2 h' I.
   Proof.
     intros G1 G2 h K I.
     split.
     (* show injectivity *)
-    unfold is_injective.
-    intros [a] [b] [a_image b_image].
-    (* Need a lemma on canonical_isomorphism and cosets,
-       unfolding is too hard *)
-
-    unfold canonical_isomorphism.
-    (* idea is that since a / b are mapped to the same thing, they're in the
-       same coset of the quotient with the kernel *)
-    split.
-    intro H.
-    apply (coset_right _ _ a b), IsKernel, (group_cancel_r _ (h b) _ _).
-    rewrite (homomorphism _ _ _ IsHomomorphism).
-    rewrite (homomorphism_inverse _ _ _ IsHomomorphism).
-    autorewrite with core.
-    assumption.
-    intros H; inversion H; reflexivity.
+    unfold is_injective_equiv.
+    apply canonical_isomorphism_injectivity.
     (* show surjectivity *)
     unfold is_surjective.
     intros b.
     split.
     intros ImageB.
-    apply IsImage in ImageB.
+    apply image_mem in ImageB.
     destruct ImageB as [b' b'_def].
-    exists (coset_repr _ b').
+    exists (makeCoset _ _ b').
     simpl; assumption.
-    unfold canonical_isomorphism.
+    simpl.
     intros Coset.
     destruct Coset as [[a']].
-    apply IsImage.
+    apply image_mem.
     exists a'; assumption.
   Qed.
-
 End quotient_groups.
