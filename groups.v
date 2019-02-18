@@ -649,43 +649,52 @@ Section homomorphisms.
   (* NEXT: kernel of homomorphism is a normal subgroup, image of homomorphism is a subgroup *)
   (* a \in kern(f) if f(a) = z *)
 
-  Definition is_kernel (G1 G2: Group) (h: homomorphism G1 G2) (K: set (A G1)) :=
-    forall a, is_mem _ K a <-> (h a) = (zero G2).
+  Structure kernel G1 G2 (h: homomorphism G1 G2) :=
+    {
+      K :> set (A G1);
+      kernel_mem : forall a, is_mem _ K a <-> (h a) = (zero G2)
+    }.
 
-  Definition is_image (G1 G2: Group) (h: homomorphism G1 G2) (I: set (A G2)) :=
-    forall b, is_mem _ I b <-> exists a, (h a) = b.
+  Structure image G1 G2 (h: homomorphism G1 G2) :=
+    {
+      I :> set (A G2);
+      image_mem : forall b, is_mem _ I b <-> exists a, (h a) = b
+    }.
 
-  Lemma kernel_is_subgroup : forall (G1 G2: Group) H K,
-      is_kernel G1 G2 H K -> subgroup G1.
+  Arguments kernel_mem {G1} {G2} _ _.
+  Arguments image_mem {G1} {G2} _ _.
+
+  Lemma kernel_is_subgroup : forall (G1 G2: Group) h (K : kernel G1 G2 h),
+      subgroup G1.
   Proof.
-    intros G1 G2 H K IsKernel.
+    intros G1 G2 h K.
     apply (makeSubgroup _ K).
     (* show zero mapped to zero *)
-    apply IsKernel, homomorphism_zero.
+    apply kernel_mem, homomorphism_zero.
     (* show kernel is closed under operation *)
     intros a b.
-    rewrite (IsKernel a), (IsKernel b).
+    rewrite (kernel_mem h K a), (kernel_mem h K b).
     intros [Ha_zero Hb_zero].
-    apply IsKernel.
+    apply kernel_mem.
     rewrite homomorphism_apply, Ha_zero, Hb_zero.
     autorewrite with core; reflexivity.
     (* show kernel is closed under inverse *)
     intros a.
-    rewrite (IsKernel a), (IsKernel (inv _ a)), homomorphism_inverse.
+    rewrite (kernel_mem h K a), (kernel_mem h K (inv _ a)), homomorphism_inverse.
     intros ha_zero.
     rewrite ha_zero.
     autorewrite with core.
     reflexivity.
   Defined.
 
-  Lemma kernel_is_normal_subgroup: forall (G1 G2 : Group) h K,
-    is_kernel G1 G2 h K -> normal_subgroup G1.
+  Lemma kernel_is_normal_subgroup:
+    forall G1 G2 h (K : kernel G1 G2 h), normal_subgroup G1.
   Proof.
-    intros G1 G2 h K IsKernel.
-    apply (makeNormalSubgroup _ (kernel_is_subgroup _ _ _ K IsKernel)).
+    intros G1 G2 h K.
+    apply (makeNormalSubgroup _ (kernel_is_subgroup _ _ _ K)).
     intros a b b_kernel.
-    apply IsKernel.
-    apply IsKernel in b_kernel.
+    apply kernel_mem.
+    apply kernel_mem in b_kernel.
     repeat rewrite homomorphism_apply.
     rewrite b_kernel.
     autorewrite with core.
@@ -694,26 +703,25 @@ Section homomorphisms.
     reflexivity.
   Defined.
 
-  Lemma image_is_subgroup : forall (G1 G2: Group) h I,
-      is_image G1 G2 h I -> subgroup G2.
-    intros G1 G2 h I IsImage.
+  Lemma image_is_subgroup : forall G1 G2 h (I: image G1 G2 h), subgroup G2.
+    intros G1 G2 h I.
     apply (makeSubgroup _ I).
     (* show zero is in the image *)
-    apply (IsImage (zero _)).
+    apply (image_mem _ _ (zero _)).
     exists (zero _).
     apply homomorphism_zero.
     (* show closed under operation *)
     intros a b.
-    rewrite (IsImage a), (IsImage b).
+    rewrite (image_mem _ _ a), (image_mem _ _ b).
     intros [[a' a'_def] [b' b'_def]].
-    apply IsImage.
+    apply image_mem.
     exists (op G1 a' b').
     rewrite homomorphism_apply, a'_def, b'_def; reflexivity.
     (* show closed under inverse *)
     intros a.
-    rewrite (IsImage a).
+    rewrite (image_mem _ _ a).
     intros [a' a'_def].
-    apply IsImage.
+    apply image_mem.
     exists (inv G1 a').
     rewrite homomorphism_inverse, a'_def.
     reflexivity.
@@ -805,58 +813,56 @@ Section quotient_groups.
 
   (* basically this is trivial because the definition of image / surjective are the same *)
   Theorem quotient_mapping_is_surjective_to_image:
-    forall (G : Group) (H: subgroup G) I,
-      is_image _ _ (quotient_homomorphism G H) I ->
+    forall G H (I: image G _ (quotient_homomorphism G H)),
       is_surjective _ _ (quotient_homomorphism G H) I.
   Proof.
-    intros G H I IsImage.
+    intros G H I.
     unfold is_surjective.
-    intros b; apply IsImage.
+    intros b; apply image_mem.
   Qed.
 
-  Definition canonical_isomorphism (G1 G2: Group) (H: subgroup G1) (h : G1 -> G2)
-             (a : coset H) : G2.
+  Definition quotient_group_kernel G1 G2 h (K : kernel G1 G2 h) : Group.
+  Proof.
+    apply (quotient_group G1).
+    apply normal_subgroup_mem.
+    apply (kernel_is_normal_subgroup _ _ h K).
+  Defined.
+
+  Definition canonical_mapping G1 G2 h (K: kernel G1 G2 h)
+             (a : quotient_group_kernel _ _ _ K) : G2.
     destruct a as [a].
     exact (h a).
   Defined.
+  Check canonical_mapping.
 
-  Lemma canonical_isomorphism_is_homomorphism :
-    forall (G1 G2 : Group) (h : G1 -> G2) (K : set G1),
-      is_homomorphism G1 G2 h ->
-      is_kernel G1 G2 h K ->
-      is_homomorphism (quotient_group G1 K) G2
-                      (canonical_isomorphism G1 G2 K h).
+  Definition canonical_isomorphism :
+    forall G1 G2 h (K : kernel G1 G2 h),
+      homomorphism (quotient_group_kernel _ _ _ K) G2.
   Proof.
-    intros G1 G2 h K IsHomomorphism IsKernel.
-    unfold is_homomorphism.
-    split.
-    (* zero maps to zero *)
-    simpl; apply IsHomomorphism.
+    intros G1 G2 h K.
+    apply (makeHomomorphism _ _ (canonical_mapping G1 G2 h K)).
+    simpl; apply homomorphism_zero.
     intros [a] [b].
-    apply IsHomomorphism.
-  Qed.
+    apply homomorphism_apply.
+  Defined.
 
   Hint Rewrite inverse1.
 
   (* FIRST ISOMORPHISM THEOREM *)
   Theorem quotient_of_homomorphism_is_isomorphic_to_image :
-    forall (G1 G2 : Group) (h : G1 -> G2) (K : set G1) (I : set G2),
-      is_homomorphism G1 G2 h ->
-      is_kernel G1 G2 h K ->
-      is_image G1 G2 h I ->
+    forall G1 G2 h (K: kernel G1 G2 h) (I: image G1 G2 h),
       (* homomorphism, injective, and surjective *)
-      let h' := (canonical_isomorphism G1 G2 K h) in
-      is_homomorphism (quotient_group G1 K) G2 h' /\
-      is_injective (quotient_group G1 K) G2 h' I /\
-      is_surjective (quotient_group G1 K) G2 h' I.
+      let h' := (canonical_isomorphism G1 G2 h K) in
+      is_injective _ _ h' I /\ is_surjective _ _ h' I.
   Proof.
-    intros G1 G2 h K I IsHomomorphism IsKernel IsImage.
-    split.
-    apply canonical_isomorphism_is_homomorphism; assumption.
+    intros G1 G2 h K I.
     split.
     (* show injectivity *)
     unfold is_injective.
     intros [a] [b] [a_image b_image].
+    (* Need a lemma on canonical_isomorphism and cosets,
+       unfolding is too hard *)
+
     unfold canonical_isomorphism.
     (* idea is that since a / b are mapped to the same thing, they're in the
        same coset of the quotient with the kernel *)
