@@ -402,9 +402,12 @@ Section groups.
   Section cosets.
 
     (* c \in aH if b \in H such that ab = c, b = a^{-1}c *)
-    Definition left_coset (G: Group) (a : G) (H: set G) : set G := fun c => H ((inv a) <*> c).
+    Definition left_coset (G: Group) (a : G) (H: subgroup G) : set G :=
+      fun c => (subgroup_mem G H) ((inv a) <*> c).
+
     (* c \in Ha if b \in H such that ba = c, b = c a^{-1} *)
-    Definition right_coset (G: Group) (H: set G) (a: G) : set G := fun c => H (c <*> (inv a)).
+    Definition right_coset (G: Group) (H: subgroup G) (a: G) : set G :=
+      fun c => (subgroup_mem G H) (c <*> (inv a)).
 
     Arguments is_mem {A} _ _.
     Arguments is_subgroup {G} _.
@@ -689,81 +692,74 @@ Section homomorphisms.
     rewrite homomorphism_inverse.
     autorewrite with core.
     reflexivity.
-  Qed.
+  Defined.
 
   Lemma image_is_subgroup : forall (G1 G2: Group) h I,
-      is_image G1 G2 h I -> is_subgroup _ I.
-    intros G1 G2 h I.
-    unfold is_image.
-    intros [IsHomomorphism IsImage].
-    unfold is_subgroup.
-    split; [auto|split; [auto | auto]].
+      is_image G1 G2 h I -> subgroup G2.
+    intros G1 G2 h I IsImage.
+    apply (makeSubgroup _ I).
     (* show zero is in the image *)
-    destruct IsHomomorphism as [Zero Homomorphism].
     apply (IsImage (zero _)).
     exists (zero _).
-    assumption.
+    apply homomorphism_zero.
     (* show closed under operation *)
     intros a b.
     rewrite (IsImage a), (IsImage b).
     intros [[a' a'_def] [b' b'_def]].
     apply IsImage.
     exists (op G1 a' b').
-    destruct IsHomomorphism as [Zero Homomorphism].
-    rewrite Homomorphism.
-    rewrite a'_def, b'_def; reflexivity.
+    rewrite homomorphism_apply, a'_def, b'_def; reflexivity.
     (* show closed under inverse *)
     intros a.
     rewrite (IsImage a).
     intros [a' a'_def].
     apply IsImage.
     exists (inv G1 a').
-    rewrite homomorphism_inverse.
-    rewrite a'_def.
+    rewrite homomorphism_inverse, a'_def.
     reflexivity.
-    assumption.
-  Qed.
+  Defined.
 End homomorphisms.
 
 Section quotient_groups.
-
   (* represent coset equivalence how?
      well, I can definitely prove equivalence relationship for
      left_coset, right cosets, etc. *)
 
   Arguments right_coset {G} _ _.
 
-  Inductive coset (G : Group) (H: subgroup G) :=
-  | coset_repr (a : G) : coset G H.
+  (* Coset G H, comes with a proof that the representative is in the coset *)
+  Structure coset (G: Group) (H: subgroup G) : Type := makeCoset
+    {
+      repr : G ;
+      coset_mem_repr := exists a, is_mem _ (right_coset H a) repr
+    }.
 
-  Arguments coset_repr {G} _ _.
-  Arguments coset {G} _.
   Arguments is_mem {A}.
 
-  (* not sure how to do this without an axiom *)
-  Axiom coset_right : forall (G : Group) (H: subgroup G) a b,
-      is_mem (right_coset H b) a -> coset_repr H a = coset_repr H b.
+  Definition quotient_mapping (G: Group) (H: subgroup G) (a: G) : coset G H.
+    apply (makeCoset _ _ a).
+  Defined.
 
-  Definition quotient_mapping (G : Group) (H: subgroup G) :=
-    (fun a => coset_repr H a).
+  Check quotient_mapping.
 
   (* must define quotient zero, quotient op, quotient inverse *)
 
-  Definition quotient_zero (G : Group) (H: subgroup G) := coset_repr H (zero G).
+  Definition quotient_zero G H : coset G H.
+    apply (makeCoset _ _ (zero G)).
+  Defined.
 
-  Definition quotient_op (G : Group) (H: subgroup G) :
-    coset H -> coset H -> coset H.
+  Definition quotient_op G H : coset G H -> coset G H -> coset G H.
     intros a b.
     (* this is dumb,but basically we just don't care about the coset repr *)
     destruct a as [a].
     destruct b as [b].
-    exact (coset_repr H ((op G) a b)).
+    exact (makeCoset _ _ ((op G) a b)).
   Defined.
 
-  Definition quotient_inv (G : Group) (H: subgroup G): coset H -> coset H.
+  Definition quotient_inv G H: coset G H -> coset G H.
     intros a.
     destruct a as [a].
-    exact (coset_repr H ((inv G) a)).
+    exact (makeCoset _ _ ((inv G) a)).
   Defined.
 
   Arguments quotient_mapping {G} _.
@@ -772,7 +768,7 @@ Section quotient_groups.
   Arguments quotient_zero {G} _.
 
   Definition quotient_group (G: Group) (H: subgroup G) : Group.
-    apply (makeGroup (coset H)
+    apply (makeGroup (coset G H)
                      (quotient_op H)
                      (quotient_inv H)
                      (quotient_zero H)).
@@ -787,11 +783,18 @@ Section quotient_groups.
     auto.
   Defined.
 
-  Theorem quotient_is_homomorphism :
+  Theorem quotient_homomorphism :
     forall (G : Group) (H: subgroup G),
-      is_homomorphism G (quotient_group G H) (quotient_mapping H).
+      homomorphism G (quotient_group G H).
   Proof.
-    intros; unfold is_homomorphism; auto.
+    intros.
+    (* quotient_mapping is map from group to coset group *)
+    remember (quotient_mapping H) as h.
+    unfold quotient_mapping in Heqh.
+    (* must show it is a homomorphism *)
+    apply (makeHomomorphism _ (quotient_group G H) h).
+    rewrite Heqh; auto.
+    intros; rewrite Heqh; auto.
   Qed.
 
   Definition is_injective (A: Set) (B: Set) (h: A -> B) (H : set B) :=
@@ -803,8 +806,8 @@ Section quotient_groups.
   (* basically this is trivial because the definition of image / surjective are the same *)
   Theorem quotient_mapping_is_surjective_to_image:
     forall (G : Group) (H: subgroup G) I,
-      is_image G (quotient_group G H) (quotient_mapping H) I ->
-      is_surjective G (quotient_group G H) (quotient_mapping H) I.
+      is_image _ _ (quotient_homomorphism G H) I ->
+      is_surjective _ _ (quotient_homomorphism G H) I.
   Proof.
     intros G H I IsImage.
     unfold is_surjective.
