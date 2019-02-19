@@ -819,7 +819,8 @@ Section quotient_groups.
 
   (* a and b are equivalent if there is some c that *)
 
-  Definition coset_equivalence (G: Group) H (a b: coset G H) :=
+  Definition coset_equivalence (G: Group) (H: normal_subgroup G)
+             (a b: coset G H) :=
     exists c,
       is_mem (right_coset H c) (coset_repr a) /\
       is_mem (right_coset H c) (coset_repr b).
@@ -835,9 +836,32 @@ Section quotient_groups.
     exists c.
     split; [auto|auto].
     unfold Transitive; intros x y z.
+    destruct x as [x].
+    destruct y as [y].
+    destruct z as [z].
     intros [c1 [x_c1 y_c1]] [c2 [y_c2 z_c2]].
     (* this is easy but annoying *)
-  Admitted.
+    (* there's some element such that x and y are in the same coset *)
+    (* there's some element such that y and z are in the same coset *)
+    (* so, some element witnesses x and z in the same coset through
+       coset_intersection *)
+    (*
+      x_c1 : is_mem (right_coset H c1) x
+      y_c1 : is_mem (right_coset H c1) y
+      y_c2 : is_mem (right_coset H c2) y
+      z_c2 : is_mem (right_coset H c2) z
+
+      coset_representative
+     : forall (G : Group) (a b : G) (H : subgroup G),
+       is_mem (right_coset H b) a ->
+       forall c : G, is_mem (right_coset H a) c <-> is_mem (right_coset H b) c
+
+     *)
+    auto.
+    exists c1.
+    split; [assumption | auto].
+    rewrite (coset_intersection G _ c2 H); [assumption | exists y; auto].
+  Qed.
 
   Arguments coset_equivalence {G} {H}.
 
