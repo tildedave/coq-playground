@@ -941,8 +941,8 @@ Section quotient_groups.
   Lemma canonical_isomorphism_restricted :
     forall G1 G2 h (K: kernel G1 G2 h),
       let h' := (canonical_isomorphism G1 G2 h K) in
-      forall a b,
-      h' a = h' b <-> coset_equivalence a b.
+      forall (a b : coset G1 (kernel_subgroup K)),
+      h' a = h' b <-> (@coset_equivalence G1 (kernel_normal_subgroup K)) a b.
   Proof.
     intros G1 G2 h K.
     simpl.
@@ -980,16 +980,23 @@ Section quotient_groups.
 
   Arguments quotient_group_repr {G} {K}.
 
-  Definition quotient_group_equivalence G K (a b: quotient_group G K) : Prop.
-    exact (coset_equivalence (quotient_group_repr a) (quotient_group_repr b)).
+  Definition quotient_group_equivalence G (K: normal_subgroup G) (a b: quotient_group G K) : Prop.
+    exact (@coset_equivalence G K (quotient_group_repr a) (quotient_group_repr b)).
   Defined.
+
+  Instance Quotient_Group_Equivalence G H: Equivalence (quotient_group_equivalence G H).
+  Proof.
+    unfold quotient_group_equivalence.
+    (* figure out how to do this later *)
+  Admitted.
 
   Arguments quotient_group_equivalence {G} {K} _ _.
 
   Lemma canonical_isomorphism_injectivity : forall G1 G2 h K,
       let iso := canonical_isomorphism G1 G2 h K in
       forall a b,
-      iso a = iso b -> quotient_group_equivalence a b.
+        iso a = iso b ->
+        @quotient_group_equivalence G1 (kernel_normal_subgroup K) a b.
   Proof.
     intros G1 G2 h K.
     intros iso a b.
@@ -1009,9 +1016,9 @@ Section quotient_groups.
       (* homomorphism, injective, and surjective *)
       let h' := (canonical_isomorphism G1 G2 h K) in
       let I_Subgroup := image_subgroup I in
-      let K_Subgroup := kernel_subgroup K in
+      let K_Subgroup := kernel_normal_subgroup K in
       is_injective_equiv (quotient_group G1 K_Subgroup) G2 h'
-                         quotient_group_equivalence /\
+                         (@quotient_group_equivalence G1 K_Subgroup) /\
       is_surjective (quotient_group G1 K_Subgroup) G2 h' I.
   Proof.
     intros G1 G2 h K I.
