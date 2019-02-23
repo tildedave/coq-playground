@@ -1482,13 +1482,17 @@ Section finite_groups.
 
   Lemma in_concat : forall A (l1 l2 : list A) (a b : A),
       In a (l1 ++ l2) -> In a (l1 ++ b :: l2).
-  Admitted.
+  Proof.
+    intros A l1 l2 a b.
+    induction l1; simpl; intros; auto.
+    destruct H0; [left | apply IHl1 in H0]; auto.
+  Qed.
 
   Lemma NoDup_injection_length_lte : forall A B (l1: list A) (l2: list B) f,
       NoDup l1 ->
       NoDup l2 ->
       Injective f ->
-      (forall c, In c l1 <-> In (f c) l2) ->
+      (forall c, In c l1 -> In (f c) l2) ->
       length l1 <= length l2.
   Proof.
     intros A B l1.
@@ -1513,7 +1517,6 @@ Section finite_groups.
     2: autorewrite with list; simpl; auto with arith.
     (* show if c in l1, then f c is in l1' ++ l3'.  required to apply IH *)
     intros c.
-    split.
     intros c_in_l1.
     assert (In (f c) l2) as fc_in_l2.
     apply Injection, in_cons; assumption.
@@ -1527,10 +1530,12 @@ Section finite_groups.
     rewrite <- H0 in c_in_l1.
     apply NoDup_cons_iff in NoDup_l1; destruct NoDup_l1; contradict H0; auto.
     (* must now show the In list equality, but I'd rather do something else *)
-    Focus 2.
-    (* if f c is in l1' ++ l3', then c is in l1 *)
-    (* this should follow from injectivity *)
-    intros fc_in_l1_concat.
+    clear.
+    induction l1'.
+    simpl; reflexivity.
+    simpl.
+
+
   Admitted.
 
   Lemma NoDup_injection_length : forall A B (l1: list A) (l2: list B) f f_inv,
@@ -1540,17 +1545,21 @@ Section finite_groups.
       Injective f_inv ->
       (forall c, In c l1 <-> In (f c) l2) ->
       (forall d, In d l2 <-> In (f_inv d) l1) ->
+      (forall e, f (f_inv e) = e) ->
       length l1 = length l2.
   Proof.
     intros A B l1 l2 f f_inv NoDup_l1 NoDup_l2 f_Injective f_inv_Injective
-           Injection InverseInjection.
+           Injection InverseInjection f_Inverse.
     cut (length l1 <= length l2).
     cut (length l2 <= length l1).
     intros; auto with arith.
     Focus 2.
     apply (NoDup_injection_length_lte _ _ l1 l2 f); auto.
+    intros; apply Injection; auto.
     apply (NoDup_injection_length_lte _ _ l2 l1 f_inv); auto.
-    (* we need to apply the reverse of f, but I'm not sure how to do that
+    intros; apply Injection; auto.
+    rewrite f_Inverse; auto.
+  (* we need to apply the reverse of f, but I'm not sure how to do that
        because of the universe mismatch *)
   Qed.
 
@@ -1587,6 +1596,7 @@ Section finite_groups.
     unfold right_coset, is_mem.
     autorewrite with core.
     reflexivity.
+    intros; autorewrite with core; reflexivity.
   Qed.
 
   (* to show: quotient group has cardinality of finite subgroup *)
