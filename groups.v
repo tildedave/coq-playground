@@ -1477,117 +1477,116 @@ Section finite_groups.
     reflexivity.
   Qed.
 
+  (* TODO: use this in the group definition *)
   Require Import Coq.Logic.FinFun.
-(*
-  Lemma NoDup_map_length : forall A B (l1: list A) (l2: list B) f,
+
+  Lemma in_concat : forall A (l1 l2 : list A) (a b : A),
+      In a (l1 ++ l2) -> In a (l1 ++ b :: l2).
+  Admitted.
+
+  Lemma NoDup_injection_length_lte : forall A B (l1: list A) (l2: list B) f,
       NoDup l1 ->
       NoDup l2 ->
       Injective f ->
-      Surjective f ->
       (forall c, In c l1 <-> In (f c) l2) ->
-      length l2 = length (map f l1).
+      length l1 <= length l2.
   Proof.
-    intros A B l1 l2 f NoDup_l1 NoDup_l2 f_Injective f_Surjective Injection.
-    induction l1; induction l2.
-    simpl; auto.
-    remember (f_Surjective a) as a'.
-    destruct a' as [a' def_of_a'].
-    remember (Injection a') as Q.
-    rewrite <- def_of_a'.
-
-    apply Injection in def_of_a'.
-
-    destruct l1_nonEmpty as [c H0]; contradict H0.
-    unfold not.
-    ; auto.
-
+    intros A B l1.
+    induction l1.
+    intros; auto with arith.
+    intros l2 f NoDup_l1 NoDup_l2 f_Injective Injection.
+    remember (in_eq a l1) as Q.
+    destruct HeqQ.
+    apply (Injection a) in Q.
+    apply in_split in Q.
+    destruct Q as [l1' [l3' l2_def]].
+    rewrite l2_def.
+    replace (length (l1' ++ f a :: l3')) with (S (length (l1' ++ l3'))).
     simpl.
- *)
+    Search (_ <= _ -> S _ <= S _).
+    apply le_n_S.
+    apply (IHl1 (l1' ++ l3') f).
+    apply NoDup_cons_iff in NoDup_l1; destruct NoDup_l1; auto.
+    rewrite l2_def in NoDup_l2; apply NoDup_remove in NoDup_l2.
+    destruct NoDup_l2; auto.
+    assumption.
+    2: autorewrite with list; simpl; auto with arith.
+    (* show if c in l1, then f c is in l1' ++ l3'.  required to apply IH *)
+    intros c.
+    split.
+    intros c_in_l1.
+    assert (In (f c) l2) as fc_in_l2.
+    apply Injection, in_cons; assumption.
+    rewrite l2_def in fc_in_l2.
+    replace (In (f c) (l1' ++ f a :: l3')) with
+        (In (f c) (f a :: l1' ++ l3')) in fc_in_l2.
+    destruct (in_inv fc_in_l2).
+    (* this scenario is impossible because f is injective *)
+    Focus 2. assumption.
+    apply f_Injective in H0.
+    rewrite <- H0 in c_in_l1.
+    apply NoDup_cons_iff in NoDup_l1; destruct NoDup_l1; contradict H0; auto.
+    (* must now show the In list equality, but I'd rather do something else *)
+    Focus 2.
+    (* if f c is in l1' ++ l3', then c is in l1 *)
+    (* this should follow from injectivity *)
+    intros fc_in_l1_concat.
+  Admitted.
 
-  Lemma NoDup_injection_length : forall A B (l1: list A) (l2: list B) f,
+  Lemma NoDup_injection_length : forall A B (l1: list A) (l2: list B) f f_inv,
       NoDup l1 ->
       NoDup l2 ->
       Injective f ->
-      (exists c, In c l1) ->
+      Injective f_inv ->
       (forall c, In c l1 <-> In (f c) l2) ->
-      (forall d, In d l2 <-> exists e, d = f e /\ In e l1) ->
+      (forall d, In d l2 <-> In (f_inv d) l1) ->
       length l1 = length l2.
   Proof.
-    intros A B l1 l2 f NoDup_l1 NoDup_l2 f_Injective l1_nonEmpty Injection ReverseInjection.
-    (*
-    destruct l1_nonEmpty as [a a_in_l1].
-
-    induction l1.
-    contradict a_in_l1.
-    apply in_inv in a_in_l1.
-    destruct a_in_l1 as [a0_eq_a | a_in_l1].
-
-
-    simpl.
-
-
-    ; induction l2; auto.
-    2: apply Injection in a_in_l1.
-    1-2: contradict a_in_l1.
-    (* inductive case :| *)
-    simpl.
-
-    Focus 3.
-
-    apply NoDup_cons_iff in NoDup_l2.
-    destruct NoDup_l2 as [a_not_in_l2 NoDup_l2].
-    apply IHl2 in NoDup_l2.
+    intros A B l1 l2 f f_inv NoDup_l1 NoDup_l2 f_Injective f_inv_Injective
+           Injection InverseInjection.
+    cut (length l1 <= length l2).
+    cut (length l2 <= length l1).
+    intros; auto with arith.
     Focus 2.
-    intros c.
-    rewrite Injection.
-    simpl.
-    split; intros; auto.
-    destruct H0; auto.
-    contradict H0.
-
-    simpl in NoDup_l2.
-    simpl.
-    rewrite NoDup_l2.
-
-
-    apply IHl2.
-*)
-  Admitted.
+    apply (NoDup_injection_length_lte _ _ l1 l2 f); auto.
+    apply (NoDup_injection_length_lte _ _ l2 l1 f_inv); auto.
+    (* we need to apply the reverse of f, but I'm not sure how to do that
+       because of the universe mismatch *)
+  Qed.
 
   Theorem cosets_members_length (G: finite_group) (H: finite_subgroup G) a :
     length (coset_members G H a) = length (subgroup_seq G H).
   Proof.
     unfold cardinality_subgroup.
-    apply (NoDup_injection_length _ _ _ _ (fun c => op _ c (inv _ a))).
+    apply (NoDup_injection_length _ _ _ _
+                                  (* maps the coset to the subgroup *)
+                                  (fun c => op _ c (inv _ a))
+                                  (* maps the subgroup to the coset *)
+                                  (fun h => op _ h a)).
     apply coset_members_unique.
     apply subgroup_seq_NoDup.
     unfold Injective; apply group_cancel_r.
-    exists a; apply coset_members_subgroup.
-    autorewrite with core.
-    apply subgroup_seq_in, subgroup_z.
+    cut (forall a b, inv G a = inv G b -> a = b).
+    intros Cut.
+    unfold Injective.
+    intros x y.
+    intros Q; apply Cut.
+    apply group_cancel_r in Q; rewrite Q; reflexivity.
+    (* prove cut *)
+    intros b c inv_equal.
+    apply (group_add_l _ b) in inv_equal.
+    apply (group_add_r _ c) in inv_equal.
+    autorewrite with core in inv_equal; auto.
     intros c.
-    rewrite in_coset_members_is_mem.
-    rewrite in_subgroup_seq_is_mem.
+    rewrite in_coset_members_is_mem, in_subgroup_seq_is_mem.
     unfold is_mem, right_coset.
     reflexivity.
     (* show surjectivity-ish *)
     intros d.
-    split.
-    intros d_subgroup.
-    exists (op _ d a).
+    rewrite in_coset_members_is_mem, in_subgroup_seq_is_mem.
+    unfold right_coset, is_mem.
     autorewrite with core.
-    split; auto.
-    apply in_subgroup_seq_is_mem in d_subgroup.
-    apply in_coset_members_is_mem.
-    unfold is_mem, right_coset.
-    autorewrite with core; auto.
-    intros e_exists.
-    destruct e_exists as [e [def_of_e e_coset_members]].
-    apply in_coset_members_is_mem in e_coset_members.
-    apply in_subgroup_seq_is_mem.
-    unfold is_mem, right_coset in e_coset_members.
-    rewrite <- def_of_e in e_coset_members.
-    auto.
+    reflexivity.
   Qed.
 
   (* to show: quotient group has cardinality of finite subgroup *)
