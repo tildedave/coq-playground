@@ -591,6 +591,7 @@ Hint Rewrite inverse_zero.
 Hint Rewrite inverse_apply.
 
 Section homomorphisms.
+
   Structure homomorphism (G1 G2: Group) := makeHomomorphism
     {
       h :> G1 -> G2 ;
@@ -902,6 +903,7 @@ Section quotient_groups.
     apply homomorphism_apply.
   Defined.
 
+
   (* if canonical isomorphism maps two members to the same element of G2, they
      are in the same coset of K *)
 
@@ -1042,3 +1044,208 @@ Section quotient_groups.
     exists a'; assumption.
   Qed.
 End quotient_groups.
+
+Section klein_4_group.
+  Inductive klein :=
+    k_I | k_X | k_Y | k_Z.
+
+  Definition klein_op k1 k2 :=
+    match (k1, k2) with
+    | (k_I, _) => k2
+    | (_, k_I) => k1
+    | (k_X, k_X) => k_I
+    | (k_X, k_Y) => k_Z
+    | (k_X, k_Z) => k_Y
+    | (k_Y, k_X) => k_Z
+    | (k_Y, k_Y) => k_I
+    | (k_Y, k_Z) => k_X
+    | (k_Z, k_X) => k_Y
+    | (k_Z, k_Y) => k_X
+    | (k_Z, k_Z) => k_I
+    end.
+
+  Definition klein_inv (k1: klein) := k1.
+
+  Lemma klein_zero : forall k, klein_op k_I k = k.
+    unfold klein_op.
+    auto.
+  Qed.
+
+  Lemma klein_zero2 : forall k, klein_op k k_I = k.
+    intros.
+    unfold klein_op.
+    destruct k; [auto | auto | auto | auto].
+  Qed.
+
+  Lemma klein_abelian : forall x y, klein_op x y = klein_op y x.
+    intros x y.
+    destruct x.
+    rewrite klein_zero, klein_zero2; reflexivity.
+    destruct y; [auto | auto | auto | auto].
+    destruct y; [auto | auto | auto | auto].
+    destruct y; [auto | auto | auto | auto].
+  Qed.
+
+  Lemma klein_double : forall k, klein_op k k = k_I.
+    simple destruct k; [split; auto | auto | auto | auto].
+  Qed.
+
+  Hint Rewrite klein_double.
+  Hint Rewrite klein_zero.
+  Hint Rewrite klein_zero2.
+
+  Definition klein_group : Group.
+    apply (makeGroup klein klein_op klein_inv k_I).
+    Focus 2.
+    destruct a; [split; auto | auto | auto | auto].
+    Focus 2.
+    intros; unfold klein_inv; rewrite klein_double; auto.
+    (* associativity *)
+    destruct a; destruct b; destruct c; compute; reflexivity.
+  Defined.
+
+End klein_4_group.
+
+Section finite_groups.
+  Require Import List.
+  Import ListNotations.
+
+  Check list.
+
+  Structure finite_group := makeFiniteGroup
+    {
+      G :> Group;
+      seq : list G;
+      seq_in : forall g, In g seq
+    }.
+
+  Structure finite_subgroup (G: Group) := makeFiniteSubgroup
+    {
+      H :> subgroup G;
+      subgroup_seq : list G;
+      subgroup_seq_in : forall g, is_mem _ H g <-> In g subgroup_seq
+    }.
+
+  (* TODO induction over group *)
+
+  Definition cardinality (G: finite_group) :=
+    length (seq G).
+
+  Fixpoint subgroup_filter (G: finite_group) H l : list G :=
+    match l with
+    | [] => []
+    | a :: tl => let rest := subgroup_filter _ H tl in
+                 (if is_mem_dec _ H a then a :: rest else rest)
+    end.
+
+  Lemma subgroup_filter_contains (G: finite_group) H :
+    forall g, In g (subgroup_filter G H (seq G)) <-> is_mem _ H g.
+  Proof.
+    intros g.
+    split.
+    cut (forall l, In g (subgroup_filter G H l) -> is_mem G H g).
+    intros Cut; apply Cut.
+    (* prove cut *)
+    induction l; simpl; auto.
+    intros H1; contradict H1.
+    destruct (is_mem_dec G H a).
+    simpl.
+    intros [H1 | H2].
+    rewrite <- H1; auto.
+    apply IHl; assumption.
+    assumption.
+    (* prove being in the subgroup means it is in the filter of the seq *)
+    cut (forall l, is_mem G H g -> In g l -> In g (subgroup_filter G H l)).
+    intros Cut H_mem.
+    remember (seq_in _ g).
+    apply (Cut (seq G) H_mem i).
+    (* prove cut *)
+    induction l; auto.
+    intros H_mem In_g.
+    simpl.
+    destruct In_g as [g_is_a | g_in_l].
+    rewrite g_is_a.
+    destruct (is_mem_dec _ H g); [simpl | contradict H_mem]; auto.
+    destruct (is_mem_dec _ H a); simpl; auto.
+  Qed.
+
+  (* take a subgroup, take a finite group, create a finite subgroup *)
+  Definition subgroup_finite_group (G: finite_group) (H: subgroup G) : finite_subgroup G.
+  Proof.
+    apply (makeFiniteSubgroup _ H (subgroup_filter G H (seq G))).
+    (* forall g : G, is_mem G H g <-> In g (subgroup_filter G H (seq G)) *)
+    split; apply subgroup_filter_contains.
+  Defined.
+
+  Definition cardinality_subgroup (G: finite_group) (H: subgroup G) : nat :=
+    length (subgroup_filter G H (seq G)).
+
+  Theorem klein_group_finite : finite_group.
+    apply (makeFiniteGroup klein_group [k_I; k_X; k_Y; k_Z]).
+    intros g.
+    destruct g; compute; auto.
+  Defined.
+
+  Definition klein_eq_dec k1 k2 :=
+    match k1 with
+    | k_I => match k2 with k_I => true | _ => false end
+    | k_X => match k2 with k_X => true | _ => false end
+    | k_Y => match k2 with k_Y => true | _ => false end
+    | k_Z  => match k2 with k_Z => true | _ => false end
+    end.
+
+  Definition klein_subgroup (k: klein_group) : subgroup klein_group.
+    remember ((fun k' => match k' with
+                           | k_I => true
+                           | _ => klein_eq_dec k k'
+                        end) : set klein_group) as char.
+    apply (makeSubgroup _ char).
+    rewrite Heqchar; cbv; auto.
+    (* closed under op *)
+    destruct k in Heqchar; simple destruct a; simple destruct b;
+      rewrite Heqchar; cbv; intros H; auto.
+    (* closed under op: impossible cases *)
+    0-36: destruct H; auto.
+    (* inversion *)
+    auto.
+  Defined.
+
+  Definition klein_subgroup_X := klein_subgroup k_X.
+  Definition klein_subgroup_Y := klein_subgroup k_Y.
+  Definition klein_subgroup_Z := klein_subgroup k_Z.
+
+  Require Import Arith BinNat Nat.
+
+  Lemma finite_subgroup_bounded (G: finite_group) (H : subgroup G):
+    cardinality_subgroup G H <= cardinality G.
+  Proof.
+    remember (seq G) as S.
+    unfold cardinality, cardinality_subgroup.
+    assert (forall l, length (subgroup_filter G H l) <= length l) as H0.
+    induction l; auto.
+    unfold subgroup_filter; fold (subgroup_filter _ H l).
+    destruct (is_mem_dec _ H a).
+    apply le_n_S; auto.
+    apply le_S; auto.
+    (* proved, so we can just apply this *)
+    apply H0.
+  Qed.
+
+  (* First: map all elements into their cosets *)
+  (* Next: remove duplicates *)
+  (* Lagrange's Theorem is that you'll end up with the same number of
+     duplicates removed *)
+
+  Definition seq_coset (G: finite_group) (H: subgroup G) (l: list G) :=
+    map (fun a => makeCoset G H a) l.
+
+  (* to show: quotient group has cardinality of finite subgroup *)
+  Theorem quotient_group_finite (G: finite_group) (H: subgroup G) : finite_group.
+  Proof.
+    (* need sequence of cosets *)
+    apply (makeFiniteGroup (quotient_group G H) (seq_coset G H (seq G))).
+    unfold seq_coset.
+    simple destruct g; intros a; apply in_map_iff.
+    exists a; split; [auto | apply seq_in].
+  Defined.
+End finite_groups.
