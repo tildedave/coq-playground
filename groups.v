@@ -27,16 +27,16 @@ Section groups.
 
       op : A -> A -> A ;
       inv : A -> A ;
-      zero : A ;
+      z : A ;
 
       op_assoc : forall a b c, op a (op b c) = op (op a b) c;
-      op_zero : forall a, op a zero = a /\ op zero a = a ;
-      op_inverse : forall a, op a (inv a) = zero /\ op (inv a) a = zero
+      op_z : forall a, op a z = a /\ op z a = a ;
+      op_inverse : forall a, op a (inv a) = z /\ op (inv a) a = z
     }.
 
   Definition abelian_group (G: Group) := is_commutative (A G) (op G).
 
-  Arguments zero {g}.
+  Arguments z {g}.
   Arguments op {g} _ _.
   Arguments inv {g} _.
 
@@ -44,24 +44,24 @@ Section groups.
 
   Variable (G : Group).
 
-  Lemma inverse1 : forall (a : G), a <*> (inv a) = zero.
+  Lemma inverse1 : forall (a : G), a <*> (inv a) = z.
     apply op_inverse.
   Qed.
 
-  Lemma inverse2 : forall (a: G), (inv a) <*> a = zero.
+  Lemma inverse2 : forall (a: G), (inv a) <*> a = z.
     apply op_inverse.
   Qed.
 
   Lemma inverse3 : forall (a b : G), inv a <*> (a <*> b) = b.
     intros.
     rewrite op_assoc, inverse2.
-    apply op_zero.
+    apply op_z.
   Qed.
 
   Lemma inverse4 : forall (a b : G), a <*> (inv a <*> b) = b.
     intros.
     rewrite op_assoc, inverse1.
-    apply op_zero.
+    apply op_z.
   Qed.
 
   Hint Rewrite inverse1.
@@ -81,12 +81,12 @@ Section groups.
     intros; rewrite H; auto.
   Qed.
 
-  Lemma group_zero_r: forall (a : G), a <*> zero = a.
-    apply op_zero.
+  Lemma group_z_r: forall (a : G), a <*> z = a.
+    apply op_z.
   Qed.
 
-  Lemma group_zero_l: forall (a : G), zero <*> a = a.
-    apply op_zero.
+  Lemma group_z_l: forall (a : G), z <*> a = a.
+    apply op_z.
   Qed.
 
   Lemma group_assoc: forall (a b c : G), (a <*> b) <*> c = a <*> (b <*> c).
@@ -95,7 +95,7 @@ Section groups.
 
   Lemma group_cancel_l: forall (a b c : G), a <*> b = a <*> c -> b = c.
     intros a b c OpABEqOpAC.
-    rewrite <- (group_zero_l b), <- (group_zero_l c).
+    rewrite <- (group_z_l b), <- (group_z_l c).
     rewrite <- (inverse2 a).
     repeat rewrite group_assoc.
     apply (group_add_l (inv a)).
@@ -104,39 +104,39 @@ Section groups.
 
   Lemma group_cancel_r: forall (a b c :G), b <*> a = c <*> a -> b = c.
     intros a b c OpABEqOpAC.
-    rewrite <- (group_zero_r b), <- (group_zero_r c).
+    rewrite <- (group_z_r b), <- (group_z_r c).
     rewrite <- (inverse1 a).
     repeat rewrite <- group_assoc.
     apply (group_add_r (inv a)).
     assumption.
   Qed.
 
-  Theorem id_is_unique: forall a : G, (forall b : G, a <*> b = b) -> a = zero.
+  Theorem id_is_unique: forall a : G, (forall b : G, a <*> b = b) -> a = z.
     intros a ADef.
     apply (group_cancel_r (inv a)).
-    rewrite group_zero_l; apply ADef.
+    rewrite group_z_l; apply ADef.
   Qed.
 
-  Theorem op_zero_commutes: forall (a b : G), a <*> b = zero <-> b <*> a = zero.
+  Theorem op_z_commutes: forall (a b : G), a <*> b = z <-> b <*> a = z.
     intros a b.
     split.
-    intro OpABZero.
+    intro OpABZ.
     symmetry.
     apply (group_cancel_l a _ _), (group_cancel_l b _ _).
     rewrite <- group_assoc, <- (group_assoc a b a).
-    rewrite OpABZero, group_zero_r, group_zero_l.
+    rewrite OpABZ, group_z_r, group_z_l.
     reflexivity.
-    intro OpBAZero.
+    intro OpBAZ.
     symmetry.
     apply (group_cancel_l b _ _), (group_cancel_l a _ _).
     rewrite <- group_assoc, <- (group_assoc b a b).
-    rewrite OpBAZero, group_zero_r, group_zero_l.
+    rewrite OpBAZ, group_z_r, group_z_l.
     reflexivity.
   Qed.
 
-  Theorem inverse_unique: forall (a b : G), a <*> b = zero -> b = inv a.
+  Theorem inverse_unique: forall (a b : G), a <*> b = z -> b = inv a.
     intros a b.
-    intros OpABZero.
+    intros OpABZ.
     apply (group_cancel_l a _ _).
     rewrite inverse1.
     assumption.
@@ -144,7 +144,7 @@ Section groups.
 
   Theorem inverse_cancel: forall (a : G), inv (inv a) = a.
     intros a.
-    (* show (inv a) * a = zero *)
+    (* show (inv a) * a = z *)
     remember (inverse2 a) as H.
     destruct HeqH.
     apply inverse_unique in H.
@@ -156,8 +156,8 @@ Section groups.
   Hint Rewrite inverse3.
   Hint Rewrite inverse4.
 
-  Hint Rewrite group_zero_r.
-  Hint Rewrite group_zero_l.
+  Hint Rewrite group_z_r.
+  Hint Rewrite group_z_l.
   Hint Rewrite group_assoc.
 
   Hint Rewrite inverse_cancel.
@@ -184,13 +184,13 @@ Section groups.
     rewrite inverse4; assumption.
   Qed.
 
-  Lemma inverse_zero: @inv G zero = zero.
-    apply (group_cancel_l zero).
-    rewrite inverse1, group_zero_l.
+  Lemma inverse_z: @inv G z = z.
+    apply (group_cancel_l z).
+    rewrite inverse1, group_z_l.
     reflexivity.
   Qed.
 
-  Hint Rewrite inverse_zero.
+  Hint Rewrite inverse_z.
 
   Section group_examples.
     Require Import Coq.ZArith.BinInt.
@@ -243,7 +243,7 @@ Section groups.
     Structure subgroup (G : Group) : Type := makeSubgroup
     {
       subgroup_mem :> set G;
-      subgroup_zero : is_mem subgroup_mem zero;
+      subgroup_z : is_mem subgroup_mem z;
       subgroup_closed :
         forall a b, is_mem subgroup_mem a /\ is_mem subgroup_mem b -> is_mem subgroup_mem (a <*> b);
       subgroup_inverse :
@@ -255,7 +255,7 @@ Section groups.
    *)
     Definition is_subgroup (G : Group) (H: subgroup G) :=
       (* 0 is a subgroup member *)
-      is_mem H zero /\
+      is_mem H z /\
       (* subgroup is closed under operation *)
       (forall a b, is_mem H a /\ is_mem H b -> is_mem H (a <*> b)) /\
       (* if an element is in the subgroup, its inverse is too *)
@@ -264,9 +264,9 @@ Section groups.
     Arguments is_subgroup {G} _.
 
     (* H is a subgroup *)
-    (* H is inductively defined, zero is in it,
+    (* H is inductively defined, z is in it,
        if a is in it, inv a is in it, if a b is in it, a op b is in it
-       zero is a consequence of the other two
+       z is a consequence of the other two
      *)
 
     Lemma subgroup_closed1: forall (H: subgroup G) (a b : G),
@@ -449,7 +449,7 @@ Section groups.
       intros a H.
       unfold right_coset, is_mem.
       rewrite inverse1.
-      apply subgroup_zero.
+      apply subgroup_z.
     Qed.
 
     Theorem coset_representative:
@@ -472,9 +472,9 @@ Section groups.
       autorewrite with core; auto.
     Qed.
 
-    Theorem coset_zero: forall a (H: subgroup G),
+    Theorem coset_z: forall a (H: subgroup G),
         is_mem H a ->
-        forall c, is_mem (right_coset H a) c <-> is_mem (right_coset H zero) c.
+        forall c, is_mem (right_coset H a) c <-> is_mem (right_coset H z) c.
     Proof.
       intros a H Ha_true.
       (* WTS: everything in Ha can be represented by something in H *)
@@ -582,12 +582,12 @@ Hint Rewrite inverse2.
 Hint Rewrite inverse3.
 Hint Rewrite inverse4.
 
-Hint Rewrite group_zero_r.
-Hint Rewrite group_zero_l.
+Hint Rewrite group_z_r.
+Hint Rewrite group_z_l.
 Hint Rewrite group_assoc.
 
 Hint Rewrite inverse_cancel.
-Hint Rewrite inverse_zero.
+Hint Rewrite inverse_z.
 Hint Rewrite inverse_apply.
 
 Section homomorphisms.
@@ -595,7 +595,7 @@ Section homomorphisms.
   Structure homomorphism (G1 G2: Group) := makeHomomorphism
     {
       h :> G1 -> G2 ;
-      homomorphism_zero : h (zero G1) = (zero G2) ;
+      homomorphism_z : h (z G1) = (z G2) ;
       homomorphism_apply : forall a b, h ((op G1) a b) = (op G2) (h a) (h b)
     }.
 
@@ -613,7 +613,7 @@ Section homomorphisms.
     unfold abelian_group, is_commutative.
     intros IsCommutative.
     apply (makeHomomorphism G G (fun a => inv _ a)).
-    apply inverse_zero.
+    apply inverse_z.
     intros a b.
     rewrite <- inverse_apply, (IsCommutative _ _).
     reflexivity.
@@ -625,7 +625,7 @@ Section homomorphisms.
     intros G1 G2 h a.
     apply (group_cancel_l G2 (h a)).
     rewrite <- homomorphism_apply, (inverse1 G1), (inverse1 G2).
-    apply homomorphism_zero.
+    apply homomorphism_z.
   Qed.
 
   Lemma homomorphism_assoc : forall (G1 G2: Group) (h: homomorphism G1 G2),
@@ -641,7 +641,7 @@ Section homomorphisms.
   Structure kernel G1 G2 (h: homomorphism G1 G2) :=
     {
       K :> set (A G1);
-      kernel_mem : forall a, is_mem _ K a <-> (h a) = (zero G2)
+      kernel_mem : forall a, is_mem _ K a <-> (h a) = (z G2)
     }.
 
   Structure image G1 G2 (h: homomorphism G1 G2) :=
@@ -658,20 +658,20 @@ Section homomorphisms.
   Proof.
     intros G1 G2 h K.
     apply (makeSubgroup _ K).
-    (* show zero mapped to zero *)
-    apply kernel_mem, homomorphism_zero.
+    (* show z mapped to z *)
+    apply kernel_mem, homomorphism_z.
     (* show kernel is closed under operation *)
     intros a b.
     rewrite (kernel_mem h K a), (kernel_mem h K b).
-    intros [Ha_zero Hb_zero].
+    intros [Ha_z Hb_z].
     apply kernel_mem.
-    rewrite homomorphism_apply, Ha_zero, Hb_zero.
+    rewrite homomorphism_apply, Ha_z, Hb_z.
     autorewrite with core; reflexivity.
     (* show kernel is closed under inverse *)
     intros a.
     rewrite (kernel_mem h K a), (kernel_mem h K (inv _ a)), homomorphism_inverse.
-    intros ha_zero.
-    rewrite ha_zero.
+    intros ha_z.
+    rewrite ha_z.
     autorewrite with core.
     reflexivity.
   Defined.
@@ -695,10 +695,10 @@ Section homomorphisms.
   Lemma image_subgroup : forall G1 G2 h (I: image G1 G2 h), subgroup G2.
     intros G1 G2 h I.
     apply (makeSubgroup _ I).
-    (* show zero is in the image *)
-    apply (image_mem _ _ (zero _)).
-    exists (zero _).
-    apply homomorphism_zero.
+    (* show z is in the image *)
+    apply (image_mem _ _ (z _)).
+    exists (z _).
+    apply homomorphism_z.
     (* show closed under operation *)
     intros a b.
     rewrite (image_mem _ _ a), (image_mem _ _ b).
@@ -741,10 +741,10 @@ Section quotient_groups.
 
   Check quotient_mapping.
 
-  (* must define quotient zero, quotient op, quotient inverse *)
+  (* must define quotient z, quotient op, quotient inverse *)
 
-  Definition quotient_zero G H : coset G H.
-    apply (makeCoset _ _ (zero G)).
+  Definition quotient_z G H : coset G H.
+    apply (makeCoset _ _ (z G)).
   Defined.
 
   Definition quotient_op G H : coset G H -> coset G H -> coset G H.
@@ -764,21 +764,21 @@ Section quotient_groups.
   Arguments quotient_mapping {G} _.
   Arguments quotient_inv {G} _.
   Arguments quotient_op {G} _.
-  Arguments quotient_zero {G} _.
+  Arguments quotient_z {G} _.
 
   Definition quotient_group (G: Group) (H: subgroup G) : Group.
     apply (makeGroup (coset G H)
                      (quotient_op H)
                      (quotient_inv H)
-                     (quotient_zero H)).
+                     (quotient_z H)).
     (* show quotient op associative *)
     intros [a] [b] [c].
     unfold quotient_op; autorewrite with core; reflexivity.
-    (* show quotient zero *)
+    (* show quotient z *)
     intros [a].
-    unfold quotient_op, quotient_zero; autorewrite with core; auto.
+    unfold quotient_op, quotient_z; autorewrite with core; auto.
     intros [a].
-    unfold quotient_op, quotient_inv, quotient_zero; autorewrite with core.
+    unfold quotient_op, quotient_inv, quotient_z; autorewrite with core.
     auto.
   Defined.
 
@@ -898,7 +898,7 @@ Section quotient_groups.
   Proof.
     intros G1 G2 h K.
     apply (makeHomomorphism _ _ (canonical_mapping G1 G2 h K)).
-    simpl; apply homomorphism_zero.
+    simpl; apply homomorphism_z.
     intros [a] [b].
     apply homomorphism_apply.
   Defined.
@@ -918,7 +918,7 @@ Section quotient_groups.
     rewrite homomorphism_apply, <- ha_eq_b.
     rewrite <- homomorphism_apply.
     autorewrite with core.
-    apply homomorphism_zero.
+    apply homomorphism_z.
   Qed.
 
   Lemma canonical_isomorphism_rewrite:
@@ -1066,12 +1066,12 @@ Section klein_4_group.
 
   Definition klein_inv (k1: klein) := k1.
 
-  Lemma klein_zero : forall k, klein_op k_I k = k.
+  Lemma klein_z : forall k, klein_op k_I k = k.
     unfold klein_op.
     auto.
   Qed.
 
-  Lemma klein_zero2 : forall k, klein_op k k_I = k.
+  Lemma klein_z2 : forall k, klein_op k k_I = k.
     intros.
     unfold klein_op.
     destruct k; [auto | auto | auto | auto].
@@ -1080,7 +1080,7 @@ Section klein_4_group.
   Lemma klein_abelian : forall x y, klein_op x y = klein_op y x.
     intros x y.
     destruct x.
-    rewrite klein_zero, klein_zero2; reflexivity.
+    rewrite klein_z, klein_z2; reflexivity.
     destruct y; [auto | auto | auto | auto].
     destruct y; [auto | auto | auto | auto].
     destruct y; [auto | auto | auto | auto].
@@ -1091,8 +1091,8 @@ Section klein_4_group.
   Qed.
 
   Hint Rewrite klein_double.
-  Hint Rewrite klein_zero.
-  Hint Rewrite klein_zero2.
+  Hint Rewrite klein_z.
+  Hint Rewrite klein_z2.
 
   Definition klein_group : Group.
     apply (makeGroup klein klein_op klein_inv k_I).
@@ -1236,15 +1236,126 @@ Section finite_groups.
   (* Lagrange's Theorem is that you'll end up with the same number of
      duplicates removed *)
 
-  Definition seq_coset (G: finite_group) (H: subgroup G) (l: list G) :=
-    map (fun a => makeCoset G H a) l.
+  Print right_coset.
+  (* fun (G : Group) (H : subgroup G) (a c : G) => H (op G c (inv G a))
+     : forall G : Group, subgroup G -> G -> set G
+   *)
+  Check (fun (G: finite_group) (H: subgroup G) (a : G) =>
+           (filter (fun c => negb ((right_coset G H a) c))  (seq G))).
+  (* a and b are in the same coset IF ....
+
+     *)
+
+  Definition coset_members (G: finite_group) H a :=
+    filter (right_coset G H a) (seq G).
+
+  Lemma z_in_seq_G (G: finite_group) : In (z G) (seq G).
+  Proof.
+    apply (seq_in G (z _)).
+  Qed.
+
+  (* random filter lemmas since the standard lib doesn't have much *)
+  Lemma filter_empty_head: forall (A: Type) f (l: list A) a, filter f (a :: l) = [] -> f a <> true.
+    intros A f l a.
+    intros Filter.
+    unfold filter in Filter.
+    destruct (bool_dec (f a) true) in Filter.
+    rewrite e in Filter; contradict Filter; congruence.
+    assumption.
+  Qed.
+
+  Lemma filter_empty_rest: forall (A: Type) f (l: list A) a, filter f (a :: l) = [] -> filter f l = [].
+    intros A f l a Filter.
+    unfold filter in Filter; destruct (f a) in Filter.
+    contradict Filter; congruence.
+    fold filter in Filter; assumption.
+  Qed.
+
+  Import ListNotations.
+
+  Lemma filter_head : forall (A: Type) f a (l: list A), f a = true -> filter f (a :: l) = a :: filter f l.
+    intros A f a l fa_true.
+    unfold filter.
+    rewrite fa_true.
+    reflexivity.
+  Qed.
+
+  (* this makes the next proof slightly nicer ;) *)
+  Lemma true_dec : forall b, {b = true} + {b = false}.
+    intros b.
+    destruct (bool_dec b true); auto.
+    apply not_true_is_false in n; auto.
+  Qed.
+
+  Lemma filter_cons : forall (A: Type) f (l1 l2: list A), filter f (l1 ++ l2) = (filter f l1) ++ (filter f l2).
+    intros A f.
+    induction l1; intros l2.
+    repeat rewrite app_nil_r; reflexivity.
+    unfold filter.
+    destruct (true_dec (f a)) as [Q | Q];
+      rewrite <- app_comm_cons;
+      rewrite Q;
+      fold (filter f (l1 ++ l2));
+      fold (filter f l1);
+      fold (filter f l2).
+    rewrite <- app_comm_cons; congruence.
+    congruence.
+  Qed.
+
+  Lemma filter_empty: forall (A: Type) f (l: list A), filter f l = [] -> forall a, In a l -> f a <> true.
+    intros A f l Filter a.
+    intros I.
+    apply in_split in I.
+    destruct I as [l1 [l2 Q]].
+    rewrite Q in Filter.
+    rewrite filter_cons in Filter.
+    apply app_eq_nil in Filter.
+    destruct Filter as [_ filter_fa_nil].
+    apply filter_empty_head in filter_fa_nil; assumption.
+  Qed.
+
+  Lemma coset_members_is_not_empty : forall G H a,
+      coset_members G H a = [] -> (seq G) = [].
+  Proof.
+    intros G H a.
+    unfold coset_members.
+    intros Filter.
+    (* this is what I want: *)
+    remember ((filter_empty _ _ (seq G) Filter) a) as Contradict.
+    remember (Contradict (seq_in _ a)) as Q.
+    fold (is_mem _ (right_coset G H a) a) in Q.
+    destruct HeqQ; contradict Q.
+    apply coset_reflexive.
+  Qed.
+
+  Theorem cosets_partition (G: finite_group) H a :
+    length (coset_members G H a) = (cardinality G / cardinality_subgroup G H).
+  Proof.
+    (* for some reason cardinality_subgroup doesn't compute cleanly *)
+    (* (1) is this true?
+       G is Z_20, H is Z_5, cosets are 0, 1, 2, 3, 4, so given a in G,
+       we will have [1, 6, 11, 16] = 4 other members of the coset.
+       so seems true *)
+    (* (2) why is this true?
+       This is true because - cosets partition the group.
+       This is true because - a is associated a unique member of H.
+     *)
+    (* coset_members G H a = [] => G is empty *)
+    remember (coset_members G H a) as Q.
+    destruct Q.
+    (* empty list case, which is actually impossible *)
+    symmetry in HeqQ; apply coset_members_is_not_empty in HeqQ.
+    unfold cardinality, cardinality_subgroup. rewrite HeqQ; simpl; auto.
+
+    (* need some lemmas on coset_members when there actually are members *)
+  Admitted.
 
   (* to show: quotient group has cardinality of finite subgroup *)
   Theorem quotient_group_finite (G: finite_group) (H: subgroup G) : finite_group.
   Proof.
     (* need sequence of cosets *)
-    apply (makeFiniteGroup (quotient_group G H) (seq_coset G H (seq G))).
-    unfold seq_coset.
+    apply (makeFiniteGroup (quotient_group G H)
+                           (map (fun a => makeCoset G H a) (seq G))).
     simple destruct g; intros a; apply in_map_iff.
     exists a; split; [auto | apply seq_in].
   Defined.
