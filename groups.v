@@ -1167,11 +1167,12 @@ Section finite_groups.
     forall  (A: Type) f (l: list A), NoDup l -> NoDup (filter f l).
   Proof.
     induction l; auto.
+    simpl; auto.
     intros NoDupeList.
-    simpl.
     replace (NoDup (a :: l)) with (NoDup ([] ++ a :: l)) in NoDupeList.
     apply NoDup_remove in NoDupeList; simpl in NoDupeList.
     destruct NoDupeList as [NoDup_l a_not_in_l].
+    simpl.
     destruct (f a).
     apply NoDup_cons.
     apply filter_NotIn; assumption.
@@ -1423,7 +1424,6 @@ Section finite_groups.
     apply IHl1; assumption.
   Qed.
 
-  Check NoDup.
   Lemma coset_members_unique (G: finite_group) (H: subgroup G) a:
     NoDup (coset_members G H a).
     unfold coset_members.
@@ -1451,47 +1451,152 @@ Section finite_groups.
     exists c; split; auto.
   Qed.
 
-Theorem cosets_members_length (G: finite_group) H a :
-    length (coset_members G H a) = (cardinality_subgroup G H).
+  Lemma coset_members_subgroup (G: finite_group) (H: finite_subgroup G) a :
+    forall c, In c (coset_members G H a) <->
+              In (op _ c (inv _ a)) (subgroup_seq _ H).
+    intros c.
+    split.
+    (* being in coset means you're in the subgroup *)
+    unfold coset_members, right_coset.
+    intros InCoset; apply filter_In in InCoset.
+    destruct InCoset as [_ InCoset].
+    fold (is_mem _ H (op _ c (inv _ a))) in InCoset.
+    rewrite subgroup_seq_in in InCoset; assumption.
+    intros InSubgroup.
+    unfold coset_members.
+    apply filter_In.
+    split; [apply seq_in |apply subgroup_seq_in]; auto.
+  Qed.
+
+  Require Import Coq.Logic.FinFun.
+(*
+  Lemma NoDup_map_length : forall A B (l1: list A) (l2: list B) f,
+      NoDup l1 ->
+      NoDup l2 ->
+      Injective f ->
+      Surjective f ->
+      (forall c, In c l1 <-> In (f c) l2) ->
+      length l2 = length (map f l1).
   Proof.
-    (* for some reason cardinality_subgroup doesn't compute cleanly *)
-    (* (1) is this true?
-       Z_5 = {0, 5, 10, 15}
+    intros A B l1 l2 f NoDup_l1 NoDup_l2 f_Injective f_Surjective Injection.
+    induction l1; induction l2.
+    simpl; auto.
+    remember (f_Surjective a) as a'.
+    destruct a' as [a' def_of_a'].
+    remember (Injection a') as Q.
+    rewrite <- def_of_a'.
 
-       G is Z_20, H is Z_5, cosets are 0, 1, 2, 3, 4, so given a in G,
-       we will have [1, 6, 11, 16] = 4 other members of the coset.
-       so seems true *)
-    (* (2) why is this true?
-       This is true because - cosets partition the group.
-       This is true because - a is associated a unique member of H.
-     *)
-    (* coset_members G H a = [] => G is empty *)
-    remember (coset_members G H a) as Q.
-    destruct Q as [| b].
-    (* empty list case, which is actually impossible *)
-    symmetry in HeqQ; apply coset_members_is_not_empty in HeqQ.
-    unfold cardinality, cardinality_subgroup.
-    rewrite HeqQ; simpl; auto.
-    (* need some lemmas on coset_members when there actually are members ;( *)
-    unfold coset_members in HeqQ.
-    symmetry in HeqQ; apply filter_inv in HeqQ.
-    unfold is_mem, right_coset in HeqQ.
-    fold (is_mem _ H (op G b (inv G a))) in HeqQ.
-    (* b <*> inv a is in the subgroup, what does this get us? *)
-    (* yeah, this means that since this element is in the subgroup, then
-       ....
-     *)
-    (* still not certain how I'm going to show this, review the proof and
-       revisit*)
-    apply filter_head in HeqQ.
+    apply Injection in def_of_a'.
+
+    destruct l1_nonEmpty as [c H0]; contradict H0.
+    unfold not.
+    ; auto.
+
+    simpl.
+ *)
+
+  Lemma NoDup_injection_length : forall A B (l1: list A) (l2: list B) f,
+      NoDup l1 ->
+      NoDup l2 ->
+      Injective f ->
+      (exists c, In c l1) ->
+      (forall c, In c l1 <-> In (f c) l2) ->
+      (forall d, In d l2 <-> exists e, d = f e /\ In e l1) ->
+      length l1 = length l2.
+  Proof.
+    intros A B l1 l2 f NoDup_l1 NoDup_l2 f_Injective l1_nonEmpty Injection ReverseInjection.
+    (*
+    destruct l1_nonEmpty as [a a_in_l1].
+
+    induction l1.
+    contradict a_in_l1.
+    apply in_inv in a_in_l1.
+    destruct a_in_l1 as [a0_eq_a | a_in_l1].
 
 
-    (* the key _should_ be that cosets don't overlap.
-       no, that is a future lemma.
-       if a0 is a member of the coset, then
+    simpl.
 
-     *)
+
+    ; induction l2; auto.
+    2: apply Injection in a_in_l1.
+    1-2: contradict a_in_l1.
+    (* inductive case :| *)
+    simpl.
+
+    Focus 3.
+
+    apply NoDup_cons_iff in NoDup_l2.
+    destruct NoDup_l2 as [a_not_in_l2 NoDup_l2].
+    apply IHl2 in NoDup_l2.
+    Focus 2.
+    intros c.
+    rewrite Injection.
+    simpl.
+    split; intros; auto.
+    destruct H0; auto.
+    contradict H0.
+
+    simpl in NoDup_l2.
+    simpl.
+    rewrite NoDup_l2.
+
+
+    apply IHl2.
+*)
   Admitted.
+
+  Lemma in_coset_members_is_mem (G: finite_group) (H: finite_subgroup G) a :
+    forall c, In c (coset_members G H a) <-> is_mem _ (right_coset G H a) c.
+  Proof.
+    intros c.
+    unfold coset_members.
+    split.
+    intros In_c; apply filter_In in In_c; destruct In_c; auto.
+    intros IsMem; apply filter_In; split; [apply seq_in | auto].
+  Qed.
+
+  Lemma in_subgroup_seq_is_mem (G: finite_group) (H: finite_subgroup G) :
+    forall c, In c (subgroup_seq _ H) <-> is_mem _ H c.
+  Proof.
+    intros c.
+    split; apply subgroup_seq_in.
+  Qed.
+
+  Theorem cosets_members_length (G: finite_group) (H: finite_subgroup G) a :
+    length (coset_members G H a) = length (subgroup_seq G H).
+  Proof.
+    unfold cardinality_subgroup.
+    apply (NoDup_injection_length _ _ _ _ (fun c => op _ c (inv _ a))).
+    apply coset_members_unique.
+    apply subgroup_seq_NoDup.
+    unfold Injective; apply group_cancel_r.
+    exists a; apply coset_members_subgroup.
+    autorewrite with core.
+    apply subgroup_seq_in, subgroup_z.
+    intros c.
+    rewrite in_coset_members_is_mem.
+    rewrite in_subgroup_seq_is_mem.
+    unfold is_mem, right_coset.
+    reflexivity.
+    (* show surjectivity-ish *)
+    intros d.
+    split.
+    intros d_subgroup.
+    exists (op _ d a).
+    autorewrite with core.
+    split; auto.
+    apply in_subgroup_seq_is_mem in d_subgroup.
+    apply in_coset_members_is_mem.
+    unfold is_mem, right_coset.
+    autorewrite with core; auto.
+    intros e_exists.
+    destruct e_exists as [e [def_of_e e_coset_members]].
+    apply in_coset_members_is_mem in e_coset_members.
+    apply in_subgroup_seq_is_mem.
+    unfold is_mem, right_coset in e_coset_members.
+    rewrite <- def_of_e in e_coset_members.
+    auto.
+  Qed.
 
   (* to show: quotient group has cardinality of finite subgroup *)
   Theorem quotient_group_finite (G: finite_group) (H: subgroup G) : finite_group.
