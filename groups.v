@@ -1116,14 +1116,16 @@ Section finite_groups.
     {
       G :> Group;
       seq : list G;
-      seq_in : forall g, In g seq
+      seq_in : forall g, In g seq;
+      seq_NoDup : NoDup seq;
     }.
 
   Structure finite_subgroup (G: Group) := makeFiniteSubgroup
     {
       H :> subgroup G;
       subgroup_seq : list G;
-      subgroup_seq_in : forall g, is_mem _ H g <-> In g subgroup_seq
+      subgroup_seq_in : forall g, is_mem _ H g <-> In g subgroup_seq;
+      subgroup_seq_NoDup : NoDup subgroup_seq;
     }.
 
   (* TODO induction over group *)
@@ -1131,12 +1133,64 @@ Section finite_groups.
   Definition cardinality (G: finite_group) :=
     length (seq G).
 
-  Fixpoint subgroup_filter (G: finite_group) H l : list G :=
+  Definition subgroup_filter (G: finite_group) (H: subgroup G) l : list G :=
+    filter (fun a => (subgroup_mem _ H a)) l.
+
+(*
     match l with
     | [] => []
     | a :: tl => let rest := subgroup_filter _ H tl in
                  (if is_mem_dec _ H a then a :: rest else rest)
     end.
+ *)
+
+  Lemma filter_NotIn : forall (A: Type) f x (l : list A),
+      ~In x l -> ~In x (filter f l).
+  Proof.
+    intros A f x.
+    induction l.
+    (* base case *)
+    simpl; auto.
+    (* inductive case *)
+    rewrite not_in_cons.
+    simpl; destruct (f a); simpl.
+    intros [x_not_a H].
+    unfold not.
+    intros H2.
+    destruct H2; auto.
+    apply IHl; auto.
+    intros [x_not_a H].
+    apply IHl; assumption.
+  Qed.
+
+  Lemma filter_NoDup :
+    forall  (A: Type) f (l: list A), NoDup l -> NoDup (filter f l).
+  Proof.
+    induction l; auto.
+    intros NoDupeList.
+    simpl.
+    replace (NoDup (a :: l)) with (NoDup ([] ++ a :: l)) in NoDupeList.
+    apply NoDup_remove in NoDupeList; simpl in NoDupeList.
+    destruct NoDupeList as [NoDup_l a_not_in_l].
+    destruct (f a).
+    apply NoDup_cons.
+    apply filter_NotIn; assumption.
+    1-2: apply IHl; assumption.
+    simpl; reflexivity.
+  Qed.
+
+  (* this makes the next proof slightly nicer ;) *)
+  Lemma true_dec : forall b, {b = true} + {b = false}.
+    intros b.
+    destruct (bool_dec b true); auto.
+    apply not_true_is_false in n; auto.
+  Qed.
+
+  Lemma subgroup_filter_NoDup (G: finite_group) H :
+    forall l, NoDup l -> NoDup (subgroup_filter G H l).
+  Proof.
+    unfold subgroup_filter; intros; apply filter_NoDup; assumption.
+  Qed.
 
   Lemma subgroup_filter_contains (G: finite_group) H :
     forall g, In g (subgroup_filter G H (seq G)) <-> is_mem _ H g.
@@ -1150,10 +1204,16 @@ Section finite_groups.
     intros H1; contradict H1.
     destruct (is_mem_dec G H a).
     simpl.
-    intros [H1 | H2].
-    rewrite <- H1; auto.
+    unfold is_mem in i.
+    rewrite i.
+    intros H1.
+    apply in_inv in H1.
+    destruct H1 as [a_is_g | g_in_subgroup].
+    rewrite <- a_is_g; unfold is_mem; auto.
     apply IHl; assumption.
-    assumption.
+    unfold is_mem in n.
+    apply not_true_is_false in n.
+    rewrite n; apply IHl.
     (* prove being in the subgroup means it is in the filter of the seq *)
     cut (forall l, is_mem G H g -> In g l -> In g (subgroup_filter G H l)).
     intros Cut H_mem.
@@ -1164,9 +1224,12 @@ Section finite_groups.
     intros H_mem In_g.
     simpl.
     destruct In_g as [g_is_a | g_in_l].
-    rewrite g_is_a.
-    destruct (is_mem_dec _ H g); [simpl | contradict H_mem]; auto.
-    destruct (is_mem_dec _ H a); simpl; auto.
+    unfold is_mem in H_mem.
+    rewrite g_is_a, H_mem.
+    apply in_eq.
+    destruct (true_dec (subgroup_mem _ H a)).
+    rewrite e; apply in_cons, IHl; assumption.
+    rewrite e; apply IHl; assumption.
   Qed.
 
   (* take a subgroup, take a finite group, create a finite subgroup *)
@@ -1175,6 +1238,8 @@ Section finite_groups.
     apply (makeFiniteSubgroup _ H (subgroup_filter G H (seq G))).
     (* forall g : G, is_mem G H g <-> In g (subgroup_filter G H (seq G)) *)
     split; apply subgroup_filter_contains.
+    apply subgroup_filter_NoDup, seq_NoDup.
+    (* must show NoDup *)
   Defined.
 
   Definition cardinality_subgroup (G: finite_group) (H: subgroup G) : nat :=
@@ -1184,6 +1249,25 @@ Section finite_groups.
     apply (makeFiniteGroup klein_group [k_I; k_X; k_Y; k_Z]).
     intros g.
     destruct g; compute; auto.
+    (* this is dumb *)
+    apply NoDup_cons.
+    apply not_in_cons.
+    split ; [discriminate |auto].
+    apply not_in_cons.
+    split ; [discriminate |auto].
+    apply not_in_cons.
+    split ; [discriminate |auto].
+    apply NoDup_cons.
+    apply not_in_cons.
+    split ; [discriminate |auto].
+    apply not_in_cons.
+    split ; [discriminate |auto].
+    apply NoDup_cons.
+    apply not_in_cons.
+    split ; [discriminate |auto].
+    apply NoDup_cons.
+    auto; auto.
+    apply NoDup_nil.
   Defined.
 
   Definition klein_eq_dec k1 k2 :=
@@ -1223,8 +1307,9 @@ Section finite_groups.
     unfold cardinality, cardinality_subgroup.
     assert (forall l, length (subgroup_filter G H l) <= length l) as H0.
     induction l; auto.
-    unfold subgroup_filter; fold (subgroup_filter _ H l).
-    destruct (is_mem_dec _ H a).
+    unfold subgroup_filter.
+    simpl.
+    destruct (subgroup_mem _ H a).
     apply le_n_S; auto.
     apply le_S; auto.
     (* proved, so we can just apply this *)
@@ -1280,13 +1365,6 @@ Section finite_groups.
     reflexivity.
   Qed.
 
-  (* this makes the next proof slightly nicer ;) *)
-  Lemma true_dec : forall b, {b = true} + {b = false}.
-    intros b.
-    destruct (bool_dec b true); auto.
-    apply not_true_is_false in n; auto.
-  Qed.
-
   Lemma filter_cons : forall (A: Type) f (l1 l2: list A), filter f (l1 ++ l2) = (filter f l1) ++ (filter f l2).
     intros A f.
     induction l1; intros l2.
@@ -1328,11 +1406,58 @@ Section finite_groups.
     apply coset_reflexive.
   Qed.
 
-  Theorem cosets_partition (G: finite_group) H a :
-    length (coset_members G H a) = (cardinality G / cardinality_subgroup G H).
+  Lemma filter_inv : forall A f (l1 l2: list A) a, filter f l1 = a :: l2 -> f a = true. (* /\ l1 = a :: l3 /\ filter f l3 = l2.*)
+    intros A f l1 l2 a Filter.
+    induction l1.
+    (* base case *)
+    contradict Filter.
+    simpl; congruence.
+    (* induction step *)
+    simpl in Filter.
+    destruct (true_dec (f a0)) as [f_a0_true | f_a0_false] in Filter.
+    rewrite f_a0_true in Filter.
+    inversion Filter as [e].
+    rewrite <- e.
+    assumption.
+    rewrite f_a0_false in Filter.
+    apply IHl1; assumption.
+  Qed.
+
+  Check NoDup.
+  Lemma coset_members_unique (G: finite_group) (H: subgroup G) a:
+    NoDup (coset_members G H a).
+    unfold coset_members.
+    apply filter_NoDup, seq_NoDup.
+  Qed.
+
+  Lemma coset_members_in (G: finite_group) (H: subgroup G):
+    forall a b c,
+        In c (coset_members G H a) /\
+        In c (coset_members G H b) ->
+        In a (coset_members G H b).
+  Proof.
+    intros a b c Intersection.
+    unfold coset_members in Intersection.
+    repeat rewrite filter_In in Intersection.
+    destruct Intersection as [[_ A] [_ B]].
+    fold (is_mem _ (right_coset G H a) c) in A.
+    fold (is_mem _ (right_coset G H b) c) in B.
+    unfold coset_members.
+    rewrite filter_In.
+    split; [apply seq_in | auto].
+    fold (is_mem _ (right_coset G H b) a).
+    rewrite (coset_intersection _ b a).
+    apply coset_reflexive.
+    exists c; split; auto.
+  Qed.
+
+Theorem cosets_members_length (G: finite_group) H a :
+    length (coset_members G H a) = (cardinality_subgroup G H).
   Proof.
     (* for some reason cardinality_subgroup doesn't compute cleanly *)
     (* (1) is this true?
+       Z_5 = {0, 5, 10, 15}
+
        G is Z_20, H is Z_5, cosets are 0, 1, 2, 3, 4, so given a in G,
        we will have [1, 6, 11, 16] = 4 other members of the coset.
        so seems true *)
@@ -1342,12 +1467,30 @@ Section finite_groups.
      *)
     (* coset_members G H a = [] => G is empty *)
     remember (coset_members G H a) as Q.
-    destruct Q.
+    destruct Q as [| b].
     (* empty list case, which is actually impossible *)
     symmetry in HeqQ; apply coset_members_is_not_empty in HeqQ.
-    unfold cardinality, cardinality_subgroup. rewrite HeqQ; simpl; auto.
+    unfold cardinality, cardinality_subgroup.
+    rewrite HeqQ; simpl; auto.
+    (* need some lemmas on coset_members when there actually are members ;( *)
+    unfold coset_members in HeqQ.
+    symmetry in HeqQ; apply filter_inv in HeqQ.
+    unfold is_mem, right_coset in HeqQ.
+    fold (is_mem _ H (op G b (inv G a))) in HeqQ.
+    (* b <*> inv a is in the subgroup, what does this get us? *)
+    (* yeah, this means that since this element is in the subgroup, then
+       ....
+     *)
+    (* still not certain how I'm going to show this, review the proof and
+       revisit*)
+    apply filter_head in HeqQ.
 
-    (* need some lemmas on coset_members when there actually are members *)
+
+    (* the key _should_ be that cosets don't overlap.
+       no, that is a future lemma.
+       if a0 is a member of the coset, then
+
+     *)
   Admitted.
 
   (* to show: quotient group has cardinality of finite subgroup *)
