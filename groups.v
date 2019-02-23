@@ -1451,21 +1451,30 @@ Section finite_groups.
     exists c; split; auto.
   Qed.
 
+  Lemma in_coset_members_is_mem (G: finite_group) (H: finite_subgroup G) a :
+    forall c, In c (coset_members G H a) <-> is_mem _ (right_coset G H a) c.
+  Proof.
+    intros c.
+    unfold coset_members.
+    split.
+    intros In_c; apply filter_In in In_c; destruct In_c; auto.
+    intros IsMem; apply filter_In; split; [apply seq_in | auto].
+  Qed.
+
+  Lemma in_subgroup_seq_is_mem (G: finite_group) (H: finite_subgroup G) :
+    forall c, In c (subgroup_seq _ H) <-> is_mem _ H c.
+  Proof.
+    intros c.
+    split; apply subgroup_seq_in.
+  Qed.
+
   Lemma coset_members_subgroup (G: finite_group) (H: finite_subgroup G) a :
     forall c, In c (coset_members G H a) <->
               In (op _ c (inv _ a)) (subgroup_seq _ H).
     intros c.
-    split.
-    (* being in coset means you're in the subgroup *)
-    unfold coset_members, right_coset.
-    intros InCoset; apply filter_In in InCoset.
-    destruct InCoset as [_ InCoset].
-    fold (is_mem _ H (op _ c (inv _ a))) in InCoset.
-    rewrite subgroup_seq_in in InCoset; assumption.
-    intros InSubgroup.
-    unfold coset_members.
-    apply filter_In.
-    split; [apply seq_in |apply subgroup_seq_in]; auto.
+    rewrite in_subgroup_seq_is_mem, in_coset_members_is_mem.
+    unfold right_coset, is_mem.
+    reflexivity.
   Qed.
 
   Require Import Coq.Logic.FinFun.
@@ -1544,23 +1553,6 @@ Section finite_groups.
     apply IHl2.
 *)
   Admitted.
-
-  Lemma in_coset_members_is_mem (G: finite_group) (H: finite_subgroup G) a :
-    forall c, In c (coset_members G H a) <-> is_mem _ (right_coset G H a) c.
-  Proof.
-    intros c.
-    unfold coset_members.
-    split.
-    intros In_c; apply filter_In in In_c; destruct In_c; auto.
-    intros IsMem; apply filter_In; split; [apply seq_in | auto].
-  Qed.
-
-  Lemma in_subgroup_seq_is_mem (G: finite_group) (H: finite_subgroup G) :
-    forall c, In c (subgroup_seq _ H) <-> is_mem _ H c.
-  Proof.
-    intros c.
-    split; apply subgroup_seq_in.
-  Qed.
 
   Theorem cosets_members_length (G: finite_group) (H: finite_subgroup G) a :
     length (coset_members G H a) = length (subgroup_seq G H).
