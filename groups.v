@@ -1316,27 +1316,6 @@ Section finite_groups.
     apply filter_NoDup, seq_NoDup.
   Qed.
 
-  Lemma coset_members_in (G: finite_group) (H: subgroup G):
-    forall a b c,
-        In c (coset_members G H a) /\
-        In c (coset_members G H b) ->
-        In a (coset_members G H b).
-  Proof.
-    intros a b c Intersection.
-    unfold coset_members in Intersection.
-    repeat rewrite filter_In in Intersection.
-    destruct Intersection as [[_ A] [_ B]].
-    fold (is_mem _ (right_coset G H a) c) in A.
-    fold (is_mem _ (right_coset G H b) c) in B.
-    unfold coset_members.
-    rewrite filter_In.
-    split; [apply seq_in | auto].
-    fold (is_mem _ (right_coset G H b) a).
-    rewrite (coset_intersection _ b a).
-    apply coset_reflexive.
-    exists c; split; auto.
-  Qed.
-
   Lemma in_coset_members_is_mem (G: finite_group) (H: finite_subgroup G) a :
     forall c, In c (coset_members G H a) <-> is_mem _ (right_coset G H a) c.
   Proof.
@@ -1354,6 +1333,19 @@ Section finite_groups.
     split; apply subgroup_seq_in.
   Qed.
 
+  Lemma coset_members_in (G: finite_group) (H: finite_subgroup G):
+    forall a b c,
+        In c (coset_members G H a) /\
+        In c (coset_members G H b) ->
+        In a (coset_members G H b).
+  Proof.
+    intros a b c.
+    repeat rewrite in_coset_members_is_mem.
+    intros [c_in_a c_in_b].
+    rewrite (coset_intersection _ b a);
+      [apply coset_reflexive | exists c; split]; auto.
+  Qed.
+
   Lemma coset_members_subgroup (G: finite_group) (H: finite_subgroup G) a :
     forall c, In c (coset_members G H a) <->
               In (op _ c (inv _ a)) (subgroup_seq _ H).
@@ -1366,7 +1358,7 @@ Section finite_groups.
   (* TODO: use this in the group definition *)
   Require Import Coq.Logic.FinFun.
 
-  Theorem cosets_members_length (G: finite_group) (H: finite_subgroup G) a :
+  Theorem coset_members_length (G: finite_group) (H: finite_subgroup G) a :
     length (coset_members G H a) = length (subgroup_seq G H).
   Proof.
     unfold cardinality_subgroup.
@@ -1402,6 +1394,75 @@ Section finite_groups.
     intros; autorewrite with core; reflexivity.
   Qed.
 
+  (* to show Lagrange's theorem we need a condition on # of unique cosets *)
+  (* can we inductively remove the cosets from the group one by one? *)
+
+  Require Import Omega.
+
+  Lemma filter_bounded (A: Type) (l: list A) f :
+    length (filter f l) <= length l.
+  Proof.
+  Admitted.
+
+  Lemma filter_negb (A: Type) (l: list A) f :
+    length (filter (fun x => negb (f x)) l) = length l - length (filter f l).
+  Proof.
+    induction l.
+    simpl; reflexivity.
+    simpl.
+    destruct (true_dec (negb (f a))).
+    rewrite negb_true_iff in e.
+    rewrite e.
+    simpl.
+    rewrite IHl.
+    fold filter.
+    remember (filter_bounded _ l f).
+    destruct Heql0.
+    destruct (length (filter f l)); omega.
+    rewrite e.
+    rewrite negb_false_iff in e.
+    rewrite e.
+    rewrite IHl.
+    remember (filter_bounded _ l f).
+    destruct Heql0.
+    simpl.
+    reflexivity.
+  Qed.
+
+  Lemma coset_members_remove (G: finite_group) (H: finite_subgroup G) a :
+    length (filter (fun c => negb ((right_coset G H a) c)) (seq G)) =
+    length (seq G) - length (subgroup_seq G H).
+  Proof.
+    rewrite filter_negb.
+    fold (coset_members G H a).
+    rewrite coset_members_length.
+    reflexivity.
+  Qed.
+
+  Require Import Program.
+  Program Fixpoint unique_cosets (G: finite_group) (H: finite_subgroup G) (l: list G) (n : nat)  { measure (length l) } :=
+    match l with
+    | [] => n
+    | a :: x =>
+      let pruned_l := filter (fun c => negb ((right_coset G H a) c)) l in
+      unique_cosets G H pruned_l (n + 1)
+    end.
+  Obligation 1.
+  Admitted.
+  (* need to show that pruned_l is actually smaller *)
+  (* coset_members_remove is only showing this for the entire group list,
+     because it's only actually true for the entire group list.
+     The pruned list will actually be smaller but that will be because of the
+     coset_intersection lemma, I believe.
+     So if you prune the cosets, what's left will be false for everything.
+   *)
+
+  Theorem lagrange_theorem : forall (G: finite_group) (H: finite_subgroup G),
+    (unique_cosets G H (seq G) 0) * (length (subgroup_seq G H)) = (cardinality G).
+  Proof.
+    (* blah *)
+  Admitted.
+
   (* to show: quotient group has cardinality of finite subgroup *)
   Theorem quotient_group_finite (G: finite_group) (H: subgroup G) : finite_group.
   Proof.
@@ -1410,5 +1471,8 @@ Section finite_groups.
                            (map (fun a => makeCoset G H a) (seq G))).
     simple destruct g; intros a; apply in_map_iff.
     exists a; split; [auto | apply seq_in].
+    (* must show there are no duplicates, which is in one sense true,
+       in another sense not true. really the quotient group should be
+       only unique representations *)
   Admitted.
 End finite_groups.
