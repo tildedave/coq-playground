@@ -1399,36 +1399,6 @@ Section finite_groups.
 
   Require Import Omega.
 
-  Lemma filter_bounded (A: Type) (l: list A) f :
-    length (filter f l) <= length l.
-  Proof.
-  Admitted.
-
-  Lemma filter_negb (A: Type) (l: list A) f :
-    length (filter (fun x => negb (f x)) l) = length l - length (filter f l).
-  Proof.
-    induction l.
-    simpl; reflexivity.
-    simpl.
-    destruct (true_dec (negb (f a))).
-    rewrite negb_true_iff in e.
-    rewrite e.
-    simpl.
-    rewrite IHl.
-    fold filter.
-    remember (filter_bounded _ l f).
-    destruct Heql0.
-    destruct (length (filter f l)); omega.
-    rewrite e.
-    rewrite negb_false_iff in e.
-    rewrite e.
-    rewrite IHl.
-    remember (filter_bounded _ l f).
-    destruct Heql0.
-    simpl.
-    reflexivity.
-  Qed.
-
   Lemma coset_members_remove (G: finite_group) (H: finite_subgroup G) a :
     length (filter (fun c => negb ((right_coset G H a) c)) (seq G)) =
     length (seq G) - length (subgroup_seq G H).
@@ -1440,26 +1410,82 @@ Section finite_groups.
   Qed.
 
   Require Import Program.
-  Program Fixpoint unique_cosets (G: finite_group) (H: finite_subgroup G) (l: list G) (n : nat)  { measure (length l) } :=
-    match l with
-    | [] => n
-    | a :: x =>
-      let pruned_l := filter (fun c => negb ((right_coset G H a) c)) l in
-      unique_cosets G H pruned_l (n + 1)
-    end.
-  Obligation 1.
-  Admitted.
-  (* need to show that pruned_l is actually smaller *)
-  (* coset_members_remove is only showing this for the entire group list,
-     because it's only actually true for the entire group list.
-     The pruned list will actually be smaller but that will be because of the
-     coset_intersection lemma, I believe.
-     So if you prune the cosets, what's left will be false for everything.
+
+  (* Maybe we can use partition for this *)
+
+  (*
+  Inductive Partitionable (G: finite_group) (H: finite_subgroup G) : list G -> Set :=
+  | Partitionable_empty : Partitionable G H []
+  | Partitionable_cons : forall a l,
+      Partitionable G H l ->
+      (forall b, In b (coset_members G H a) -> In b l) ->
+      Partitionable G H (a :: l).
+
+  Lemma seq_Partitionable (G: finite_group) (H: finite_subgroup G) : (Partitionable G H (seq G)).
+  Proof.
+    induction (seq G).
+    apply Partitionable_empty.
+    apply Partitionable_cons; auto.
    *)
 
-  Theorem lagrange_theorem : forall (G: finite_group) (H: finite_subgroup G),
-    (unique_cosets G H (seq G) 0) * (length (subgroup_seq G H)) = (cardinality G).
+  (* Maybe we can explicitly determine the unique cosets *)
+
+  Program Fixpoint unique_cosets (G: finite_group) (H: finite_subgroup G) (l: list G) { measure (length l) } : list (list G) :=
+    match l with
+    | [] => []
+    | a :: x =>
+      match partition (right_coset G H a) x with
+        (cosets, rest) => (a :: cosets) :: (unique_cosets G H rest)
+      end
+    end.
+  Obligation 1.
+  rename Heq_anonymous into cosets_definition.
+  symmetry in cosets_definition.
+  remember (partition_length (right_coset G0 H0 a) x cosets_definition) as Q.
+  simpl; omega.
+  Defined.
+
+  Eval compute in unique_cosets klein_group_finite (subgroup_finite_group klein_group_finite (klein_subgroup k_I)) (seq klein_group_finite).
+  Eval compute in partition (right_coset klein_group_finite (subgroup_finite_group klein_group_finite klein_subgroup_X) k_X) [k_I;k_X;k_Y;k_Z].
+
+
+  (* These are things I don't know what the definition should be yet *)
+  Inductive CosetPartitionable (G: finite_group) (H: finite_subgroup G) : list G -> Set :=
+  | cosetpartitionable_empty : CosetPartitionable G H []
+  | cosetpartitionable_app : forall a l,
+      (* not sure how to prove anything with this *)
+      CosetPartitionable G H l ->
+      ~(In a l) ->
+      CosetPartitionable G H ((coset_members G H a) ++ l).
+
+  Definition right_coset_not G H a := (fun c => negb ((right_coset G H a) c)).
+
+  Lemma magic_lemma : forall G H a l,
+      CosetPartitionable G H (a :: l) ->
+      fst (partition (right_coset G H a) l) = coset_members G H a.
+  Admitted.
+
+  Lemma seq_CosetPartitionable (G: finite_group) (H: finite_subgroup G) :
+    CosetPartitionable G H (seq G).
   Proof.
+  Admitted.
+
+  Lemma magic_lemma_2
+
+  Theorem unique_cosets_works : forall G H a l,
+      CosetPartitionable G H (a :: l) ->
+      unique_cosets G H l = (coset_members G H a)
+                              ::
+                              unique_cosets G H (filter (right_coset_not G H a) l).
+
+                                                  (filter neg
+
+  Theorem lagrange_theorem : forall (G: finite_group) (H: finite_subgroup G),
+      length (unique_cosets G H (seq G)) * length (subgroup_seq G H) =
+      cardinality G.
+
+  Proof.
+
     (* blah *)
   Admitted.
 

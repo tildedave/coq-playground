@@ -1,4 +1,4 @@
-Require Import List Bool FinFun.
+Require Import List Bool FinFun Omega.
 Import ListNotations.
 
 Section In.
@@ -143,6 +143,36 @@ Section filter.
     assumption.
     rewrite f_a0_false in Filter.
     apply IHl1; assumption.
+  Qed.
+
+  Lemma filter_bounded (A: Type) (l: list A) f :
+    length (filter f l) <= length l.
+  Proof.
+  Admitted.
+
+  Lemma filter_negb (A: Type) (l: list A) f :
+    length (filter (fun x => negb (f x)) l) = length l - length (filter f l).
+  Proof.
+    induction l.
+    simpl; reflexivity.
+    simpl.
+    destruct (true_dec (negb (f a))).
+    rewrite negb_true_iff in e.
+    rewrite e.
+    simpl.
+    rewrite IHl.
+    fold filter.
+    remember (filter_bounded _ l f).
+    destruct Heql0.
+    destruct (length (filter f l)); omega.
+    rewrite e.
+    rewrite negb_false_iff in e.
+    rewrite e.
+    rewrite IHl.
+    remember (filter_bounded _ l f).
+    destruct Heql0.
+    simpl.
+    reflexivity.
   Qed.
 End filter.
 
