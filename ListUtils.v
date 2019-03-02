@@ -245,3 +245,32 @@ Section NoDup.
   Qed.
 
 End NoDup.
+
+Section partition.
+
+  (* proofs are identical, would like to improve this *)
+  Lemma partition_fst (A: Type)  (f: A -> bool) (a : A) l :
+    In a (fst (partition f l)) -> f a = true.
+  Proof.
+    intros in_snd.
+    induction l; [contradict in_snd; auto | auto].
+    simpl in in_snd.
+    destruct (partition f l) as (g, d).
+    destruct (true_dec (f a0)); rewrite e in in_snd; auto.
+    apply in_inv in in_snd.
+    destruct in_snd as [a_head | a_rest]; [rewrite <- a_head | apply IHl]; auto.
+  Qed.
+
+  Lemma partition_snd (A: Type)  (f: A -> bool) (a : A) l :
+    In a (snd (partition f l)) -> f a = false.
+  Proof.
+    intros in_snd.
+    induction l; [contradict in_snd; auto | auto].
+    simpl in in_snd.
+    destruct (partition f l) as (g, d).
+    destruct (true_dec (f a0)); rewrite e in in_snd; auto.
+    apply in_inv in in_snd.
+    destruct in_snd as [a_head | a_rest]; [rewrite <- a_head | apply IHl]; auto.
+  Qed.
+
+End partition.
