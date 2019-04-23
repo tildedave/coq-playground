@@ -248,29 +248,48 @@ End NoDup.
 
 Section partition.
 
-  (* proofs are identical, would like to improve this *)
+  Theorem partition_ind_fst:
+    forall (A: Type) f (P : list A -> Prop),
+      P [] ->
+      (forall a l, f a = true -> P l -> P (a :: l)) ->
+      forall l, P (fst (partition f l)).
+  Proof.
+    intros A f P P_empty P_ind_first.
+    induction l; [apply P_empty | auto].
+    simpl.
+    destruct (partition f l).
+    destruct (true_dec (f a)); rewrite e; [apply P_ind_first | auto]; assumption.
+  Qed.
+
+
+  Theorem partition_ind_snd (A: Type) f (P : list A -> Prop) :
+      P [] ->
+      (forall a l, f a = false -> P l -> P (a :: l)) ->
+      forall l, P (snd (partition f l)).
+  Proof.
+    intros P_empty P_ind_snd.
+    induction l; [apply P_empty | auto].
+    simpl.
+    destruct (partition f l).
+    destruct (true_dec (f a)); rewrite e; [auto | apply P_ind_snd]; assumption.
+  Qed.
+
   Lemma partition_fst (A: Type)  (f: A -> bool) (a : A) l :
     In a (fst (partition f l)) -> f a = true.
   Proof.
-    intros in_snd.
-    induction l; [contradict in_snd; auto | auto].
-    simpl in in_snd.
-    destruct (partition f l) as (g, d).
-    destruct (true_dec (f a0)); rewrite e in in_snd; auto.
-    apply in_inv in in_snd.
-    destruct in_snd as [a_head | a_rest]; [rewrite <- a_head | apply IHl]; auto.
+    apply partition_ind_fst.
+    intros in_fst; contradict in_fst; auto.
+    intros a0 l0 f_a0 In_a_l0; simpl.
+    intros [a_first | a_rest]; [rewrite <- a_first | apply In_a_l0]; assumption.
   Qed.
 
   Lemma partition_snd (A: Type)  (f: A -> bool) (a : A) l :
     In a (snd (partition f l)) -> f a = false.
   Proof.
-    intros in_snd.
-    induction l; [contradict in_snd; auto | auto].
-    simpl in in_snd.
-    destruct (partition f l) as (g, d).
-    destruct (true_dec (f a0)); rewrite e in in_snd; auto.
-    apply in_inv in in_snd.
-    destruct in_snd as [a_head | a_rest]; [rewrite <- a_head | apply IHl]; auto.
+    apply partition_ind_snd.
+    intros in_snd; contradict in_snd; auto.
+    intros a0 l0 f_a0 In_a_l0; simpl.
+    intros [a_first | a_rest]; [rewrite <- a_first | apply In_a_l0]; assumption.
   Qed.
 
 End partition.

@@ -1413,6 +1413,13 @@ Section finite_groups.
   Lemma partition_snd_NoDup (A: Type) f (l: list A) :
     NoDup l -> NoDup (snd (partition f l)).
   Proof.
+    intros l_NoDup.
+    apply partition_ind_snd.
+    apply NoDup_nil.
+    intros a l0 f_a_false IHl.
+    apply NoDup_cons.
+    (* can't prove this with this scheme, since P l -> P a::l isn't true *)
+
     (*
     intros l_NoDup.
     remember (partition f l) as q.
@@ -1459,16 +1466,109 @@ Section finite_groups.
       apply Q', coset_reflexive.
   Qed.
 
+  Lemma coset_reprs_helper_nil (G: finite_group) H l :
+    coset_reprs_helper G H [] l = [].
+  Proof.
+    induction l; auto.
+  Qed.
+
+  Lemma partition_snd_cons_false :
+    forall A f (l: list A) a,
+      f a = false ->
+      snd (partition f (a :: l)) = a :: snd (partition f l).
+    intros A f l a f_a_false.
+    simpl.
+    rewrite f_a_false.
+    destruct (partition f l) as (g, d).
+    reflexivity.
+  Qed.
+
+  Lemma partition_snd_cons_true :
+    forall A f (l: list A) a,
+      f a = true ->
+      snd (partition f (a :: l)) = snd (partition f l).
+    intros A f l a f_a_true.
+    simpl.
+    rewrite f_a_true.
+    destruct (partition f l) as (g, d).
+    reflexivity.
+  Qed.
+  (*
+    In b (coset_reprs_helper G H (snd (partition (right_coset G H a1) l)) l1)
+*)
+
+  Lemma coset_reprs_helper_back  (G: finite_group) H b l1 :
+    forall l a,
+      In b (coset_reprs_helper G H (snd (partition (right_coset G H a) l)) l1) ->
+      ~is_mem _ (right_coset G H a) b ->
+      In b (coset_reprs_helper G H (a :: l) l1).
+  Proof.
+    induction l1; intros l a0 in_b not_mem;
+      [contradict in_b | auto].
+    simpl in in_b; simpl.
+    destruct (partition (right_coset G H a0)) as (g, d).
+    destruct d; simpl in in_b; [contradict in_b | auto].
+    destruct in_b as [b_head | b_rest].
+    right; rewrite b_head; simpl.
+    (* must show l1 is not empty, which it could be I suppose *)
+    Focus 2.
+    apply IHl1 in b_rest.
+    right; assumption.
+    (* not sure how to prove this one either *)
+  Admitted.
+
+  Lemma coset_reprs_helper_split (G: finite_group) H b l1 :
+    forall l,
+      In b (coset_reprs_helper G H l l1) ->
+      (exists l2 l3,
+        l = l2 ++ b :: l3 /\
+        forall c,
+          In c l2 -> ~is_mem _ (right_coset G H c) b).
+  Proof.
+    induction l1; intros l in_b;
+      [contradict in_b | auto];
+      induction l;
+      [contradict in_b | auto].
+    (* only case left is the one we care about *)
+    simpl in in_b.
+    destruct in_b as [b_head | b_rest].
+    - exists [], l; rewrite <- b_head; split; auto.
+    - (* apply IH, rock it *)
+      (* we also need to rule out b being in a0's coset here, right?
+         yeah, we ned to know that a0 != b *)
+      (*       destruct (true_dec ((right_coset G H a0) b)). *)
+      cut (~ is_mem _ (right_coset G H a0) b); intros a0_not_b.
+      (* want to replace In b snd (partition (right_coset G H a0) l with
+         In b l *)
+      apply coset_reprs_helper_back in b_rest; auto.
+      (* ned to show that b isn't in a0's coset *)
+  Admitted.
+
+  Lemma coset_reprs_helper_cons (G: finite_group) H b l1 :
+    forall l a,
+      In b (coset_reprs_helper G H l l1) ->
+      ~is_mem _ (right_coset G H a) b ->
+      In b (coset_reprs_helper G H (snd (partition (right_coset G H a) l)) l1).
+  Proof.
+    induction l1; intros l a0 in_b not_mem; [contradict in_b | auto].
+    destruct l; [contradict in_b | auto].
+    destruct (true_dec ((right_coset G H a0) a1)).
+    rewrite partition_snd_cons_true.
+    simpl in in_b.
+
+    Focus 2.
+    destruct l1; simpl in in_b; [contradict in_b | auto].
+  Admitted.
+
   (* next, show every member of the group is in some coset in coset_reprs *)
   Lemma coset_reprs_helper_include (G: finite_group) H a :
     forall (l1 l: list G),
       length l <= length l1 ->
-      NoDup l ->
       In a l ->
       exists b, In b (coset_reprs_helper G H l l1) /\
                 is_mem _ (right_coset G H b) a.
   Proof.
-    induction l1; simpl; intros l l_bounded l_NoDup a_in_l.
+    induction l1; simpl; intros l l_bounded a_in_l.
     - contradict a_in_l.
       assert (length l = 0) as l_empty by omega.
       rewrite length_zero_iff_nil in l_empty.
@@ -1480,30 +1580,23 @@ Section finite_groups.
       (* inductive case *)
       apply IHl1 in a_rest.
       destruct a_rest as [b [in_b b_coset]].
+      destruct (is_mem_dec _ (right_coset G H a1) b).
+      exists a1.
+      (* this case requires transitive right_coset stuffz *)
+      split; [apply in_eq |
+              rewrite <- (coset_representative _ _ _ _ i); assumption].
       exists b.
-      split; [right | auto].
+      split; [right | assumption].
       Focus 2.
       simpl in l_bounded; omega.
-      (* b is one of the cosets of l *)
-      (* show it's one of the cosets in the recursive call *)
-      (* question, what is a, we seem to have lost our conditions on it *)
-      (* feels like we need a NoDup hypothesis for this *)
+      (* this case is also true.  it is true because we should be able to
+         reduce snd partition to l1 since we have the non-member assumption. *)
+      apply coset_reprs_helper_cons; assumption.
+  Qed.
 
   Theorem coset_reprs_incl G H l : incl (coset_reprs G H l) l.
   Proof.
-    (* can't use induction on l because the recursive call is on rest *)
-    induction l.
-    compute; auto.
-    rewrite coset_reprs_cons.
-    apply incl_cons.
-    simpl; auto.
-    apply IHl.
-
-    (* need nodups and a lemma on  *)
-
-
-              exists b, In b l /\ is_mem (right_coset G H a) l .
-
+  Admitted.
 
   Theorem lagrange: forall G H,
       right_index G H (seq G) * cardinality_subgroup G H = cardinality G.
