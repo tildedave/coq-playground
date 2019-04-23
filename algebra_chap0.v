@@ -24,25 +24,71 @@ Section Functions.
   Arguments left_inverse {A} {B} _ _.
   Arguments right_inverse {A} {B} _ _.
 
-  Theorem left_inverse_implies_injective (f : A -> B) :
-    nonempty A -> (exists g, left_inverse f g) -> injective f.
+  Definition partial_inverse (f : A -> B) := B -> option A.
+  Definition is_partial_inverse (f : A -> B) (f_inv: partial_inverse f) :=
+    forall b a,
+      (f_inv b = Some a -> f a = b) /\
+      (f_inv b = None -> ~exists a, f a = b).
+
+  Theorem partial_inverse_false (f: A -> B) (f_inv: partial_inverse f) :
+    is_partial_inverse f f_inv ->
+    forall a, f_inv (f a) = None -> False.
   Proof.
-    intros [s _] [g left_inverse].
-    unfold injective.
-    intros a a' H.
+    intros PartialInverse a H.
+    remember (f a) as b.
+    apply (PartialInverse b a) in H.
+    contradict H.
+    exists a.
+    auto.
+  Qed.
+
+  Theorem left_inverse_iff_injective (f : A -> B) (f_inv: partial_inverse f) :
+    nonempty A -> is_partial_inverse f f_inv -> (exists g, left_inverse f g) <-> injective f.
+  Proof.
+    intros [s _] PartialInverse.
+    split.
+    - intros [g left_inverse] a a' H.
     apply (fun_intro _ _ g (f a) (f a')) in H.
     repeat rewrite left_inverse in H; exact H.
-    (* opposite side requires defining an inverse function,
-       need to make f range decidable for this *)
+    (* opposite side requires defining a total inverse function
+       from the partial inverse *)
+    - intros f_injective.
+      exists (fun b =>
+                match (f_inv b) with
+                | Some a => a
+                | None => s
+                end).
+      intros a.
+      remember (f_inv (f a)) as Q.
+      symmetry in HeqQ.
+      destruct Q.
+      apply (PartialInverse (f a)) in HeqQ.
+      apply f_injective in HeqQ.
+      exact HeqQ.
+      apply (partial_inverse_false _ _ PartialInverse) in HeqQ.
+      contradict HeqQ.
   Qed.
 
-  Theorem right_inverse_implies_surjective (f : A -> B):
-    nonempty A -> (exists g, right_inverse f g) -> surjective f.
+  Theorem right_inverse_iff_surjective (f : A -> B) (f_inv: partial_inverse f):
+    nonempty A -> is_partial_inverse f f_inv -> (exists g, right_inverse f g) <-> surjective f.
   Proof.
-    intros _ [g right_inverse].
-    unfold surjective.
-    intros b; exists (g b).
-    rewrite right_inverse; reflexivity.
+    intros [s _] PartialInverse.
+    split.
+    - intros [g right_inverse].
+      unfold surjective.
+      intros b; exists (g b).
+      rewrite right_inverse; reflexivity.
+    - intros f_surjective.
+      unfold right_inverse.
+      exists (fun b => match (f_inv b) with | Some a => a | None => s end).
+      intros b.
+      remember (f_inv b) as Q.
+      symmetry in HeqQ.
+      destruct Q.
+      apply (PartialInverse) in HeqQ.
+      exact HeqQ.
+      apply (PartialInverse _ s) in HeqQ.
+      contradict HeqQ.
+      apply f_surjective.
   Qed.
-
 End Functions.
