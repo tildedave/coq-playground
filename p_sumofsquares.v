@@ -20,26 +20,15 @@ Lemma H2_div_4: (2 | 4). apply (Zdivide_intro _ _ 2); omega. Qed.
 Lemma sq_mod_4: forall a, a * a mod 4 = 0 -> (2 | a).
 Proof.
   intros a a_sq_mod_4.
-  destruct (mod_4 a) as [H | [H | [H | H]]]; rewrite (Zmult_mod a a 4), H in a_sq_mod_4.
-  - remember (Zmod_divide a 4 H4_not_0 H).
-    apply (Zdivide_trans 2 4 a); auto.
-    exact H2_div_4.
-  - compute in a_sq_mod_4.
-    contradict a_sq_mod_4; discriminate.
-  - Search (_ mod _).
-    apply (Zmod_divide_minus _ _ _ H0_lt_4) in H.
-    destruct H as [z H].
-    rewrite Z.sub_move_r in H.
-    replace (z * 4 + 2) with ((z * 2 + 1) * 2) in H.
-    apply (Zdivide_intro 2 a (z * 2 + 1)); auto.
-    omega.
-  - compute in a_sq_mod_4.
-    contradict a_sq_mod_4; discriminate.
+  apply (Zmod_divide _ _ H4_not_0) in a_sq_mod_4.
+  apply (Zdivide_trans 2 4 (a * a) H2_div_4) in a_sq_mod_4.
+  apply (prime_mult 2 prime_2) in a_sq_mod_4; destruct a_sq_mod_4; auto.
 Qed.
 
 Theorem p_sumofsquares_easy: forall p x y, prime p -> x * x + y * y = p -> p mod 4 = 1.
 Proof.
   intros p x y p_prime p_sumofsquares.
+
   cut ((x*x + y*y) mod 4 = p mod 4).
   intros Cut.
   Check Z.add_mod.
