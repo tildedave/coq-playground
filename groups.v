@@ -1335,18 +1335,18 @@ Section finite_groups.
 
   Require Import Omega Program.
 
-  Fixpoint coset_reprs_helper (G: finite_group) H (l l1: list G) :=
-    match l1 with
-    | [] => []
-    | _ :: x =>
+  Fixpoint coset_reprs_helper (G: finite_group) H (l: list G) n :=
+    match n with
+    | 0 => []
+    | S m =>
       match l with
       | [] => []
       | a :: l' =>
-        a :: (coset_reprs_helper G H (snd (partition (right_coset G H a) l')) x)
+        a :: (coset_reprs_helper G H (snd (partition (right_coset G H a) l')) m)
         end
       end.
 
-  Definition coset_reprs G H l := coset_reprs_helper G H l l.
+  Definition coset_reprs G H l := coset_reprs_helper G H l (length l).
 
   Definition coset_decomposition (G: finite_group) (H: finite_subgroup G) (l: list G) :=
     map (fun a => filter (right_coset G H a) (seq G)) (coset_reprs G H l).
@@ -1355,6 +1355,7 @@ Section finite_groups.
     length (coset_reprs G H l).
 
   Eval compute in coset_decomposition klein_group_finite (subgroup_finite_group klein_group_finite (klein_subgroup k_I)) (seq klein_group_finite).
+
   Eval compute in coset_decomposition klein_group_finite (subgroup_finite_group klein_group_finite (klein_subgroup k_X)) (seq klein_group_finite).
 
   Lemma list_cons_inv : forall A (a b: A) (l l': list A),
@@ -1379,22 +1380,22 @@ Section finite_groups.
     destruct in_a_partition; [left; auto| auto].
   Qed.
 
-  Lemma coset_reprs_helper_in (G: finite_group) H a (l1: list G):
-    forall l, In a (coset_reprs_helper G H l l1) -> In a l.
+  Lemma coset_reprs_helper_in (G: finite_group) H a n:
+    forall l, In a (coset_reprs_helper G H l n) -> In a l.
   Proof.
-    induction l1; intros l a_in_helper; [contradict a_in_helper | auto].
+    induction n; intros l a_in_helper; [contradict a_in_helper | auto].
     destruct l; [assumption | auto].
     destruct a_in_helper as [a_head | a_rest].
     rewrite a_head; apply in_eq.
-    simpl; right; apply (partition_snd_in _ (right_coset G H a1)), IHl1.
+    simpl; right; apply (partition_snd_in _ (right_coset G H a0)), IHn.
     assumption.
   Qed.
 
-  Lemma coset_reprs_helper_unique (G: finite_group) H a (l l1 l2: list G) :
-    coset_reprs_helper G H l l1 = a :: l2 ->
-    forall b, In b l2 -> ~is_mem _ (right_coset G H a) b.
+  Lemma coset_reprs_helper_unique (G: finite_group) H a (l l': list G) n :
+    coset_reprs_helper G H l n = a :: l' ->
+    forall b, In b l' -> ~is_mem _ (right_coset G H a) b.
   Proof.
-    induction l1; simpl; [intros H0; contradict H0; congruence | auto].
+    induction n; simpl; [intros H0; contradict H0; congruence | auto].
     case l.
     (* empty list *)
     intros H0; contradict H0; congruence.
@@ -1410,53 +1411,44 @@ Section finite_groups.
     apply coset_reprs_helper_in, partition_snd, is_mem_not in H0; assumption.
   Qed.
 
-  Lemma partition_snd_NoDup (A: Type) f (l: list A) :
-    NoDup l -> NoDup (snd (partition f l)).
+  Require Import Wellfounded.
+
+  Lemma partition_snd_NoDup (A: Type) f :
+    forall (l: list A), NoDup l -> NoDup (snd (partition f l)).
   Proof.
+    (* prove by induction on l *)
+    induction l; [simpl; eauto | auto].
     intros l_NoDup.
-    apply partition_ind_snd.
-    apply NoDup_nil.
-    intros a l0 f_a_false IHl.
-    apply NoDup_cons.
-    (* can't prove this with this scheme, since P l -> P a::l isn't true *)
-
-    (*
-    intros l_NoDup.
-    remember (partition f l) as q.
-    destruct q as (g, d).
     simpl.
-    symmetry in Heqq; apply elements_in_partition in Heqq.
+    destruct (true_dec (f a)) as [fa_true | fa_false].
+    - rewrite fa_true.
+      apply NoDup_cons_iff in l_NoDup.
+      destruct l_NoDup as [_ l_NoDup].
+      destruct (partition f l); auto.
+    - rewrite fa_false.
+      apply NoDup_cons_iff in l_NoDup.
+      destruct l_NoDup as [a_not_in_l l_NoDup].
+      destruct (partition f l) as (g, d); auto.
+      (* have lost ability to prove this at this point *)
+      simpl. apply NoDup_cons.
+      .
+    apply (IHl l_NoDup).
 
-    symmetry in Heqq.
-
-    induction l; intros l_NoDup; simpl; [assumption | auto].
-    destruct (partition f l) as (g, d).
-    destruct (true_dec (f a)); rewrite e; simpl.
-    apply IHl.
-    (* easy *)
-    Focus 2.
-    apply NoDup_cons_iff in l_NoDup.
-    destruct l_NoDup as [a_not_in_l l_NoDup].
-    apply IHl in l_NoDup.
-    (* can't show this since we lost our hypothesis on a/d *)
-
-    apply IHl.
-     *)
   Admitted.
 
-  Lemma coset_reprs_helper_nodup (G: finite_group) H (l1: list G) :
+  Lemma coset_reprs_helper_nodup (G: finite_group) H n :
     forall l,
-    NoDup l -> NoDup (coset_reprs_helper G H l l1).
+    NoDup l -> NoDup (coset_reprs_helper G H l n).
   Proof.
-    induction l1; intros l l_NoDup; [apply NoDup_nil | simpl].
+    induction n; intros l l_NoDup; [apply NoDup_nil | simpl].
     destruct l.
     - apply NoDup_nil; auto.
     - apply NoDup_cons;
         apply NoDup_cons_iff in l_NoDup;
-        destruct l_NoDup as [a0_not_in_l l_NoDup].
+        destruct l_NoDup as [a_not_in_l l_NoDup].
       Focus 2.
-      apply (partition_snd_NoDup _ (right_coset G H a0)) in l_NoDup.
-      apply IHl1 in l_NoDup.
+      apply (partition_snd_NoDup _ (right_coset G H a)) in l_NoDup.
+      apply IHn in l_NoDup.
       assumption.
       (* a not in l means a won't be in coset_reprs_helper applied to l *)
       (* this is the contrapositive of coset_reprs_helper_in *)
@@ -1497,19 +1489,21 @@ Section finite_groups.
     In b (coset_reprs_helper G H (snd (partition (right_coset G H a1) l)) l1)
 *)
 
-  Lemma coset_reprs_helper_back  (G: finite_group) H b l1 :
+  Lemma coset_reprs_helper_back  (G: finite_group) H b n :
     forall l a,
-      In b (coset_reprs_helper G H (snd (partition (right_coset G H a) l)) l1) ->
+      In b (coset_reprs_helper G H (snd (partition (right_coset G H a) l)) n) ->
       ~is_mem _ (right_coset G H a) b ->
-      In b (coset_reprs_helper G H (a :: l) l1).
+      In b (coset_reprs_helper G H (a :: l) n).
   Proof.
-    induction l1; intros l a0 in_b not_mem;
+    induction n; intros l a0 in_b not_mem;
       [contradict in_b | auto].
     simpl in in_b; simpl.
     destruct (partition (right_coset G H a0)) as (g, d).
     destruct d; simpl in in_b; [contradict in_b | auto].
     destruct in_b as [b_head | b_rest].
     right; rewrite b_head; simpl.
+
+
     (* must show l1 is not empty, which it could be I suppose *)
     Focus 2.
     apply IHl1 in b_rest.
