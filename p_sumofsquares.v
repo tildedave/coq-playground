@@ -145,7 +145,7 @@ Proof.
 Admitted.
 
 (* N = a^2 + b^2 = m * p, return (c^2 + d^2)k*p, k < m *)
-Definition fermat_descent a b q :=
+Definition descent a b q :=
   let N := a * a + b * b in
   let m := N / q in
   if Z.eq_dec m 1 then
@@ -157,12 +157,12 @@ Definition fermat_descent a b q :=
 (* 3^2 + 2^2 = 13 *)
 (* 5^2 + 1 = 2 * 13 *)
 
-Compute (fermat_descent 5 1 13).
-Compute (fermat_descent 12 1 29).
-Compute (fermat_descent (-7) 3 29).
-Compute (fermat_descent 442 1 953).
-Compute (fermat_descent 69 2 953).
-Compute (fermat_descent (-15) (-41) 953).
+Compute (descent 5 1 13).
+Compute (descent 12 1 29).
+Compute (descent (-7) 3 29).
+Compute (descent 442 1 953).
+Compute (descent 69 2 953).
+Compute (descent (-15) (-41) 953).
 
 Lemma square_gt_0: forall n, n <> 0 -> n * n > 0.
 Proof.
@@ -232,26 +232,40 @@ Search (_ / _ < _).
 
 Check natlike_ind.
 
-Lemma test_this: forall m, m > 0 -> (m * m) / 4 <= (m / 2) * (m / 2).
+Lemma square_le_lemma: forall m, m > 0 -> (m / 2) * (m / 2) <=  (m * m) / 4.
 Proof.
   intros m m_gt_0.
   replace 4 with (2 * 2) by auto.
-  (* Zdiv_le_upper_bound to mult out by 4 leads to an incorrect hypothesis *)
-Admitted.
+  apply Zdiv_le_lower_bound; [omega | auto].
+  replace ((m / 2) * (m / 2) * (2 * 2)) with ((2 * (m / 2)) * (2 * (m / 2))) by ring.
+  apply Z.square_le_mono_nonneg; [auto | apply Z.mul_div_le; omega].
+  replace 0 with (2 * 0) by ring.
+  apply Zmult_le_compat_l; [apply Zdiv_le_lower_bound | auto]; omega.
+Qed.
 
 Lemma descent_inequality: forall m,
     m > 0 -> (m / 2) * (m / 2) + (m / 2) * (m / 2) < m * m.
 Proof.
   intros m m_gt_0.
+  cut (((m * m) / 4) + (m * m) / 4 < m * m).
+  intros Cut.
+  remember (square_le_lemma m m_gt_0).
+  omega.
+  cut ((m * m / 4 + m * m / 4) <= (m * m / 2)).
+  intros Cut.
+  Search (_ <= _ -> _ < _ -> _ < _).
+  apply (Z.le_lt_trans _ (m * m / 2) _ Cut).
+  Search (_ / _ < _).
+  apply Z_div_lt; [omega | apply Zmult_gt_0_compat; auto].
 Admitted.
 
-Theorem fermat_descent_smaller: forall a b q N m,
+Theorem descent_smaller: forall a b q N m,
   (a > 0 \/ b > 0) ->
   q > 0 ->
   N = (a * a + b * b) ->
   (q | N) ->
   m = N / q ->
-  forall k u v,  (k, u, v) = fermat_descent a b q ->
+  forall k u v,  (k, u, v) = descent a b q ->
   k = 1 \/ (k < m).
 Proof.
   intros a b q N m a_or_b_gt_0 q_gt_0 def_N q_divides_N def_m k u v.
@@ -259,7 +273,7 @@ Proof.
   assert (N > 0) as N_gt_0. apply (sum_of_squares_positive a b N a_or_b_gt_0 def_N).
   assert (m > 0) as m_gt_0. rewrite def_m; apply (div_positive q N q_gt_0 N_gt_0 q_divides_N).
 
-  unfold fermat_descent.
+  unfold descent.
   rewrite <- def_N, <- def_m.
   destruct (Z.eq_dec m 1); intros descent_def; inversion descent_def.
   - left; reflexivity.
@@ -280,19 +294,22 @@ Proof.
     apply descent_inequality; auto.
 Qed.
 
-Theorem fermat_descent_div: forall a b q N,
+Theorem descent_div: forall a b q N,
   (a > 0 \/ b > 0) ->
   q > 0 ->
   N = (a * a + b * b) ->
   (q | N) ->
-  forall k u v,  (k, u, v) = fermat_descent a b q ->
+  forall k u v,  (k, u, v) = descent a b q ->
   (q | k * (u*u + v*v)).
 Proof.
-  intros a b q.
-  intros N m N_def m_def.
-  intros k u v descent_def q_div_N.
-  unfold fermat_descent in descent_def.
-  rewrite <- N_def, <- m_def in descent_def.
+  intros a b q N.
+  intros a_or_b_gt_0 q_gt_0 def_N q_div_N.
+  intros k u v descent_def.
+  unfold descent in descent_def.
+  rewrite <- def_N in descent_def.
+  remember (N / q) as m.
+  assert (m > 0) as m_gt_0. rewrite Heqm; apply (div_positive q N q_gt_0 N_gt_0 q_div_N).
+
   destruct (Z.eq_dec m 1); [left; assumption | right; auto].
   inversion descent_def.
 
@@ -301,11 +318,11 @@ Proof.
 
 
 
-  intros def_fermat_descent.
+  intros def_descent.
   intros q_div_N.
   split.
   2: {
-    unfold fermat_descent in def_fermat_descent.
+    unfold descent in def_descent.
 
 Lemma descent_key_lemma : forall N q, sum_of_squares N -> prime q -> (q | N) -> sum_of_squares q -> sum_of_squares (N / q).
 Proof.
