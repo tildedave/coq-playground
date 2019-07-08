@@ -15,15 +15,6 @@ Lemma H1_lt_4: (1 < 4). omega. Qed.
 Lemma H4_not_0: (4 <> 0). omega. Qed.
 Lemma H2_div_4: (2 | 4). apply (Zdivide_intro _ _ 2); omega. Qed.
 
-(* currently not used *)
-Lemma sq_mod_4: forall a, a * a mod 4 = 0 -> (2 | a).
-Proof.
-  intros a a_sq_mod_4.
-  apply (Zmod_divide _ _ H4_not_0) in a_sq_mod_4.
-  apply (Zdivide_trans 2 4 (a * a) H2_div_4) in a_sq_mod_4.
-  apply (prime_mult 2 prime_2) in a_sq_mod_4; destruct a_sq_mod_4; auto.
-Qed.
-
 Lemma mod_0_not_prime: forall p a, 1 < a < p -> p mod a = 0 -> ~ prime p.
 Proof.
   intros p a H1_lt_a p_mod_0.
@@ -74,13 +65,6 @@ Proof.
     try contradict p_prime; exact Cut.
   rewrite p_sumofsquares; reflexivity.
 Qed.
-
-Lemma p_reciprocity: forall p,
-    prime p -> p mod 4 = 1 -> exists x y, (p | x * x + y * y) /\ Zgcd x y = 1.
-Admitted.
-
-Lemma p_descent: forall p x y, prime p -> (p | x * x + y * y) /\ Zgcd x y = 1 -> exists a b, p = a^2 + b^2 /\ Zgcd a b = 1.
-Admitted.
 
 Definition sum_of_squares (N : Z) := exists x y, (N = x * x + y * y /\ rel_prime x y).
 
@@ -136,17 +120,6 @@ Proof.
     apply Zdiv_le_lower_bound; omega.
 Qed.
 
-Lemma mod_eq: forall a b c, c > 0 -> (a - b) mod c = 0 -> a mod c = b mod c.
-Proof.
-  intros a b c c_gt_0 a_minus_b_mod.
-  rewrite Zminus_mod in a_minus_b_mod.
-
-  apply (Zmod_divides _ c) in a_minus_b_mod.
-
-
-  destruct a_minus_b_mod as [x def_x].
-
-
 Lemma descent_modulus_equiv_a_mod_m : forall a m,
     m > 0 -> (descent_modulus a m) mod m = a mod m.
 Proof.
@@ -155,11 +128,9 @@ Proof.
   destruct (Z_le_dec (2 * (a mod m)) m).
   - apply (Z_mod_lt a m) in m_gt_0.
     rewrite Zmod_mod; reflexivity.
-  - apply mod_eq; [omega|].
-    replace (a mod m - m - a) with ((a mod m - a) - m) by ring.
-    rewrite Zminus_mod, Z_mod_same_full, Z.sub_0_r, Zminus_mod.
+  - apply (Z_mod_lt a m) in m_gt_0.
+    rewrite Zminus_mod, Z_mod_same_full, Z.sub_0_r.
     repeat rewrite Zmod_mod.
-    rewrite Z.sub_diag, Zmod_0_l.
     reflexivity.
 Qed.
 
@@ -340,6 +311,26 @@ Proof.
   intros; ring.
 Qed.
 
+Lemma div_swap_l: forall a b c, a <> 0 -> (a | b) -> b = a * c <-> b / a = c.
+Proof.
+  intros a b c a_neq_0 a_div_b.
+  split.
+  - destruct a_div_b as [x def_a].
+    intros def_b.
+    rewrite def_a.
+    rewrite Z_div_mult_full; auto.
+    rewrite def_a, Z.mul_comm in def_b.
+    rewrite Z.mul_cancel_l in def_b; auto.
+  - intros def_b.
+    rewrite <- def_b.
+    Search (_ * (_ / _)).
+    rewrite <- Z.divide_div_mul_exact; auto.
+    Search (_ * _ / _).
+    rewrite Z.mul_comm.
+    symmetry.
+    apply Z_div_mult_full; auto.
+Qed.
+
 Lemma descent_div_sum: forall a b q N m,
   q > 0 -> N > 0 ->
   N = (a * a + b * b) ->
@@ -372,7 +363,7 @@ Proof.
   intros a b q N m q_gt_0 N_gt_0 def_N def_m q_div_N.
   exists q.
   rewrite def_m.
-  apply Zdivide_Zdiv_eq; [omega | auto].
+  apply Zdivide_Zdiv_eq; [omega| auto].
 Qed.
 
 (*
@@ -386,7 +377,21 @@ Lemma descent_div_term1: forall a b q N m,
   m = N / q ->
   (q | N) ->
   (m | (a * descent_modulus a m + b * descent_modulus b m)).
-Admitted.
+Proof.
+  intros a b q N m q_gt_0 N_gt_0 def_N def_m q_div_N.
+  (* must show m > 0 as ever *)
+  assert (m > 0).
+  rewrite def_m; apply div_positive; auto.
+  rewrite <- Z.mod_divide; [| omega].
+  rewrite Zplus_mod, (Zmult_mod a _ _), (Zmult_mod b _ _).
+  repeat rewrite descent_modulus_equiv_a_mod_m; auto.
+  repeat rewrite <- Zmult_mod.
+  repeat rewrite <- Zplus_mod.
+  rewrite Z.mod_divide; [| omega].
+  exists q.
+  rewrite <- def_N.
+  rewrite div_swap_l; [auto| omega | auto].
+Qed.
 
 Lemma descent_div_term2: forall a b q N m,
   q > 0 -> N > 0 ->
@@ -394,36 +399,20 @@ Lemma descent_div_term2: forall a b q N m,
   m = N / q ->
   (q | N) ->
   (m | (b * descent_modulus a m - a * descent_modulus b m)).
-Admitted.
-
-Compute (descent 5 1 13).
-Compute (5 * 13).
-Compute (1 * 1 + 5 * 5).
-
-Compute (descent 12 1 29).
-Compute (descent (-7) 3 29).
-Compute (descent 442 1 953).
-Compute (descent 69 2 953).
-Compute (descent (-15) (-41) 953).
-
-Lemma div_swap_l: forall a b c, a <> 0 -> (a | b) -> b = a * c <-> b / a = c.
 Proof.
-  intros a b c a_neq_0 a_div_b.
-  split.
-  - destruct a_div_b as [x def_a].
-    intros def_b.
-    rewrite def_a.
-    rewrite Z_div_mult_full; auto.
-    rewrite def_a, Z.mul_comm in def_b.
-    rewrite Z.mul_cancel_l in def_b; auto.
-  - intros def_b.
-    rewrite <- def_b.
-    Search (_ * (_ / _)).
-    rewrite <- Z.divide_div_mul_exact; auto.
-    Search (_ * _ / _).
-    rewrite Z.mul_comm.
-    symmetry.
-    apply Z_div_mult_full; auto.
+  intros a b q N m q_gt_0 N_gt_0 def_N def_m q_div_N.
+  (* must show m > 0 as ever *)
+  assert (m > 0).
+  rewrite def_m; apply div_positive; auto.
+  rewrite <- Z.mod_divide; [| omega].
+  rewrite Zminus_mod, (Zmult_mod a _ _), (Zmult_mod b _ _).
+  repeat rewrite descent_modulus_equiv_a_mod_m; auto.
+  repeat rewrite <- Zmult_mod.
+  repeat rewrite <- Zminus_mod.
+  rewrite Z.mul_comm.
+  rewrite Z.sub_diag.
+  Search (_ mod _ = 0).
+  rewrite Zmod_0_l; reflexivity.
 Qed.
 
 Lemma descent_mult_key_lemma: forall t0 t1 m a,
