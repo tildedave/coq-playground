@@ -415,16 +415,59 @@ Proof.
   rewrite Zmod_0_l; reflexivity.
 Qed.
 
-Lemma descent_mult_key_lemma: forall t0 t1 m a,
+Lemma add_div_distr: forall a b c,
+    a <> 0 -> (a | b) -> (a | c) -> (b + c) / a = b / a + c / a.
+Proof.
+  intros a b c a_not_0 a_div_b a_div_c.
+  destruct a_div_b as [k def_k].
+  destruct a_div_c as [j def_j].
+  rewrite def_k, def_j.
+  replace (k * a + j * a) with ((k + j) * a) by ring.
+  repeat rewrite Z_div_mult_full; auto.
+Qed.
+
+Lemma descent_mult_key_lemma_sublemma: forall t0 t1 m a,
+    m <> 0 ->
     (m | t0) ->
     (m | t1) ->
-    (t0 / m * (t0 / m) + t1 / m * (t1 / m) = a) = (t0 * t0 + t1 * t1 = m * m * a).
+    (t0 + t1 = m * a) -> (t0 / m + (t1 / m) = a).
 Proof.
-  intros t0 t1 m a m_div_t0 m_div_t1.
-  symmetry.
-  (* setoid rewrite fails here for some reason I don't understand *)
-  (* rewrite (div_swap_l (m * m) (t0 * t0 + t1 * t1) a). *)
-Admitted.
+  intros t0 t1 m a m_not_0 m_div_t0 m_div_t1.
+  rewrite (div_swap_l m (t0 + t1) a); auto.
+  rewrite add_div_distr; auto.
+  apply Z.divide_add_r; auto.
+Qed.
+
+Lemma square_div_rearrange: forall a b, b <> 0 -> (b | a) -> a * a / (b * b) = (a / b) * (a / b).
+Proof.
+  intros a b b_not_0 b_div_a.
+  destruct b_div_a.
+  rewrite H.
+  replace (x * b * (x * b)) with (x * x * (b * b)) by ring.
+  repeat rewrite Z_div_mult_full; auto.
+  apply Z.neq_mul_0; auto.
+Qed.
+
+Lemma descent_mult_key_lemma: forall t0 t1 m a,
+    m <> 0 ->
+    (m | t0) ->
+    (m | t1) ->
+    (t0 * t0 + t1 * t1 = m * m * a) -> (t0 / m * (t0 / m) + t1 / m * (t1 / m) = a).
+Proof.
+  intros t0 t1 m a m_not_0 m_div_t0 m_div_t1.
+  assert (m * m <> 0).
+  apply Z.neq_mul_0; auto.
+  rewrite (div_swap_l (m * m) (t0 * t0 + t1 * t1) a); auto.
+  rewrite add_div_distr; auto.
+  repeat rewrite square_div_rearrange; auto.
+  - destruct m_div_t0 as [k def_k]; exists (k * k); rewrite def_k; ring.
+  - destruct m_div_t1 as [j def_j]; exists (j * j); rewrite def_j; ring.
+  - destruct m_div_t0 as [k def_k].
+    destruct m_div_t1 as [j def_j].
+    rewrite def_k, def_j.
+    exists (k * k + j * j).
+    ring.
+Qed.
 
 Theorem descent_mult: forall a b q N,
     q > 0 -> N > 0 -> N = (a * a + b * b) -> (q | N) ->
@@ -462,36 +505,20 @@ Proof.
     ring.
     rewrite Z.mul_comm in H at 1.
     rewrite diophantine_identity in H.
-    replace ((a * u + b * v) * (a * u + b * v) + (b * u - a * v) * (b * u - a * v) = m * m * x * q) with (((a * u + b * v) / m) * ((a * u + b * v) / m) + ((b * u - a * v) /m) * ((b * u - a * v) /m) = x * q) in H.
-    rewrite H.
-    (* did this already, do it again *)
-    (* TODO: must clean up *)
-    destruct Heqm_div_u_v.
-    rewrite <- Hequ, <- Heqv in m_div_u_v.
-    remember (descent_div_sum a b q N m q_gt_0 N_gt_0 def_N Heqm q_div_N) as m_div_u_v2.
-    destruct Heqm_div_u_v2.
-    rewrite <- Hequ, <- Heqv in m_div_u_v2.
-    Search (_ * _ = _ * _).
-    rewrite Z.mul_cancel_r; [ | omega].
-    apply div_swap_l; [omega | | rewrite (Z.mul_comm x m) in m_div_u_v]; auto.
-    (* must swap m * m over to the other side and redistribute *)
-    rewrite <- H1, <- H2.
-    replace ((a * u + b * v) * (a * u + b * v) + (b * u - a * v) * (b * u - a * v) = m * m * x * q) with (((a * u + b * v) / m) * ((a * u + b * v) / m) + ((b * u - a * v) / m) * ((b * u - a * v) / m) = x * q).
-    rewrite <- H1, <- H2; reflexivity.
-    remember (descent_div_term1 a b q N m q_gt_0 N_gt_0 def_N Heqm q_div_N) as div_t0.
-    remember (descent_div_term2 a b q N m q_gt_0 N_gt_0 def_N Heqm q_div_N) as div_t1.
     remember (a * u + b * v) as t0.
     remember (b * u - a * v) as t1.
+    remember (descent_div_term1 a b q N m q_gt_0 N_gt_0 def_N Heqm q_div_N) as div_t0.
+    remember (descent_div_term2 a b q N m q_gt_0 N_gt_0 def_N Heqm q_div_N) as div_t1.
     destruct Heqdiv_t0.
     destruct Heqdiv_t1.
     rewrite <- Hequ, <- Heqv, <- Heqt0 in div_t0.
     rewrite <- Hequ, <- Heqv, <- Heqt1 in div_t1.
-    replace (m * m * x * q) with (m * m * (x * q)) by ring.
-    apply descent_mult_key_lemma; auto.
+    replace (m * m * x * q) with (m * m * (x * q)) in H by ring.
+    apply descent_mult_key_lemma in H; [ | omega | |]; auto.
+    rewrite H.
+    destruct Heqm_div_u_v.
+    rewrite <- Hequ, <- Heqv in m_div_u_v.
+    rewrite (Z.mul_comm x m) in m_div_u_v.
+    apply div_swap_l in m_div_u_v; [ | omega | rewrite Hequ, Heqv; apply (descent_div_sum a b q N m)]; auto.
+    rewrite m_div_u_v; reflexivity.
 Qed.
-
-Theorem p_sumofsquares: forall p x y, prime p -> x * x + y * y = p <-> p mod 4 = 1.
-Proof.
-  intros p x y p_prime.
-  split.
-  intros p_sumofsquares.
