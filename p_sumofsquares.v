@@ -115,21 +115,14 @@ Definition descent_modulus a m :=
   else
     (a mod m) - m.
 
-Lemma descent_modulus_lt_m_div_2_key_lemma : forall m m',
-    m < 2 * m' -> - (m' - m) <= m / 2.
-Proof.
-  intros m m'.
-
-Admitted.
-
 Lemma descent_modulus_le_m_div_2 : forall a m,
     m > 0 -> Z.abs (descent_modulus a m) <= m / 2.
 Proof.
   intros a m m_gt_1.
   unfold descent_modulus.
   assert (m > 0) as m_gt_0 by omega.
-  remember (Z_mod_lt a _ m_gt_0) as H_cool.
-  destruct HeqH_cool.
+  remember (Z_mod_lt a _ m_gt_0) as m'_bound.
+  destruct Heqm'_bound.
   remember (a mod m) as m'.
   destruct (Z_le_dec (2 * m') m).
   - assert (0 <= m') by omega.
@@ -140,28 +133,26 @@ Proof.
     rewrite <- Heqm' in HQuantityNegative.
     apply Z.abs_neq_iff in HQuantityNegative.
     rewrite HQuantityNegative.
-    assert (m < 2 * m') by omega.
-    apply (descent_modulus_lt_m_div_2_key_lemma m m').
-    omega.
+    apply Zdiv_le_lower_bound; omega.
 Qed.
-
-Compute (descent_modulus 4 6).
-Compute (-2 mod 6).
 
 Lemma mod_eq: forall a b c, c > 0 -> (a - b) mod c = 0 -> a mod c = b mod c.
 Proof.
   intros a b c c_gt_0 a_minus_b_mod.
   rewrite Zminus_mod in a_minus_b_mod.
+
   apply (Zmod_divides _ c) in a_minus_b_mod.
+
+
   destruct a_minus_b_mod as [x def_x].
-Admitted.
+
 
 Lemma descent_modulus_equiv_a_mod_m : forall a m,
     m > 0 -> (descent_modulus a m) mod m = a mod m.
 Proof.
   intros a m m_gt_0.
   unfold descent_modulus.
-  destruct (Z_le_dec (a mod m) (m / 2)).
+  destruct (Z_le_dec (2 * (a mod m)) m).
   - apply (Z_mod_lt a m) in m_gt_0.
     rewrite Zmod_mod; reflexivity.
   - apply mod_eq; [omega|].
