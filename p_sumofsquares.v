@@ -110,45 +110,16 @@ Qed.
 
 Definition descent_modulus a m :=
   let m' := a mod m in
-  if Z_le_dec m' (m / 2) then
+  if Z_le_dec (2 * m') m then
     m'
   else
     (a mod m) - m.
 
-Search (Zodd).
-
 Lemma descent_modulus_lt_m_div_2_key_lemma : forall m m',
-    m / 2 <= m' < m -> - (m' - m) <= m / 2.
+    m < 2 * m' -> - (m' - m) <= m / 2.
 Proof.
-  intros m m' m'_bound.
+  intros m m'.
 
-
-  (* m is even or odd. This will let us remove the division by 2 *)
-  (*
-    destruct (Zeven_odd_dec m).
-    apply Zeven_ex_iff in z.
-    destruct z as [k def_k].
-    rewrite def_k at 2.
-    rewrite Z.mul_comm, Z_div_mult_full.
-
-
-    rewrite Z.opp_sub_distr, Z.lt_add_lt_sub_r, Z.opp_lt_mono, Z.opp_involutive, Z.opp_sub_distr.
-    rewrite def_k, Z.mul_comm, Z_div_mult_full in n.
-    assert (m' >= k) by omega.
-    rewrite def_k.
-    Search (_ * _ / _).
-    rewrite Z.mul_comm at 1.
-    rewrite Z_div_mult_full.
-    rewrite <- def_k.
-
-
-    unfold Zeven in z.
-    Search
-    Search (Z.odd _).
-
-    cut (- (m / 2) + m < m / 2).
-    intro Cut.
-    omega.*)
 Admitted.
 
 Lemma descent_modulus_le_m_div_2 : forall a m,
@@ -159,17 +130,17 @@ Proof.
   assert (m > 0) as m_gt_0 by omega.
   remember (Z_mod_lt a _ m_gt_0) as H_cool.
   destruct HeqH_cool.
-  destruct (Z_le_dec (a mod m) (m / 2)).
-  - assert (0 <= a mod m) by omega.
-    Search (Z.abs _).
+  remember (a mod m) as m'.
+  destruct (Z_le_dec (2 * m') m).
+  - assert (0 <= m') by omega.
     apply Z.abs_eq_iff in H.
-    rewrite H; omega.
-  - remember (a mod m) as m'.
-    assert (m / 2 <= m' < m) by omega.
-    assert (a mod m - m <= 0) as HQuantityNegative by omega.
+    rewrite H.
+    apply Zdiv_le_lower_bound; omega.
+  - assert (a mod m - m <= 0) as HQuantityNegative by omega.
     rewrite <- Heqm' in HQuantityNegative.
     apply Z.abs_neq_iff in HQuantityNegative.
     rewrite HQuantityNegative.
+    assert (m < 2 * m') by omega.
     apply (descent_modulus_lt_m_div_2_key_lemma m m').
     omega.
 Qed.
