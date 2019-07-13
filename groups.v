@@ -1400,14 +1400,14 @@ Section finite_groups.
       (empty_set G)
       (map (canonical_right_coset G H) (seq G)).
 
-  Inductive fn_partition (A: Type) (l: list A) (f: A -> list A) :=
+  Inductive fn_partition (A: Type) (l: list A) (f: A -> list A) n :=
   | fn_partition_intro:
       NoDup l ->
       (forall b x y, In b (f x) -> In b (f y) -> x = y) ->
-      (forall x y, length (f x) = length (f y)) ->
+      (forall x, length (f x) = n) ->
       (forall a, NoDup (f a)) ->
       (forall a, exists b, In a (f b)) ->
-      fn_partition A l f.
+      fn_partition A l f n.
 
   Inductive fn_partition_inverse (A: Type) (l: list A) (f: A -> list A) (f_inv: A -> A) :=
   | fn_partition_inverse_intro:
@@ -1442,8 +1442,9 @@ Section finite_groups.
   Arguments fpair_intro {A} _ _.
   Hint Constructors fpair.
 
-  Theorem unique_cosets_is_partition  (G: finite_group) (H: subgroup G) group_eq_dec:
-    fn_partition G (unique_cosets G H group_eq_dec) (finite_coset G H).
+  (* TODO: determine what n should be here *)
+  Theorem unique_cosets_is_partition  (G: finite_group) (H: subgroup G) group_eq_dec n:
+    fn_partition G (unique_cosets G H group_eq_dec) (finite_coset G H) n.
   Proof.
     apply fn_partition_intro.
     - unfold unique_cosets.
@@ -1470,11 +1471,15 @@ Section finite_groups.
           let f_inv := canonical_right_coset G H in
           (map (fpair_fst G f_inv) (expand_partition G (unique_cosets G H group_eq_dec) f f_inv))).
 
-  Lemma in_not_append: forall (A: Type) (l1 l2: list A) a,
+  Lemma in_not_append (A: Type): forall (l1 l2: list A) a,
       ~ In a l1 -> ~ In a l2 -> ~ In a (l1 ++ l2).
   Proof.
-    (* come back to this, this is straightforward *)
-  Admitted.
+    induction l1; intros l2 b a_not_in_l1 a_not_in_l2.
+    - simpl; auto.
+    - intros b_in_list.
+      apply in_app_or in b_in_list.
+      destruct b_in_list as [b_first | b_rest]; auto.
+  Qed.
 
   Lemma NoDup_append: forall (A: Type) (l1 l2: list A),
       NoDup l1 -> NoDup l2 -> (forall a, In a l1 -> ~ In a l2) -> NoDup (l1 ++ l2).
@@ -1486,11 +1491,6 @@ Section finite_groups.
       [ apply in_not_append, NotInL2 | apply IHl1 ]; simpl; auto.
     intros; apply NotInL2; apply in_cons; auto.
   Qed.
-
-  (*   NoDup (concat (map (fun x : A => map (fun y : A => (x, y)) (f x)) l)) *)
-
-  (* Issues: NoDup concat requires some judgement over the whole list of passed in lists
-     (i.e. it is a partition). *)
 
   Lemma in_concat_map: forall (A B: Type) (f: A -> list B) b (l: list A),
       In b (concat (map f l)) <-> exists a, In b (f a) /\ In a l.
@@ -1510,8 +1510,8 @@ Section finite_groups.
         [left; rewrite a_first | right; apply IHl; exists a0]; auto.
   Qed.
 
-  Theorem expand_partition_NoDup (A: Type) (l: list A) (f: A -> list A) (f_inv: A -> A):
-    fn_partition A l f ->
+  Theorem expand_partition_NoDup (A: Type) (l: list A) (f: A -> list A) (f_inv: A -> A) n:
+    fn_partition A l f n ->
     fn_partition_inverse A l f f_inv ->
     NoDup (expand_partition A l f f_inv).
   Proof.
@@ -1529,7 +1529,7 @@ Section finite_groups.
     apply NoDup_cons_iff in l_NoDup; destruct l_NoDup; auto.
     apply fn_partition_inverse_cons in PartitionInverse; auto.
     intros q.
-    destruct q as [x y].
+    destruct q as [x].
     intros xy_a.
     intros InRest.
     apply in_concat_map in InRest.
@@ -1549,16 +1549,14 @@ Section finite_groups.
     destruct l_NoDup; auto.
   Qed.
 
-  Check expand_partition.
-
   Lemma in_not_exists_in_empty_list (A: Type): ~ (exists a : A, In a []).
   Proof.
     intros NonEmpty.
     destruct NonEmpty as [q NonEmpty]; apply in_nil in NonEmpty; auto.
   Qed.
 
-  Theorem expand_partition_in  (A: Type) (l: list A) f f_inv:
-    fn_partition A l f ->
+  Theorem expand_partition_in  (A: Type) (l: list A) f f_inv n:
+    fn_partition A l f n ->
     fn_partition_inverse A l f f_inv ->
     (forall d, In (f_inv d) l) ->
     forall c, In c (expand_partition A l f f_inv) <->
@@ -1591,27 +1589,22 @@ Section finite_groups.
       apply InverseMapsToList.
   Qed.
 
-  (*
-In c (expand_partition A l f f_inv) <->
-              (exists d, fpair_fst _ _ c = (f_inv d) /\ fpair_snd _ _ c = d) *)
-
-  Theorem expand_partition_listing (A: Type) (l: list A) f f_inv (seq_A: list A):
+  Theorem expand_partition_listing (A: Type) (l: list A) f f_inv (seq_A: list A) n:
     Listing seq_A ->
-    fn_partition A l f ->
+    fn_partition A l f n ->
     fn_partition_inverse A l f f_inv ->
     (forall d, In (f_inv d) l) ->
     forall c, In c (expand_partition A l f f_inv) <-> In (fpair_snd _ _ c) seq_A.
   Proof.
     intros seq_listing Partition PartitionInverse InverseMapsToList.
     intros d.
-    rewrite (expand_partition_in _ _ f f_inv); auto.
+    rewrite (expand_partition_in _ _ f f_inv n); auto.
     split; [intros; apply seq_listing | ].
     intros in_seq.
     destruct d.
     simpl; exists a; tauto.
   Qed.
 
-  (* at some point must use l nonempty *)
   (*
      expand_partition A l f is A * A
      |
@@ -1619,31 +1612,26 @@ In c (expand_partition A l f f_inv) <->
      |
      V
      seq A
-
-     Issue is that A * A is not the domain of the function
-     (there are many A * A that appear in the type that won't be in the expand_partition list).
-     We should define a different type that allows a proof of injectivity.
    *)
-  Theorem expand_partition_same_size (A: Set) (l: list A) (f: A -> list A) (f_inv: A -> A)
+  Theorem expand_partition_same_size (A: Set) (l: list A) (f: A -> list A) (f_inv: A -> A) n
           (seq_A: list A):
     Listing seq_A ->
-    (exists a, In a l) ->
-    fn_partition A l f ->
+    fn_partition A l f n ->
     fn_partition_inverse A l f f_inv ->
     (forall d, In (f_inv d) l) ->
     length (expand_partition A l f f_inv) = length seq_A.
   Proof.
-    intros Listing l_NonEmpty.
+    intros Listing.
     intros [l_NoDup NoOverlap SameLength NoRepeat EveryElementInPartition].
     intros PartitionInverse.
     intros InverseWitness.
     apply (NoDup_injection_length _ _ _ _ (fpair_snd _ _) (fun x => fpair_intro f_inv x)).
-    - apply expand_partition_NoDup; try apply fn_partition_intro; auto.
+    - apply (expand_partition_NoDup _ _ _ _ n); try apply fn_partition_intro; auto.
     - apply Listing.
     - simple destruct x; simple destruct y; simpl.
       intros h H; rewrite H; reflexivity.
     - intros x y H; inversion H; reflexivity.
-    - apply expand_partition_listing; auto.
+    - apply (expand_partition_listing _ _ _ _ _ n); auto.
       apply fn_partition_intro; auto.
     - intros d; rewrite expand_partition_in; auto.
       simpl.
@@ -1654,7 +1642,26 @@ In c (expand_partition A l f f_inv) <->
     - simpl; tauto.
   Qed.
 
-  (* so let's say we have this, can we prove the size? *)
+  Theorem expand_partition_length (A: Type): forall l f f_inv n,
+      fn_partition A l f n ->
+      fn_partition_inverse A l f f_inv ->
+      length (expand_partition A l f f_inv) = length l * n.
+  Proof.
+    induction l.
+    intros.
+    simpl; reflexivity.
+    intros f f_inv n.
+    intros [l_NoDup NoOverlap SameLength NoRepeat EveryElementInPartition].
+    intros PartitionInverse.
+    simpl.
+    rewrite app_length, map_length, SameLength.
+    Search (_ + _ = _ + _).
+    rewrite Nat.add_cancel_l.
+    apply IHl; auto.
+    apply fn_partition_intro; auto.
+    rewrite NoDup_cons_iff in l_NoDup; destruct l_NoDup; auto.
+    apply fn_partition_inverse_cons in PartitionInverse; auto.
+  Qed.
 
   Theorem lagrange_theorem : forall (G: finite_group) (H: finite_subgroup G) group_eq_dec,
       length (unique_cosets G H group_eq_dec) * cardinality_subgroup G H =
