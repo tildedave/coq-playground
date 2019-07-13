@@ -1,6 +1,8 @@
 Require Import Coq.Bool.Bool.
 Require Import Setoid.
 Require Import Coq.Classes.Equivalence.
+Require Import List.
+Require Import ListUtils.
 
 Section group_definitions.
   Definition is_assoc (A: Set) (f: A -> A -> A) := forall a b c,
@@ -811,27 +813,27 @@ Section quotient_groups.
      theorem is less general *)
   Check Equivalence.
 
-  Definition coset_repr G H (a : coset G H) : G.
+  Definition coset_with_repr G H (a : coset G H) : G.
     destruct a as [a].
     exact a.
   Defined.
 
-  Arguments coset_repr {G} {H} _.
+  Arguments coset_with_repr {G} {H} _.
 
   (* a and b are equivalent if there is some c that *)
 
   Definition coset_equivalence (G: Group) (H: normal_subgroup G)
              (a b: coset G H) :=
     exists c,
-      is_mem (right_coset H c) (coset_repr a) /\
-      is_mem (right_coset H c) (coset_repr b).
+      is_mem (right_coset H c) (coset_with_repr a) /\
+      is_mem (right_coset H c) (coset_with_repr b).
 
   Instance Coset_Equivalence G H: Equivalence (coset_equivalence G H).
   Proof.
-    unfold coset_equivalence, coset_repr.
+    unfold coset_equivalence, coset_with_repr.
     split.
     unfold Reflexive; intros x.
-    exists (coset_repr x).
+    exists (coset_with_repr x).
     split; [apply coset_reflexive | apply coset_reflexive].
     unfold Symmetric; intros x y [c [x_c y_c]].
     exists c.
@@ -1106,17 +1108,16 @@ Section klein_4_group.
 
 End klein_4_group.
 
+Require Import Coq.Logic.FinFun.
+
 Section finite_groups.
-  Require Import List.
-  Require Import ListUtils.
   Import ListNotations.
 
   Structure finite_group := makeFiniteGroup
     {
       G :> Group;
       seq : list G;
-      seq_in : forall g, In g seq;
-      seq_NoDup : NoDup seq;
+      seq_listing : Listing seq;
     }.
 
   Structure finite_subgroup (G: Group) := makeFiniteSubgroup
@@ -1124,24 +1125,14 @@ Section finite_groups.
       H :> subgroup G;
       subgroup_seq : list G;
       subgroup_seq_in : forall g, is_mem _ H g <-> In g subgroup_seq;
-      subgroup_seq_NoDup : NoDup subgroup_seq;
+      subgroup_seq_nodup : NoDup subgroup_seq;
     }.
-
-  (* TODO induction over group *)
 
   Definition cardinality (G: finite_group) :=
     length (seq G).
 
   Definition subgroup_filter (G: finite_group) (H: subgroup G) l : list G :=
     filter (fun a => (subgroup_mem _ H a)) l.
-
-(*
-    match l with
-    | [] => []
-    | a :: tl => let rest := subgroup_filter _ H tl in
-                 (if is_mem_dec _ H a then a :: rest else rest)
-    end.
- *)
 
   Lemma subgroup_filter_NoDup (G: finite_group) H :
     forall l, NoDup l -> NoDup (subgroup_filter G H l).
@@ -1174,8 +1165,9 @@ Section finite_groups.
     (* prove being in the subgroup means it is in the filter of the seq *)
     cut (forall l, is_mem G H g -> In g l -> In g (subgroup_filter G H l)).
     intros Cut H_mem.
-    remember (seq_in _ g).
-    apply (Cut (seq G) H_mem i).
+    remember (seq_listing G) as Q.
+    destruct Q as [NoDup Full].
+    apply (Cut (seq G) H_mem (Full g)).
     (* prove cut *)
     induction l; auto.
     intros H_mem In_g.
@@ -1195,18 +1187,19 @@ Section finite_groups.
     apply (makeFiniteSubgroup _ H (subgroup_filter G H (seq G))).
     (* forall g : G, is_mem G H g <-> In g (subgroup_filter G H (seq G)) *)
     split; apply subgroup_filter_contains.
-    apply subgroup_filter_NoDup, seq_NoDup.
-    (* must show NoDup *)
-  Defined.
+    apply subgroup_filter_NoDup, seq_listing.
+  Qed.
 
   Definition cardinality_subgroup (G: finite_group) (H: subgroup G) : nat :=
     length (subgroup_filter G H (seq G)).
 
   Theorem klein_group_finite : finite_group.
     apply (makeFiniteGroup klein_group [k_I; k_X; k_Y; k_Z]).
-    intros g.
-    destruct g; compute; auto.
-    (* this is dumb *)
+    split.
+    2: {
+      unfold Full.
+      destruct a; compute; auto.
+    }
     apply NoDup_cons.
     apply not_in_cons.
     split ; [discriminate |auto].
@@ -1240,15 +1233,13 @@ Section finite_groups.
                            | k_I => true
                            | _ => klein_eq_dec k k'
                         end) : set klein_group) as char.
-    apply (makeSubgroup _ char).
+    apply (makeSubgroup _ char); auto.
     rewrite Heqchar; cbv; auto.
     (* closed under op *)
     destruct k in Heqchar; simple destruct a; simple destruct b;
       rewrite Heqchar; cbv; intros H; auto.
     (* closed under op: impossible cases *)
     0-36: destruct H; auto.
-    (* inversion *)
-    auto.
   Defined.
 
   Definition klein_subgroup_X := klein_subgroup k_X.
@@ -1273,24 +1264,9 @@ Section finite_groups.
     apply H0.
   Qed.
 
-  (* First: map all elements into their cosets *)
-  (* Next: remove duplicates *)
-  (* Lagrange's Theorem is that you'll end up with the same number of
-     duplicates removed *)
-
-  Print right_coset.
-  (* fun (G : Group) (H : subgroup G) (a c : G) => H (op G c (inv G a))
-     : forall G : Group, subgroup G -> G -> set G
-   *)
-  Check (fun (G: finite_group) (H: subgroup G) (a : G) =>
-           (filter (fun c => negb ((right_coset G H a) c))  (seq G))).
-  (* a and b are in the same coset IF ....
-
-     *)
-
   Lemma z_in_seq_G (G: finite_group) : In (z G) (seq G).
   Proof.
-    apply (seq_in G (z _)).
+    apply seq_listing.
   Qed.
 
   Lemma in_subgroup_seq_is_mem (G: finite_group) (H: finite_subgroup G) :
@@ -1299,9 +1275,6 @@ Section finite_groups.
     intros c.
     split; apply subgroup_seq_in.
   Qed.
-
-  (* TODO: use this in the group definition *)
-  Require Import Coq.Logic.FinFun.
 
   Lemma inv_cancel G: forall a b, inv G a = inv G b -> a = b.
   Proof.
@@ -1321,306 +1294,107 @@ Section finite_groups.
     autorewrite with core in H0; auto.
   Qed.
 
-  (* to show Lagrange's theorem we need a condition on # of unique cosets *)
-  (* can we inductively remove the cosets from the group one by one? *)
+  (* To show Lagrange's Theorem we will use the map from a to its cosets.
+     We will show it is surjective (so every coset shows up)
+     Then we will show every coset has n members *)
 
-  (* These are things I don't know what the definition should be yet *)
-  Inductive CosetPartitionable (G: finite_group) (H: finite_subgroup G) : list G -> Set :=
-  | cosetpartitionable_empty : CosetPartitionable G H []
-  | cosetpartitionable_app : forall a l,
-      (* not sure how to prove anything with this *)
-      CosetPartitionable G H l ->
-      ~(In a l) ->
-      CosetPartitionable G H (filter (right_coset G H a) (seq G) ++ l).
+  (* Must define a canonical coset map so we can say it's injective *)
+  Definition coset_repr (G: finite_group) (H: subgroup G) g :=
+    hd_error (filter (right_coset G H g) (seq G)).
 
-  Require Import Omega Program.
-
-  Fixpoint coset_reprs_helper (G: finite_group) H (l: list G) n :=
-    match n with
-    | 0 => []
-    | S m =>
-      match l with
-      | [] => []
-      | a :: l' =>
-        a :: (coset_reprs_helper G H (snd (partition (right_coset G H a) l')) m)
-        end
-      end.
-
-  Definition coset_reprs G H l := coset_reprs_helper G H l (length l).
-
-  Definition coset_decomposition (G: finite_group) (H: finite_subgroup G) (l: list G) :=
-    map (fun a => filter (right_coset G H a) (seq G)) (coset_reprs G H l).
-
-  Definition right_index (G: finite_group) (H: finite_subgroup G) (l: list G) :=
-    length (coset_reprs G H l).
-
-  Eval compute in coset_decomposition klein_group_finite (subgroup_finite_group klein_group_finite (klein_subgroup k_I)) (seq klein_group_finite).
-
-  Eval compute in coset_decomposition klein_group_finite (subgroup_finite_group klein_group_finite (klein_subgroup k_X)) (seq klein_group_finite).
-
-  Lemma list_cons_inv : forall A (a b: A) (l l': list A),
-      a :: l = b :: l' -> a = b /\ l = l'.
-    intros A a b l l' equality.
-    inversion equality; auto.
+  Lemma hd_error_nil: forall A (l: list A), hd_error l = None <-> l = [].
+  Proof.
+    intros A l.
+    compute; destruct l; split; auto; intros H; contradict H; discriminate.
   Qed.
 
-  Lemma partition_snd_in (A: Type) f (l: list A) a :
-    In a (snd (partition f l)) -> In a l.
+  Theorem coset_repr_always_some (G: finite_group) (H: subgroup G) :
+    forall g, coset_repr G H g <> None.
   Proof.
-    induction l; intros in_a_partition; [trivial | auto].
-    simpl in in_a_partition.
-    remember (partition f l) as q.
-    destruct q as (g, d).
-    simpl in IHl.
-    destruct (true_dec (f a0)) in in_a_partition;
-      rewrite e in in_a_partition;
-      simpl in in_a_partition;
-      simpl.
-    right; apply IHl; assumption.
-    destruct in_a_partition; [left; auto| auto].
+    intros g.
+    unfold not, coset_repr.
+    rewrite hd_error_nil.
+    destruct (seq_listing G) as [NoDup Full].
+    intros filter_def.
+    apply ((filter_empty _ _ _ filter_def g) (Full g)), coset_reflexive.
   Qed.
 
-  Lemma coset_reprs_helper_in (G: finite_group) H a n:
-    forall l, In a (coset_reprs_helper G H l n) -> In a l.
+  Definition canonical_right_coset (G: finite_group) (H: subgroup G) g :=
+    match coset_repr G H g with
+    (* value should not matter because this branch will never be taken, just needs to check *)
+    | None => g
+    | Some a => a
+    end.
+
+  Compute (canonical_right_coset klein_group_finite klein_subgroup_X k_I).
+  Compute (canonical_right_coset klein_group_finite klein_subgroup_X k_X).
+  Compute (canonical_right_coset klein_group_finite klein_subgroup_X k_Y).
+  Compute (canonical_right_coset klein_group_finite klein_subgroup_X k_Z).
+
+  Definition finite_coset (G: finite_group) (H: subgroup G) g :=
+    (filter (right_coset G H g) (seq G)).
+
+  Lemma finite_coset_NoDup (G: finite_group) (H: subgroup G) g :
+    NoDup (finite_coset G H g).
   Proof.
-    induction n; intros l a_in_helper; [contradict a_in_helper | auto].
-    destruct l; [assumption | auto].
-    destruct a_in_helper as [a_head | a_rest].
-    rewrite a_head; apply in_eq.
-    simpl; right; apply (partition_snd_in _ (right_coset G H a0)), IHn.
-    assumption.
+    apply filter_NoDup, seq_listing.
   Qed.
 
-  Lemma coset_reprs_helper_unique (G: finite_group) H a (l l': list G) n :
-    coset_reprs_helper G H l n = a :: l' ->
-    forall b, In b l' -> ~is_mem _ (right_coset G H a) b.
+  Compute (finite_coset klein_group_finite  klein_subgroup_X k_I).
+
+  Arguments op {g} _ _.
+  Arguments inv {g} _.
+  Notation "x <*> y" := (op x y) (at level 50, left associativity).
+
+  Lemma finite_coset_same_size_as_subgroup (G: finite_group) (H: finite_subgroup G):
+    forall g, length (finite_coset G H g) = cardinality_subgroup G H.
   Proof.
-    induction n; simpl; [intros H0; contradict H0; congruence | auto].
-    case l.
-    (* empty list *)
-    intros H0; contradict H0; congruence.
-    (* cons list *)
-    intros a1 l0 Coset_Reprs_Def. (* temp variables *)
-    apply list_cons_inv in Coset_Reprs_Def.
-    destruct Coset_Reprs_Def as [a0_is_a rest_is_partition].
-    rewrite a0_is_a in rest_is_partition.
-    intros b.
-    rewrite <- rest_is_partition.
-    (* need to know that coset_reprs_helper is a subset of the argument *)
-    intros H0.
-    apply coset_reprs_helper_in, partition_snd, is_mem_not in H0; assumption.
+    intros g.
+    Check right_coset.
+    Print right_coset.
+
+    remember (fun c => c <*> (inv g)) as f.
+    (* h \in H, take this to a coset of g *)
+    (* every member of the coset of Hg = h * g = a *)
+    remember (fun h => (h <*> g)) as f_inv.
+    apply (NoDup_injection_length _ _ _ _ f f_inv).
+    - apply finite_coset_NoDup.
+    - apply subgroup_filter_NoDup; apply seq_listing.
+      (* show f is injective *)
+    - rewrite Heqf.
+      intros x y Q'.
+      apply (group_cancel_r _ (inv g)); auto.
+    (* show f' is injective *)
+    - rewrite Heqf_inv.
+      intros x y Q'.
+      apply (group_cancel_r _ g x y); auto.
+    (* show cosets maps into subgroup *)
+    - intros c.
+      unfold finite_coset.
+      unfold subgroup_filter.
+      repeat rewrite filter_In.
+      rewrite Heqf.
+      unfold right_coset.
+      repeat split; try apply seq_listing;destruct H0; auto.
+    (* show subgroup maps back into the cosets *)
+    - intros d.
+      unfold finite_coset.
+      unfold subgroup_filter.
+      repeat rewrite filter_In.
+      rewrite Heqf_inv.
+      unfold right_coset.
+      autorewrite with core.
+      repeat split; try apply seq_listing; destruct H0; auto.
+    (* functions are inverses of one another *)
+    - intros x; rewrite Heqf, Heqf_inv.
+      autorewrite with core.
+      reflexivity.
   Qed.
-
-  Require Import Wellfounded.
-
-  Lemma partition_snd_NoDup (A: Type) f :
-    forall (l: list A), NoDup l -> NoDup (snd (partition f l)).
-  Proof.
-    (* prove by induction on l *)
-    induction l; [simpl; eauto | auto].
-    intros l_NoDup.
-    simpl.
-    destruct (true_dec (f a)) as [fa_true | fa_false].
-    - rewrite fa_true.
-      apply NoDup_cons_iff in l_NoDup.
-      destruct l_NoDup as [_ l_NoDup].
-      destruct (partition f l); auto.
-    - rewrite fa_false.
-      apply NoDup_cons_iff in l_NoDup.
-      destruct l_NoDup as [a_not_in_l l_NoDup].
-      destruct (partition f l) as (g, d); auto.
-      (* have lost ability to prove this at this point *)
-      simpl. apply NoDup_cons.
-      .
-    apply (IHl l_NoDup).
-
-  Admitted.
-
-  Lemma coset_reprs_helper_nodup (G: finite_group) H n :
-    forall l,
-    NoDup l -> NoDup (coset_reprs_helper G H l n).
-  Proof.
-    induction n; intros l l_NoDup; [apply NoDup_nil | simpl].
-    destruct l.
-    - apply NoDup_nil; auto.
-    - apply NoDup_cons;
-        apply NoDup_cons_iff in l_NoDup;
-        destruct l_NoDup as [a_not_in_l l_NoDup].
-      Focus 2.
-      apply (partition_snd_NoDup _ (right_coset G H a)) in l_NoDup.
-      apply IHn in l_NoDup.
-      assumption.
-      (* a not in l means a won't be in coset_reprs_helper applied to l *)
-      (* this is the contrapositive of coset_reprs_helper_in *)
-      intros Q'.
-      apply coset_reprs_helper_in, partition_snd in Q'.
-      rewrite <- is_mem_not in Q'.
-      apply Q', coset_reflexive.
-  Qed.
-
-  Lemma coset_reprs_helper_nil (G: finite_group) H l :
-    coset_reprs_helper G H [] l = [].
-  Proof.
-    induction l; auto.
-  Qed.
-
-  Lemma partition_snd_cons_false :
-    forall A f (l: list A) a,
-      f a = false ->
-      snd (partition f (a :: l)) = a :: snd (partition f l).
-    intros A f l a f_a_false.
-    simpl.
-    rewrite f_a_false.
-    destruct (partition f l) as (g, d).
-    reflexivity.
-  Qed.
-
-  Lemma partition_snd_cons_true :
-    forall A f (l: list A) a,
-      f a = true ->
-      snd (partition f (a :: l)) = snd (partition f l).
-    intros A f l a f_a_true.
-    simpl.
-    rewrite f_a_true.
-    destruct (partition f l) as (g, d).
-    reflexivity.
-  Qed.
-  (*
-    In b (coset_reprs_helper G H (snd (partition (right_coset G H a1) l)) l1)
-*)
-
-  Lemma coset_reprs_helper_back  (G: finite_group) H b n :
-    forall l a,
-      In b (coset_reprs_helper G H (snd (partition (right_coset G H a) l)) n) ->
-      ~is_mem _ (right_coset G H a) b ->
-      In b (coset_reprs_helper G H (a :: l) n).
-  Proof.
-    induction n; intros l a0 in_b not_mem;
-      [contradict in_b | auto].
-    simpl in in_b; simpl.
-    destruct (partition (right_coset G H a0)) as (g, d).
-    destruct d; simpl in in_b; [contradict in_b | auto].
-    destruct in_b as [b_head | b_rest].
-    right; rewrite b_head; simpl.
-
-
-    (* must show l1 is not empty, which it could be I suppose *)
-    Focus 2.
-    apply IHl1 in b_rest.
-    right; assumption.
-    (* not sure how to prove this one either *)
-  Admitted.
-
-  Lemma coset_reprs_helper_split (G: finite_group) H b l1 :
-    forall l,
-      In b (coset_reprs_helper G H l l1) ->
-      (exists l2 l3,
-        l = l2 ++ b :: l3 /\
-        forall c,
-          In c l2 -> ~is_mem _ (right_coset G H c) b).
-  Proof.
-    induction l1; intros l in_b;
-      [contradict in_b | auto];
-      induction l;
-      [contradict in_b | auto].
-    (* only case left is the one we care about *)
-    simpl in in_b.
-    destruct in_b as [b_head | b_rest].
-    - exists [], l; rewrite <- b_head; split; auto.
-    - (* apply IH, rock it *)
-      (* we also need to rule out b being in a0's coset here, right?
-         yeah, we ned to know that a0 != b *)
-      (*       destruct (true_dec ((right_coset G H a0) b)). *)
-      cut (~ is_mem _ (right_coset G H a0) b); intros a0_not_b.
-      (* want to replace In b snd (partition (right_coset G H a0) l with
-         In b l *)
-      apply coset_reprs_helper_back in b_rest; auto.
-      (* ned to show that b isn't in a0's coset *)
-  Admitted.
-
-  Lemma coset_reprs_helper_cons (G: finite_group) H b l1 :
-    forall l a,
-      In b (coset_reprs_helper G H l l1) ->
-      ~is_mem _ (right_coset G H a) b ->
-      In b (coset_reprs_helper G H (snd (partition (right_coset G H a) l)) l1).
-  Proof.
-    induction l1; intros l a0 in_b not_mem; [contradict in_b | auto].
-    destruct l; [contradict in_b | auto].
-    destruct (true_dec ((right_coset G H a0) a1)).
-    rewrite partition_snd_cons_true.
-    simpl in in_b.
-
-    Focus 2.
-    destruct l1; simpl in in_b; [contradict in_b | auto].
-  Admitted.
-
-  (* next, show every member of the group is in some coset in coset_reprs *)
-  Lemma coset_reprs_helper_include (G: finite_group) H a :
-    forall (l1 l: list G),
-      length l <= length l1 ->
-      In a l ->
-      exists b, In b (coset_reprs_helper G H l l1) /\
-                is_mem _ (right_coset G H b) a.
-  Proof.
-    induction l1; simpl; intros l l_bounded a_in_l.
-    - contradict a_in_l.
-      assert (length l = 0) as l_empty by omega.
-      rewrite length_zero_iff_nil in l_empty.
-      rewrite l_empty; auto.
-    - (* the case where l is empty is impossible because a_in_l *)
-      destruct l; [contradict a_in_l; auto | apply in_inv in a_in_l].
-      destruct a_in_l as [a_head | a_rest].
-      rewrite a_head; exists a; simpl; split; [auto | apply coset_reflexive].
-      (* inductive case *)
-      apply IHl1 in a_rest.
-      destruct a_rest as [b [in_b b_coset]].
-      destruct (is_mem_dec _ (right_coset G H a1) b).
-      exists a1.
-      (* this case requires transitive right_coset stuffz *)
-      split; [apply in_eq |
-              rewrite <- (coset_representative _ _ _ _ i); assumption].
-      exists b.
-      split; [right | assumption].
-      Focus 2.
-      simpl in l_bounded; omega.
-      (* this case is also true.  it is true because we should be able to
-         reduce snd partition to l1 since we have the non-member assumption. *)
-      apply coset_reprs_helper_cons; assumption.
-  Qed.
-
-  Theorem coset_reprs_incl G H l : incl (coset_reprs G H l) l.
-  Proof.
-  Admitted.
-
-  Theorem lagrange: forall G H,
-      right_index G H (seq G) * cardinality_subgroup G H = cardinality G.
-  Proof.
-  Admitted.
-
-  Definition right_coset_not G H a := (fun c => negb ((right_coset G H a) c)).
-
-  Lemma magic_lemma : forall G H a l,
-      CosetPartitionable G H (a :: l) ->
-      length (fst (partition (right_coset G H a) l)) = coset_members G H a.
-  Admitted.
-
-  Lemma magic_lemma_2 (G: finite_group) (H: finite_subgroup G) :
-
-
-  Theorem unique_cosets_works : forall G H a l,
-      CosetPartitionable G H (a :: l) ->
-      unique_cosets G H l = (coset_members G H a)
-                              ::
-                              unique_cosets G H (filter (right_coset_not G H a) l).
-
-                                                  (filter neg
 
   Theorem lagrange_theorem : forall (G: finite_group) (H: finite_subgroup G),
       length (unique_cosets G H (seq G)) * length (subgroup_seq G H) =
       cardinality G.
-
   Proof.
-
     (* blah *)
   Admitted.
 
