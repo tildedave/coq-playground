@@ -2,6 +2,7 @@ Require Import Coq.Bool.Bool.
 Require Import Setoid.
 Require Import Coq.Classes.Equivalence.
 Require Import List.
+Require Import ListSet.
 Require Import ListUtils.
 
 Section group_definitions.
@@ -1340,8 +1341,6 @@ Section finite_groups.
     apply filter_NoDup, seq_listing.
   Qed.
 
-  Compute (finite_coset klein_group_finite  klein_subgroup_X k_I).
-
   Arguments op {g} _ _.
   Arguments inv {g} _.
   Notation "x <*> y" := (op x y) (at level 50, left associativity).
@@ -1350,9 +1349,6 @@ Section finite_groups.
     forall g, length (finite_coset G H g) = cardinality_subgroup G H.
   Proof.
     intros g.
-    Check right_coset.
-    Print right_coset.
-
     remember (fun c => c <*> (inv g)) as f.
     (* h \in H, take this to a coset of g *)
     (* every member of the coset of Hg = h * g = a *)
@@ -1391,23 +1387,156 @@ Section finite_groups.
       reflexivity.
   Qed.
 
-  Theorem lagrange_theorem : forall (G: finite_group) (H: finite_subgroup G),
-      length (unique_cosets G H (seq G)) * length (subgroup_seq G H) =
+  Definition group_eq_decidable (G: Group) := forall (x y : G), {x = y} + {x <> y}.
+
+  Theorem klein_group_eq_decidable: group_eq_decidable klein_group.
+  Proof.
+    simple destruct x; simple destruct y; auto; right; discriminate.
+  Defined.
+
+  Definition unique_cosets (G: finite_group) (H: subgroup G) (group_eq_dec: group_eq_decidable G) :=
+    fold_right
+      (set_add group_eq_dec)
+      (empty_set G)
+      (map (canonical_right_coset G H) (seq G)).
+
+  Inductive fn_partition (A: Type) (l: list A) (f: A -> list A) :=
+  | fn_partition_intro:
+      NoDup l ->
+      (forall b x y, In b (f x) -> In b (f y) -> x = y) ->
+      (forall x y, length (f x) = length (f y)) ->
+      (forall a, NoDup (f a)) ->
+      (forall a, exists b, In a (f b)) ->
+      fn_partition A l f.
+
+  Theorem unique_cosets_is_partition  (G: finite_group) (H: subgroup G) group_eq_dec:
+    fn_partition G (unique_cosets G H group_eq_dec) (finite_coset G H).
+  Proof.
+    apply fn_partition_intro.
+    - unfold unique_cosets.
+  Admitted.
+
+  Definition expand_partition (A: Type) (l: list A) (f: A -> list A) :=
+    flat_map (fun (x : A) => map (fun y => pair x y) (f x)) l.
+
+  Compute (let G := klein_group_finite in
+          let H := klein_subgroup_X in
+          let group_eq_dec := klein_group_eq_decidable in
+          expand_partition G (unique_cosets G H group_eq_dec) (finite_coset G H)).
+
+  Lemma in_not_append: forall (A: Type) (l1 l2: list A) a,
+      ~ In a l1 -> ~ In a l2 -> ~ In a (l1 ++ l2).
+  Proof.
+    (* come back to this, this is straightforward *)
+  Admitted.
+
+  Lemma NoDup_append: forall (A: Type) (l1 l2: list A),
+      NoDup l1 -> NoDup l2 -> (forall a, In a l1 -> ~ In a l2) -> NoDup (l1 ++ l2).
+  Proof.
+    intros A.
+    induction l1; intros l2 l1_NoDup l2_NoDup NotInL2; simpl; auto.
+    apply NoDup_cons; apply NoDup_cons_iff in l1_NoDup;
+      destruct l1_NoDup;
+      [ apply in_not_append, NotInL2 | apply IHl1 ]; simpl; auto.
+    intros; apply NotInL2; apply in_cons; auto.
+  Qed.
+
+  (*   NoDup (concat (map (fun x : A => map (fun y : A => (x, y)) (f x)) l)) *)
+
+  (* Issues: NoDup concat requires some judgement over the whole list of passed in lists
+     (i.e. it is a partition). *)
+
+  Lemma in_concat_map: forall (A B: Type) (f: A -> list B) b (l: list A),
+      In b (concat (map f l)) -> exists a, In b (f a) /\ In a l.
+  Proof.
+    intros A B f b.
+    induction l; simpl.
+    - intros H; contradict H; auto.
+    - intros In_b.
+      apply in_app_or in In_b.
+      destruct In_b as [b_in_f_a | b_in_rest];
+        [exists a | apply IHl in b_in_rest; destruct b_in_rest as [d def_d]; exists d];
+        tauto.
+  Qed.
+
+  Theorem expand_partition_NoDup (A: Type) (l: list A) (f: A -> list A) :
+    fn_partition A l f -> NoDup (expand_partition A l f).
+  Proof.
+    intros [l_NoDup _ _ NoRepeat _].
+    unfold expand_partition.
+    rewrite flat_map_concat_map.
+    remember (fun x : A => map (fun y : A => (x, y)) (f x)) as inj.
+
+    induction l; simpl.
+    apply NoDup_nil.
+    apply NoDup_append.
+    rewrite Heqinj; apply Injective_map_NoDup;
+      [intros x y H; inversion H | apply NoRepeat]; auto.
+    apply IHl.
+    apply NoDup_cons_iff in l_NoDup; destruct l_NoDup; auto.
+    intros q.
+    destruct q as [x y].
+    intros xy_a.
+    intros InRest.
+    apply in_concat_map in InRest.
+    destruct InRest as [d d_in_rest].
+    (* we will derive a = d which will contradict NoDup *)
+    destruct d_in_rest as [xy_d d_in_rest].
+    rewrite Heqinj, in_map_iff in xy_a.
+    rewrite Heqinj, in_map_iff in xy_d.
+    destruct xy_a as [r [a_def _]].
+    destruct xy_d as [s [d_def _]].
+    inversion a_def.
+    inversion d_def.
+    rewrite <- H3 in H1.
+    rewrite H1 in l_NoDup.
+    rewrite NoDup_cons_iff in l_NoDup.
+    destruct l_NoDup; auto.
+  Qed.
+
+  Theorem expand_partition_listing (
+
+  Theorem expand_partition_same_size (A: Set) (l: list A) (f: A -> list A) (f_inv: A -> A)
+          (seq_A: list A):
+    Listing seq_A ->
+    fn_partition A l f ->
+    (forall e, In (f_inv e) (f e)) ->
+    length (expand_partition A l f) = length seq_A.
+  Proof.
+    intros Listing.
+    intros [l_NoDup IsNonEmpty NoOverlap SameLength NoRepeat EveryElementInPartition].
+    intros InverseWitness.
+    apply (NoDup_injection_length _ _ _ _ snd (fun x => pair (f_inv x) x)).
+    2: apply Listing.
+    (* snd being injective is not straightforward.
+       we need a way to say something more about the structure of the partitions... *)
+    3: {
+      unfold Injective.
+      intros x y.
+      intros eq.
+      inversion eq.
+      reflexivity.
+    }
+    5: auto.
+
+    3: {
+      intros c.
+      unfold expand_partition.
+      rewrite flat_map_concat_map.
+      Search (In _ (concat _)).
+      split; [intros; apply Listing | ];auto.
+      intros H.
+      apply in_concat_append.
+      (* this is awful too *)
+  Abort.
+
+  (* so let's say we have this, can we prove the size? *)
+
+  Theorem lagrange_theorem : forall (G: finite_group) (H: finite_subgroup G) group_eq_dec,
+      length (unique_cosets G H group_eq_dec) * cardinality_subgroup G H =
       cardinality G.
   Proof.
     (* blah *)
   Admitted.
 
-  (* to show: quotient group has cardinality of finite subgroup *)
-  Theorem quotient_group_finite (G: finite_group) (H: subgroup G) : finite_group.
-  Proof.
-    (* need sequence of cosets *)
-    apply (makeFiniteGroup (quotient_group G H)
-                           (map (fun a => makeCoset G H a) (seq G))).
-    simple destruct g; intros a; apply in_map_iff.
-    exists a; split; [auto | apply seq_in].
-    (* must show there are no duplicates, which is in one sense true,
-       in another sense not true. really the quotient group should be
-       only unique representations *)
-  Admitted.
 End finite_groups.
