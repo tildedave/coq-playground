@@ -137,7 +137,7 @@ Section groups.
     reflexivity.
   Qed.
 
-  Theorem inverse_unique: forall (a b : G), a <*> b = z -> b = inv a.
+  Theorem inverse_unique: forall (a b: G), a <*> b = z -> b = inv a.
     intros a b.
     intros OpABZ.
     apply (group_cancel_l a _ _).
@@ -145,13 +145,22 @@ Section groups.
     assumption.
   Qed.
 
-  Theorem inverse_cancel: forall (a : G), inv (inv a) = a.
+  Theorem inverse_cancel: forall (a: G), inv (inv a) = a.
     intros a.
     (* show (inv a) * a = z *)
     remember (inverse2 a) as H.
     destruct HeqH.
     apply inverse_unique in H.
     symmetry; assumption.
+  Qed.
+
+  Hint Rewrite inverse_cancel.
+
+  Lemma inverse_cancel2: forall (a b: G), inv a = inv b -> a = b.
+  Proof.
+    intros b c inv_equal.
+    rewrite <- inverse_cancel, <- inv_equal.
+    autorewrite with core; reflexivity.
   Qed.
 
   Hint Rewrite inverse1.
@@ -253,18 +262,13 @@ Section groups.
         forall a, is_mem subgroup_mem a -> is_mem subgroup_mem (inv a)
     }.
 
-  (* subgroup_mem is a characteristic function.
-     TODO: figure out how to do this nicer ;)
-   *)
-    Definition is_subgroup (G : Group) (H: subgroup G) :=
-      (* 0 is a subgroup member *)
-      is_mem H z /\
-      (* subgroup is closed under operation *)
-      (forall a b, is_mem H a /\ is_mem H b -> is_mem H (a <*> b)) /\
-      (* if an element is in the subgroup, its inverse is too *)
-      forall a, is_mem H a -> is_mem H (inv a).
-
-    Arguments is_subgroup {G} _.
+    Lemma subgroup_mem_bool_rewrite (H: subgroup G):
+      forall a b, (is_mem H a) <-> (is_mem H b) -> subgroup_mem G H a = subgroup_mem G H b.
+    Proof.
+      intros a b.
+      unfold is_mem.
+      destruct (subgroup_mem G H a); destruct (subgroup_mem G H b); try tauto; symmetry; tauto.
+    Qed.
 
     (* H is a subgroup *)
     (* H is inductively defined, z is in it,
@@ -401,58 +405,69 @@ Section groups.
       fun c => (subgroup_mem G H) (c <*> (inv a)).
 
     Arguments is_mem {A} _ _.
-    Arguments is_subgroup {G} _.
     Arguments right_coset {G} _.
     Arguments left_coset {G} _.
 
     Check right_coset.
 
-    Lemma coset_intersection_helper_1:
-      forall a b (H: subgroup G),
-        (exists x, is_mem (right_coset H a) x /\  is_mem (right_coset H b) x) ->
-        exists h1 h2, is_mem H h1 /\ is_mem H h2 /\ a = op (op (inv h1) h2) b.
-      intros a b H [x [Ha_x Hb_x]].
-      unfold right_coset, left_coset in Ha_x, Hb_x.
-      exists (x <*> inv a), (x <*> inv b).
-      split; [assumption | split; [assumption | auto]].
-      rewrite inverse_apply.
-      autorewrite with core; reflexivity.
+    Lemma right_coset_mem_bool_rewrite (H: subgroup G):
+      forall a b c, (is_mem (right_coset H a) c) <-> (is_mem (right_coset H b) c) ->
+                    right_coset H a c = right_coset H b c.
+    Proof.
+      intros a b c.
+      unfold is_mem.
+      destruct (right_coset H a c); destruct (right_coset H b c); try tauto; symmetry; tauto.
+    Qed.
+
+    Lemma coset_subgroup: forall a b  (H: subgroup G),
+        is_mem (right_coset H b) a <-> is_mem H (a <*> inv b).
+    Proof.
+      intros; unfold is_mem, right_coset.
+      reflexivity.
+    Qed.
+
+    Lemma coset_swap: forall a b (H: subgroup G),
+        is_mem (right_coset H b) a <-> is_mem (right_coset H a) b.
+    Proof.
+      intros; repeat rewrite coset_subgroup.
+      rewrite <- subgroup_inverse3, inverse_apply.
+      autorewrite with core.
+      reflexivity.
+    Qed.
+
+    Lemma coset_trans: forall a b c (H: subgroup G),
+        is_mem (right_coset H a) b -> is_mem (right_coset H b) c -> is_mem (right_coset H a) c.
+    Proof.
+      intros a b c H; repeat rewrite coset_subgroup.
+      intros H_a H_b.
+      replace (c <*> inv a) with ((c <*> inv b) <*> (b <*> inv a));
+        [apply subgroup_closed | autorewrite with core]; auto.
     Qed.
 
     (* a in Hb -> Ha = Hb *)
-    Lemma coset_intersection:
-      forall a b (H: subgroup G),
-        (exists x, is_mem (right_coset H a) x /\ is_mem (right_coset H b) x) ->
+    Lemma coset_intersection: forall a b d (H: subgroup G),
+        is_mem (right_coset H a) d ->
+        is_mem (right_coset H b) d ->
         (forall c, is_mem (right_coset H a) c <-> is_mem (right_coset H b) c).
-      intros a b H Intersection.
-      apply (coset_intersection_helper_1 a b H) in Intersection.
-      destruct Intersection as [h1 [h2 [h1_Subgroup [h2_Subgroup a_definition]]]].
-      intros c.
-      unfold right_coset.
-      rewrite a_definition.
-      repeat rewrite inverse_apply.
-      rewrite inverse_cancel.
-      rewrite <- group_assoc.
-      apply (subgroup_inverse1 _ h2) in h2_Subgroup.
-      apply (subgroup_closed1 _ (inv h2) h1 h2_Subgroup) in h1_Subgroup.
-      (* must get rid of the coset definitions in order to apply
-         subgroup_mem_r *)
-      unfold is_mem.
-      rewrite group_assoc.
-      rewrite <- (group_assoc c _ _).
-      fold (@is_mem (A G) H (c <*> (inv b <*> inv h2 <*> h1))).
-      fold (@is_mem (A G) H (c <*> inv b)).
-      apply (subgroup_mem_r _ _ (inv h2 <*> h1)).
-      assumption.
+    Proof.
+      intros a b d H Coset_ad Coset_bd.
+      assert (is_mem (right_coset H a) b) as Coset_ab.
+      rewrite coset_swap in Coset_bd.
+      apply (coset_trans _ d); auto.
+      repeat rewrite (coset_swap c).
+      split.
+      - intros Coset_ac.
+        rewrite coset_swap in Coset_ab; apply (coset_trans _ a); auto.
+      - intros Coset_bc.
+        apply (coset_trans _ b); auto.
     Qed.
 
     Lemma coset_reflexive: forall a (H: subgroup G),
         is_mem (right_coset H a) a.
     Proof.
       intros a H.
-      unfold right_coset, is_mem.
-      rewrite inverse1.
-      apply subgroup_z.
+      rewrite coset_subgroup.
+      autorewrite with core; apply subgroup_z.
     Qed.
 
     Theorem coset_representative:
@@ -460,18 +475,14 @@ Section groups.
         is_mem (right_coset H b) a ->
         forall c, is_mem (right_coset H a) c <-> is_mem (right_coset H b) c.
     Proof.
-      intros a b H IsSubgroup.
-      intros Hb_a.
-      (* going to show that a is in both Ha Hb *)
-      remember (coset_reflexive a H) as Ha_a.
-      apply (coset_intersection a b _); auto.
-      exists a; auto.
+      intros; split; apply coset_trans; [ | rewrite coset_swap ]; auto.
     Qed.
 
     Theorem coset_mult: forall a b (H: subgroup G),
-        is_mem H b -> is_mem (right_coset H a) (op b a).
-      intros a b H Hb_true.
-      unfold right_coset, is_mem.
+        is_mem H b -> is_mem (right_coset H a) (b <*> a).
+    Proof.
+      intros a b H H_mem.
+      rewrite coset_subgroup.
       autorewrite with core; auto.
     Qed.
 
@@ -480,17 +491,10 @@ Section groups.
         forall c, is_mem (right_coset H a) c <-> is_mem (right_coset H z) c.
     Proof.
       intros a H Ha_true.
-      (* WTS: everything in Ha can be represented by something in H *)
-      unfold right_coset.
       intros c.
-      apply subgroup_inverse in Ha_true.
-      unfold is_mem.
-      fold (is_mem H (c <*> inv a)).
-      fold (is_mem H (c <*> inv a)).
+      repeat rewrite coset_subgroup.
       autorewrite with core.
-      rewrite (subgroup_mem_r _ _ _ Ha_true).
-      autorewrite with core.
-      reflexivity.
+      apply subgroup_mem_r, subgroup_inverse; auto.
     Qed.
 
   End cosets.
@@ -499,7 +503,6 @@ Section groups.
 
     Arguments is_mem {A} _ _.
     Arguments is_mem_dec {A} _ _.
-    Arguments is_subgroup {G} _.
     Arguments right_coset {G} _.
     Arguments left_coset {G} _.
 
@@ -864,7 +867,7 @@ Section quotient_groups.
     auto.
     exists c1.
     split; [assumption | auto].
-    rewrite (coset_intersection G _ c2 H); [assumption | exists y; auto].
+    rewrite (coset_intersection G c1 c2 y); auto.
   Qed.
 
   Arguments coset_equivalence {G} {H}.
@@ -1114,6 +1117,10 @@ Require Import Coq.Logic.FinFun.
 Section finite_groups.
   Import ListNotations.
 
+  Arguments op {g} _ _.
+  Arguments inv {g} _.
+  Notation "x <*> y" := (op x y) (at level 50, left associativity).
+
   Structure finite_group := makeFiniteGroup
     {
       G :> Group;
@@ -1277,24 +1284,6 @@ Section finite_groups.
     split; apply subgroup_seq_in.
   Qed.
 
-  Lemma inv_cancel G: forall a b, inv G a = inv G b -> a = b.
-  Proof.
-    intros b c inv_equal.
-    apply (group_add_l _ b) in inv_equal.
-    apply (group_add_r _ c) in inv_equal.
-    autorewrite with core in inv_equal; auto.
-  Qed.
-
-  Hint Rewrite inv_cancel.
-
-  Theorem subgroup_injective (G: finite_group) (H: finite_subgroup G) a:
-    Injective (fun c => op G c (inv G a)).
-  Proof.
-    unfold Injective.
-    intros x y H0; apply (group_add_r _ a _) in H0.
-    autorewrite with core in H0; auto.
-  Qed.
-
   (* To show Lagrange's Theorem we will use the map from a to its cosets.
      We will show it is surjective (so every coset shows up)
      Then we will show every coset has n members *)
@@ -1307,6 +1296,18 @@ Section finite_groups.
   Proof.
     intros A l.
     compute; destruct l; split; auto; intros H; contradict H; discriminate.
+  Qed.
+
+  Lemma hd_error_cons (A: Type): forall l1 (a : A),
+      hd_error l1 = Some a <-> exists l2, l1 = a :: l2.
+  Proof.
+    intros l1 a.
+    split.
+    - unfold hd_error.
+      destruct l1; intros H; auto.
+      contradict H; discriminate.
+      inversion H; rewrite <- H1; exists l1; reflexivity.
+    - intros H; destruct H as [l2 l2_def]; rewrite l2_def; simpl; reflexivity.
   Qed.
 
   Theorem coset_repr_always_some (G: finite_group) (H: subgroup G) :
@@ -1327,6 +1328,119 @@ Section finite_groups.
     | Some a => a
     end.
 
+  Lemma filter_eq (A: Type) (f g: A -> bool) :
+    forall l, (forall a, f a = g a) -> filter f l = filter g l.
+  Proof.
+    induction l; intros fg_equiv; simpl.
+    - reflexivity.
+    - rewrite fg_equiv, IHl; auto.
+  Qed.
+
+  (* everything that is a member of the coset has the same canonical_right_coset value *)
+  Lemma coset_repr_mem (G: finite_group) (H: subgroup G) g :
+    coset_repr G H g = Some g ->
+    forall a, is_mem _ (right_coset G H g) a <-> coset_repr G H a = Some g.
+  Proof.
+    intros CosetReprG.
+    intros a.
+    split.
+    - rewrite coset_subgroup.
+      intros CosetMem.
+      unfold coset_repr.
+      apply hd_error_cons.
+      unfold coset_repr in CosetReprG.
+      apply hd_error_cons in CosetReprG.
+      destruct CosetReprG as [l2 l2_def].
+      exists l2.
+      rewrite <- l2_def.
+      apply filter_eq.
+      intros b.
+      unfold right_coset.
+      apply subgroup_mem_bool_rewrite.
+      split.
+      + intros; replace (b <*> inv g) with ((b <*> inv a) <*> (a <*> inv g));
+          [apply subgroup_closed; tauto | autorewrite with core; reflexivity].
+      + intros.
+        rewrite <- subgroup_inverse3, inverse_apply in CosetMem.
+        autorewrite with core in CosetMem.
+        replace (b <*> inv a) with ((b <*> inv g) <*> (g <*> inv a));
+          [apply subgroup_closed | autorewrite with core]; auto.
+    - intros CosetSame.
+      unfold coset_repr in CosetSame.
+      apply hd_error_cons in CosetSame.
+      destruct CosetSame as [l2 l2_def].
+      assert (In g (filter (right_coset G H a) (seq G))) as g_in_filter.
+      rewrite l2_def; simpl; auto.
+      rewrite filter_In in g_in_filter.
+      rewrite coset_swap; destruct g_in_filter; tauto.
+  Qed.
+
+  Lemma coset_repr_always_mem (G: finite_group) (H: subgroup G):
+    forall g d,
+      coset_repr G H g = Some d -> is_mem _ (right_coset G H d) g.
+  Admitted.
+
+  Lemma canonical_right_coset_mem (G: finite_group) (H: subgroup G) g :
+    canonical_right_coset G H g = g ->
+    forall a, is_mem _ (right_coset G H g) a <-> canonical_right_coset G H a = g.
+  Proof.
+    intros CanonicalG a.
+    unfold canonical_right_coset.
+    remember (coset_repr G H a) as q.
+    remember (coset_repr_always_some G H a).
+    destruct q; [| contradict Heqq]; auto.
+    symmetry in Heqq.
+    rewrite coset_repr_mem, Heqq.
+    - split; [intros Q; inversion Q | intros Q; rewrite Q]; auto.
+    - unfold canonical_right_coset in CanonicalG.
+      remember (coset_repr G H g) as q.
+      remember (coset_repr_always_some G H g).
+      destruct q; [| contradict Heqq]; auto.
+      rewrite CanonicalG; reflexivity.
+  Qed.
+
+  Lemma canonical_right_coset_always_mem (G: finite_group) (H: subgroup G):
+    forall g, is_mem _ (right_coset G H (canonical_right_coset G H g)) g.
+  Admitted.
+
+  Lemma coset_reprs_unique (G: finite_group) (H: subgroup G):
+    forall c d,
+      coset_repr G H d = Some c ->
+      coset_repr G H c = Some c.
+  Proof.
+    intros c d.
+    unfold coset_repr.
+    rewrite hd_error_cons.
+    intros [l l_def].
+    rewrite hd_error_cons.
+    exists l.
+    rewrite <- l_def.
+    apply filter_eq.
+    intros a.
+    apply filter_inv in l_def.
+    apply right_coset_mem_bool_rewrite.
+    fold (is_mem G (right_coset G H d) c) in l_def.
+    split; [ | rewrite coset_swap in l_def]; apply coset_trans; auto.
+  Qed.
+
+  (* proof is dumb *)
+  Lemma canonical_right_coset_unique (G: finite_group) (H: subgroup G):
+    forall c d,
+      canonical_right_coset G H d = c ->
+      canonical_right_coset G H c = c.
+  Proof.
+    intros c d.
+    unfold canonical_right_coset.
+    remember (coset_repr G H d) as q1.
+    remember (coset_repr G H c) as q2.
+    destruct q1; destruct q2; symmetry in Heqq1; symmetry in Heqq2.
+    apply coset_reprs_unique in Heqq1.
+    intros J; rewrite <- J, Heqq1 in Heqq2; inversion Heqq2; rewrite <- H1; auto.
+    apply coset_reprs_unique in Heqq1; intros; reflexivity.
+    remember (coset_repr_always_some G H d) as C; intros; contradict HeqC; auto.
+    remember (coset_repr_always_some G H d) as C; intros; contradict HeqC; auto.
+  Qed.
+
   Compute (canonical_right_coset klein_group_finite klein_subgroup_X k_I).
   Compute (canonical_right_coset klein_group_finite klein_subgroup_X k_X).
   Compute (canonical_right_coset klein_group_finite klein_subgroup_X k_Y).
@@ -1340,10 +1454,6 @@ Section finite_groups.
   Proof.
     apply filter_NoDup, seq_listing.
   Qed.
-
-  Arguments op {g} _ _.
-  Arguments inv {g} _.
-  Notation "x <*> y" := (op x y) (at level 50, left associativity).
 
   Lemma finite_coset_same_size_as_subgroup (G: finite_group) (H: finite_subgroup G):
     forall g, length (finite_coset G H g) = cardinality_subgroup G H.
@@ -1394,20 +1504,24 @@ Section finite_groups.
     simple destruct x; simple destruct y; auto; right; discriminate.
   Defined.
 
-  Definition unique_cosets (G: finite_group) (H: subgroup G) (group_eq_dec: group_eq_decidable G) :=
-    fold_right
-      (set_add group_eq_dec)
-      (empty_set G)
-      (map (canonical_right_coset G H) (seq G)).
-
+  (* TODO: try out a list-based partition, might be less annoying *)
   Inductive fn_partition (A: Type) (l: list A) (f: A -> list A) n :=
   | fn_partition_intro:
       NoDup l ->
-      (forall b x y, In b (f x) -> In b (f y) -> x = y) ->
+      (forall b x y, In x l -> In y l -> In b (f x) -> In b (f y) -> x = y) ->
       (forall x, length (f x) = n) ->
       (forall a, NoDup (f a)) ->
       (forall a, exists b, In a (f b)) ->
       fn_partition A l f n.
+
+  Lemma fn_partition_cons (A: Type) (l: list A) (f: A -> list A) n:
+    forall a, fn_partition A (a :: l) f n -> fn_partition A l f n.
+    intros a Partition; auto.
+    apply fn_partition_intro; destruct Partition; auto.
+    rewrite NoDup_cons_iff in n0; destruct n0; auto.
+    intros b x y in_x in_y.
+    apply e; apply in_cons; auto.
+  Qed.
 
   Inductive fn_partition_inverse (A: Type) (l: list A) (f: A -> list A) (f_inv: A -> A) :=
   | fn_partition_inverse_intro:
@@ -1421,7 +1535,6 @@ Section finite_groups.
     apply fn_partition_inverse_intro.
     destruct H0; auto.
   Qed.
-
 
   (* func_pair objects func_pair f a *)
   (* fst (func_pair f a) = a *)
@@ -1442,34 +1555,8 @@ Section finite_groups.
   Arguments fpair_intro {A} _ _.
   Hint Constructors fpair.
 
-  (* TODO: determine what n should be here *)
-  Theorem unique_cosets_is_partition  (G: finite_group) (H: subgroup G) group_eq_dec n:
-    fn_partition G (unique_cosets G H group_eq_dec) (finite_coset G H) n.
-  Proof.
-    apply fn_partition_intro.
-    - unfold unique_cosets.
-  Admitted.
-
   Definition expand_partition (A: Type) (l: list A) (f: A -> list A) (f_inv: A -> A) :=
     flat_map (fun (x : A) => map (fun y => fpair_intro f_inv y) (f x)) l.
-
-(*
-  Definition expand_partition (A: Type) (l: list A) (f: A -> list A) :=
-    flat_map (fun (x : A) => map (fun y => pair x y) (f x)) l.
- *)
-    Check (let G := klein_group_finite in
-          let H := klein_subgroup_X in
-          let group_eq_dec := klein_group_eq_decidable in
-          let f := finite_coset G H in
-          let f_inv := canonical_right_coset G H in
-          expand_partition G (unique_cosets G H group_eq_dec) f f_inv).
-
-  Compute (let G := klein_group_finite in
-          let H := klein_subgroup_X in
-          let group_eq_dec := klein_group_eq_decidable in
-          let f := finite_coset G H in
-          let f_inv := canonical_right_coset G H in
-          (map (fpair_fst G f_inv) (expand_partition G (unique_cosets G H group_eq_dec) f f_inv))).
 
   Lemma in_not_append (A: Type): forall (l1 l2: list A) a,
       ~ In a l1 -> ~ In a l2 -> ~ In a (l1 ++ l2).
@@ -1515,8 +1602,8 @@ Section finite_groups.
     fn_partition_inverse A l f f_inv ->
     NoDup (expand_partition A l f f_inv).
   Proof.
-    intros [l_NoDup NoOverlap _ NoRepeat _].
-    intros PartitionInverse.
+    (*intros [l_NoDup NoOverlap _ NoRepeat _].*)
+    intros Partition PartitionInverse.
     unfold expand_partition.
     rewrite flat_map_concat_map.
     remember (fun x : A => map (fun y : A => fpair_intro f_inv y) (f x)) as inj.
@@ -1524,9 +1611,9 @@ Section finite_groups.
     apply NoDup_nil.
     apply NoDup_append.
     rewrite Heqinj; apply Injective_map_NoDup;
-      [intros x y H; inversion H | apply NoRepeat]; auto.
+      [intros x y H; inversion H | apply Partition]; auto.
     apply IHl.
-    apply NoDup_cons_iff in l_NoDup; destruct l_NoDup; auto.
+    apply (fn_partition_cons A l f n a); auto.
     apply fn_partition_inverse_cons in PartitionInverse; auto.
     intros q.
     destruct q as [x].
@@ -1544,9 +1631,13 @@ Section finite_groups.
     inversion d_def.
     rewrite H1 in a_in.
     rewrite H2 in d_in.
-    rewrite (NoOverlap _ _ _ a_in d_in) in l_NoDup.
+    destruct Partition as [l_NoDup NoOverlap _ _ _].
+    rewrite (NoOverlap x a d) in l_NoDup; auto.
     rewrite NoDup_cons_iff in l_NoDup.
+    (* TODO: pretty this up *)
     destruct l_NoDup; auto.
+    simpl; auto.
+    simpl; right; auto.
   Qed.
 
   Lemma in_not_exists_in_empty_list (A: Type): ~ (exists a : A, In a []).
@@ -1651,23 +1742,159 @@ Section finite_groups.
     intros.
     simpl; reflexivity.
     intros f f_inv n.
-    intros [l_NoDup NoOverlap SameLength NoRepeat EveryElementInPartition].
-    intros PartitionInverse.
+    intros Partition PartitionInverse.
     simpl.
-    rewrite app_length, map_length, SameLength.
-    Search (_ + _ = _ + _).
+    rewrite app_length, map_length.
+    assert (length (f a) = n); destruct Partition; auto.
+    rewrite H0.
     rewrite Nat.add_cancel_l.
     apply IHl; auto.
+    apply (fn_partition_cons A l f n a); auto.
     apply fn_partition_intro; auto.
-    rewrite NoDup_cons_iff in l_NoDup; destruct l_NoDup; auto.
     apply fn_partition_inverse_cons in PartitionInverse; auto.
   Qed.
+
+  Definition unique_cosets (G: finite_group) (H: subgroup G) (group_eq_dec: group_eq_decidable G) :=
+    fold_right
+      (set_add group_eq_dec)
+      (empty_set G)
+      (map (canonical_right_coset G H) (seq G)).
+
+    Check (let G := klein_group_finite in
+          let H := klein_subgroup_X in
+          let group_eq_dec := klein_group_eq_decidable in
+          let f := finite_coset G H in
+          let f_inv := canonical_right_coset G H in
+          expand_partition G (unique_cosets G H group_eq_dec) f f_inv).
+
+  Compute (let G := klein_group_finite in
+          let H := klein_subgroup_X in
+          let group_eq_dec := klein_group_eq_decidable in
+          let f := finite_coset G H in
+          let f_inv := canonical_right_coset G H in
+          (map (fpair_fst G f_inv) (expand_partition G (unique_cosets G H group_eq_dec) f f_inv))).
+
+  Lemma fold_set_add_in (A: Type) (l: list A) (eq_dec: forall (x y : A), {x = y} + {x <> y}):
+    forall c, In c (fold_right (set_add eq_dec) (empty_set A) l) <-> In c l.
+  Proof.
+    induction l; intros c.
+    - simpl; tauto.
+    - simpl.
+      rewrite set_add_iff.
+      split; intros Q; destruct Q; auto; right; apply IHl; auto.
+  Qed.
+
+  Lemma fold_set_NoDup (A: Type) (l: list A) (eq_dec: forall (x y : A), {x = y} + {x <> y}):
+    NoDup (fold_right (set_add eq_dec) (empty_set A) l).
+  Proof.
+    induction l.
+    - unfold empty_set; simpl; apply NoDup_nil.
+    - simpl; apply set_add_nodup; auto.
+  Qed.
+
+  Lemma unique_cosets_in (G: finite_group) (H: finite_subgroup G) group_eq_dec:
+    forall c, In c (unique_cosets G H group_eq_dec) -> (canonical_right_coset G H c) = c.
+  Proof.
+    intros c.
+    unfold unique_cosets.
+    intros In_fold; apply fold_set_add_in in In_fold.
+    rewrite in_map_iff in In_fold.
+    destruct In_fold as [d [def_d _]].
+    apply (canonical_right_coset_unique _ _ _ d); auto.
+  Qed.
+
+  Lemma unique_cosets_in2 (G: finite_group) (H: finite_subgroup G) group_eq_dec:
+    forall d : G, In (canonical_right_coset G H d) (unique_cosets G H group_eq_dec).
+  Proof.
+    intros d.
+    unfold unique_cosets.
+    remember (canonical_right_coset G H d) as g.
+    rewrite fold_set_add_in.
+    rewrite in_map_iff.
+    exists d; split; [ | apply seq_listing]; auto.
+  Qed.
+
+  Lemma canonical_cosets (G: finite_group) (H: finite_subgroup G):
+    forall a b c,
+      canonical_right_coset G H a = a ->
+      canonical_right_coset G H b = b ->
+      is_mem G (right_coset G H a) c ->
+      is_mem G (right_coset G H b) c ->
+      a = b.
+  Proof.
+    intros a b c CanonicalA CanonicalB.
+    rewrite (canonical_right_coset_mem _ _ a CanonicalA c).
+    rewrite (canonical_right_coset_mem _ _ b CanonicalB c).
+    intros H0 H1.
+    rewrite <- H0, <- H1; reflexivity.
+  Qed.
+
+  Theorem unique_cosets_is_partition (G: finite_group) (H: finite_subgroup G) group_eq_dec:
+    fn_partition G
+                 (unique_cosets G H group_eq_dec)
+                 (finite_coset G H)
+                 (cardinality_subgroup G H).
+  Proof.
+    apply fn_partition_intro.
+    - apply fold_set_NoDup.
+    - intros b x y x_def y_def.
+      apply (unique_cosets_in G H group_eq_dec x) in x_def; auto.
+      apply (unique_cosets_in G H group_eq_dec y) in y_def; auto.
+      unfold finite_coset.
+      rewrite <- x_def, <- y_def at 1.
+      repeat rewrite filter_In.
+      intros [_ Mem1] [_ Mem2].
+      assert (exists b, is_mem G (right_coset G H (canonical_right_coset G H x)) b /\
+                        is_mem G (right_coset G H (canonical_right_coset G H y)) b) as Q.
+      exists b; auto.
+      destruct Q as [q intersection].
+      apply (canonical_cosets G H _ _ q); auto; try rewrite <- x_def; try rewrite <- y_def; tauto.
+    - apply finite_coset_same_size_as_subgroup.
+    - apply finite_coset_NoDup.
+    - intros a; exists a; unfold finite_coset; rewrite filter_In.
+      split; [apply (seq_listing G) | apply coset_reflexive ].
+  Qed.
+
+  Theorem unique_cosets_inverse_partition (G: finite_group) (H: finite_subgroup G) group_eq_dec:
+    fn_partition_inverse G
+                         (unique_cosets G H group_eq_dec)
+                         (finite_coset G H)
+                         (canonical_right_coset G H).
+  Proof.
+    apply fn_partition_inverse_intro.
+    intros e.
+    unfold finite_coset.
+    apply filter_In.
+    split; [apply seq_listing | auto].
+    fold (is_mem _ (right_coset G H (canonical_right_coset G H e)) e).
+    apply canonical_right_coset_always_mem.
+  Qed.
+
 
   Theorem lagrange_theorem : forall (G: finite_group) (H: finite_subgroup G) group_eq_dec,
       length (unique_cosets G H group_eq_dec) * cardinality_subgroup G H =
       cardinality G.
   Proof.
-    (* blah *)
-  Admitted.
+    intros G H group_eq_dec.
+    unfold cardinality.
+    remember (unique_cosets_is_partition G H group_eq_dec) as cosets_fn_partition.
+    remember (unique_cosets_inverse_partition G H group_eq_dec) as cosets_fn_partition_inverse.
+    rewrite <- (expand_partition_same_size
+                  _ (unique_cosets G H group_eq_dec)
+                  (finite_coset G H)
+                  (canonical_right_coset G H)
+                  (cardinality_subgroup G H) (seq G)
+                  (seq_listing G)
+                  cosets_fn_partition
+                  cosets_fn_partition_inverse); auto.
+    rewrite <- (expand_partition_length
+                  _ (unique_cosets G H group_eq_dec)
+                  (finite_coset G H)
+                  (canonical_right_coset G H)
+                  (cardinality_subgroup G H)); auto.
+    (* must show canonical subsets maps to the list now *)
+    apply unique_cosets_in2.
+  Qed.
+
 
 End finite_groups.
