@@ -1378,7 +1378,14 @@ Section finite_groups.
   Lemma coset_repr_always_mem (G: finite_group) (H: subgroup G):
     forall g d,
       coset_repr G H g = Some d -> is_mem _ (right_coset G H d) g.
-  Admitted.
+  Proof.
+    intros g d.
+    unfold coset_repr.
+    rewrite hd_error_cons.
+    intros [l l_def].
+    apply filter_inv in l_def.
+    rewrite coset_swap; auto.
+  Qed.
 
   Lemma canonical_right_coset_mem (G: finite_group) (H: subgroup G) g :
     canonical_right_coset G H g = g ->
@@ -1401,7 +1408,15 @@ Section finite_groups.
 
   Lemma canonical_right_coset_always_mem (G: finite_group) (H: subgroup G):
     forall g, is_mem _ (right_coset G H (canonical_right_coset G H g)) g.
-  Admitted.
+  Proof.
+    intros g.
+    unfold canonical_right_coset.
+    remember (coset_repr G H g) as q.
+    destruct q.
+    apply coset_repr_always_mem; auto.
+    remember (coset_repr_always_some G H g) as Q.
+    contradict HeqQ; auto.
+  Qed.
 
   Lemma coset_reprs_unique (G: finite_group) (H: subgroup G):
     forall c d,
