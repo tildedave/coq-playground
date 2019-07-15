@@ -1450,40 +1450,29 @@ Section finite_groups.
     intros g.
     remember (fun c => c <*> (inv g)) as f.
     (* h \in H, take this to a coset of g *)
-    (* every member of the coset of Hg = h * g = a *)
-    remember (fun h => (h <*> g)) as f_inv.
-    apply (NoDup_listinjection_length _ _ _ _ f f_inv).
-    - apply finite_coset_NoDup.
-    - apply subgroup_filter_NoDup; apply seq_listing.
-      (* show f is listinjective *)
+    apply (listisomorphism_NoDup_same_length _ _ f);
+      [ | apply finite_coset_NoDup | apply subgroup_filter_NoDup; apply seq_listing].
+    (* show this is an isomorphism *)
+    split; try split.
     - rewrite Heqf.
       intros x y x_in y_in.
-      apply (group_cancel_r _ (inv g)); auto.
-    (* show f' is listinjective *)
-    - rewrite Heqf_inv.
-      intros x y x_in y_in.
-      apply (group_cancel_r _ g x y); auto.
-    (* show cosets maps into subgroup *)
-    - intros c.
-      unfold finite_coset.
-      unfold subgroup_filter.
-      repeat rewrite filter_In.
+      apply (group_cancel_r _ (inv g)).
+    - unfold ListSurjective.
       rewrite Heqf.
-      unfold right_coset.
-      repeat split; try apply seq_listing;destruct H0; auto.
-    (* show subgroup maps back into the cosets *)
-    - intros d.
-      unfold finite_coset.
+      intros c.
       unfold subgroup_filter.
-      repeat rewrite filter_In.
-      rewrite Heqf_inv.
+      rewrite filter_In.
+      intros [_ c_subgroup].
+      exists (c <*> g).
+      unfold finite_coset.
+      rewrite filter_In.
       unfold right_coset.
       autorewrite with core.
-      repeat split; try apply seq_listing; destruct H0; auto.
-    (* functions are inverses of one another *)
-    - intros x; rewrite Heqf, Heqf_inv.
-      autorewrite with core.
-      reflexivity.
+      repeat split; try apply seq_listing; auto.
+    - intros d.
+      unfold finite_coset, subgroup_filter, right_coset.
+      rewrite Heqf; repeat rewrite filter_In.
+      repeat split; try apply seq_listing; tauto.
   Qed.
 
   Definition group_eq_decidable (G: Group) := forall (x y : G), {x = y} + {x <> y}.
@@ -1544,47 +1533,9 @@ Section finite_groups.
   Arguments fpair_intro {A} _ _.
   Hint Constructors fpair.
 
+
   Definition expand_partition (A: Type) (l: list A) (f: A -> list A) (f_inv: A -> A) :=
     flat_map (fun (x : A) => map (fun y => fpair_intro f_inv y) (f x)) l.
-
-  Lemma in_not_append (A: Type): forall (l1 l2: list A) a,
-      ~ In a l1 -> ~ In a l2 -> ~ In a (l1 ++ l2).
-  Proof.
-    induction l1; intros l2 b a_not_in_l1 a_not_in_l2.
-    - simpl; auto.
-    - intros b_in_list.
-      apply in_app_or in b_in_list.
-      destruct b_in_list as [b_first | b_rest]; auto.
-  Qed.
-
-  Lemma NoDup_append: forall (A: Type) (l1 l2: list A),
-      NoDup l1 -> NoDup l2 -> (forall a, In a l1 -> ~ In a l2) -> NoDup (l1 ++ l2).
-  Proof.
-    intros A.
-    induction l1; intros l2 l1_NoDup l2_NoDup NotInL2; simpl; auto.
-    apply NoDup_cons; apply NoDup_cons_iff in l1_NoDup;
-      destruct l1_NoDup;
-      [ apply in_not_append, NotInL2 | apply IHl1 ]; simpl; auto.
-    intros; apply NotInL2; apply in_cons; auto.
-  Qed.
-
-  Lemma in_concat_map: forall (A B: Type) (f: A -> list B) b (l: list A),
-      In b (concat (map f l)) <-> exists a, In b (f a) /\ In a l.
-  Proof.
-    intros A B f b.
-    induction l; simpl; split.
-    - intros H; contradict H; auto.
-    - intros H; destruct H; tauto.
-    - intros In_b.
-      apply in_app_or in In_b.
-      destruct In_b as [b_in_f_a | b_in_rest];
-        [exists a | apply IHl in b_in_rest; destruct b_in_rest as [d def_d]; exists d];
-        tauto.
-    - intros [a0 [H1 H2]].
-      apply in_or_app.
-      destruct H2 as [a_first | a_rest];
-        [left; rewrite a_first | right; apply IHl; exists a0]; auto.
-  Qed.
 
   Theorem expand_partition_NoDup (A: Type) (l: list A) (f: A -> list A) (f_inv: A -> A) n:
     fn_partition A l f n ->
@@ -1627,12 +1578,6 @@ Section finite_groups.
     destruct l_NoDup; auto.
     simpl; auto.
     simpl; right; auto.
-  Qed.
-
-  Lemma in_not_exists_in_empty_list (A: Type): ~ (exists a : A, In a []).
-  Proof.
-    intros NonEmpty.
-    destruct NonEmpty as [q NonEmpty]; apply in_nil in NonEmpty; auto.
   Qed.
 
   Theorem expand_partition_in  (A: Type) (l: list A) f f_inv n:
@@ -1685,6 +1630,30 @@ Section finite_groups.
     simpl; exists a; tauto.
   Qed.
 
+  Theorem expand_partition_isomorphism (A: Type) (l: list A) f f_inv (seq_A: list A) n:
+    Listing seq_A ->
+    fn_partition A l f n ->
+    fn_partition_inverse A l f f_inv ->
+    (forall d, In (f_inv d) l) ->
+    ListIsomorphism (fpair_snd _ _) (expand_partition A l f f_inv) seq_A.
+  Proof.
+    intros seq_listing.
+    intros [l_NoDup NoOverlap SameLength NoRepeat EveryElementInPartition].
+    intros PartitionInverse.
+    try repeat split.
+    - simple destruct x; simple destruct y; simpl.
+      intros.
+      rewrite H3.
+      reflexivity.
+    - unfold ListSurjective.
+      intros d d_in_seq.
+      exists (fpair_intro f_inv d).
+      simpl.
+      rewrite (expand_partition_listing _ _ _ _ seq_A n); auto.
+      apply fn_partition_intro; auto.
+    - simple destruct d; simpl; intros; apply seq_listing.
+  Qed.
+
   (*
      expand_partition A l f is A * A
      |
@@ -1705,21 +1674,11 @@ Section finite_groups.
     intros [l_NoDup NoOverlap SameLength NoRepeat EveryElementInPartition].
     intros PartitionInverse.
     intros InverseWitness.
-    apply (NoDup_injection_length _ _ _ _ (fpair_snd _ _) (fun x => fpair_intro f_inv x)).
+    apply (listisomorphism_NoDup_same_length _ _ (fpair_snd _ _) _ seq_A).
+    apply (expand_partition_isomorphism _ _ _ _ _ n); auto.
+    apply fn_partition_intro; auto.
     - apply (expand_partition_NoDup _ _ _ _ n); try apply fn_partition_intro; auto.
     - apply Listing.
-    - simple destruct x; simple destruct y; simpl.
-      intros h H; rewrite H; reflexivity.
-    - intros x y H; inversion H; reflexivity.
-    - apply (expand_partition_listing _ _ _ _ _ n); auto.
-      apply fn_partition_intro; auto.
-    - intros d; rewrite expand_partition_in; auto.
-      simpl.
-      split.
-      intros; exists d; tauto.
-      intros; apply Listing.
-      apply fn_partition_intro; auto.
-    - simpl; tauto.
   Qed.
 
   Theorem expand_partition_length (A: Type): forall l f f_inv n,
@@ -1865,6 +1824,4 @@ Section finite_groups.
     (* must show canonical subsets maps to the list now *)
     apply unique_cosets_in2.
   Qed.
-
-
 End finite_groups.

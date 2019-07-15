@@ -23,12 +23,28 @@ End hd_error.
 
 Section In.
 
+  Lemma in_not_exists_in_empty_list (A: Type): ~ (exists a : A, In a []).
+  Proof.
+    intros NonEmpty.
+    destruct NonEmpty as [q NonEmpty]; apply in_nil in NonEmpty; auto.
+  Qed.
+
   Lemma in_concat : forall A (l1 l2 : list A) (a b : A),
       In a (l1 ++ l2) -> In a (l1 ++ b :: l2).
   Proof.
     intros A l1 l2 a b.
     induction l1; simpl; intros H; auto.
     destruct H; [left | apply IHl1 in H]; auto.
+  Qed.
+
+  Lemma in_not_append (A: Type): forall (l1 l2: list A) a,
+      ~ In a l1 -> ~ In a l2 -> ~ In a (l1 ++ l2).
+  Proof.
+    induction l1; intros l2 b a_not_in_l1 a_not_in_l2.
+    - simpl; auto.
+    - intros b_in_list.
+      apply in_app_or in b_in_list.
+      destruct b_in_list as [b_first | b_rest]; auto.
   Qed.
 
   Lemma in_shuffle : forall A (l1 l2 : list A) (a b : A),
@@ -288,6 +304,17 @@ End ListFunctions.
 
 Section NoDup.
 
+  Lemma NoDup_append: forall (A: Type) (l1 l2: list A),
+      NoDup l1 -> NoDup l2 -> (forall a, In a l1 -> ~ In a l2) -> NoDup (l1 ++ l2).
+  Proof.
+    intros A.
+    induction l1; intros l2 l1_NoDup l2_NoDup NotInL2; simpl; auto.
+    apply NoDup_cons; apply NoDup_cons_iff in l1_NoDup;
+      destruct l1_NoDup;
+      [ apply in_not_append, NotInL2 | apply IHl1 ]; simpl; auto.
+    intros; apply NotInL2; apply in_cons; auto.
+  Qed.
+
   Lemma NoDup_cons_reduce (A: Type): forall (l: list A) a, NoDup (a :: l) -> NoDup l.
   Proof.
     intros l a.
@@ -333,29 +360,6 @@ Section NoDup.
     apply f_Injective in H; simpl; auto.
     rewrite <- H in c_in_l1.
     apply NoDup_cons_iff in NoDup_l1; destruct NoDup_l1; contradict H0; auto.
-  Qed.
-
-  Lemma NoDup_listinjection_length : forall A B (l1: list A) (l2: list B) f f_inv,
-      NoDup l1 ->
-      NoDup l2 ->
-      ListInjective f l1 ->
-      ListInjective f_inv l2 ->
-      (forall c, In c l1 <-> In (f c) l2) ->
-      (forall d, In d l2 <-> In (f_inv d) l1) ->
-      (forall e, f (f_inv e) = e) ->
-      length l1 = length l2.
-  Proof.
-    intros A B l1 l2 f f_inv NoDup_l1 NoDup_l2 f_Injective f_inv_Injective
-           Injection InverseInjection f_Inverse.
-    cut (length l1 <= length l2).
-    cut (length l2 <= length l1).
-    intros; auto with arith.
-    Focus 2.
-    apply (NoDup_listinjection_length_lte _ _ l1 l2 f); auto.
-    intros; apply Injection; auto.
-    apply (NoDup_listinjection_length_lte _ _ l2 l1 f_inv); auto.
-    intros; apply Injection; auto.
-    rewrite f_Inverse; auto.
   Qed.
 
   Lemma listsurjective_NoDup_bounds_length (A B: Type):
@@ -452,3 +456,25 @@ Section fold_set_add.
   Qed.
 
 End fold_set_add.
+
+Section concat_map.
+
+  Lemma in_concat_map: forall (A B: Type) (f: A -> list B) b (l: list A),
+      In b (concat (map f l)) <-> exists a, In b (f a) /\ In a l.
+  Proof.
+    intros A B f b.
+    induction l; simpl; split.
+    - intros H; contradict H; auto.
+    - intros H; destruct H; tauto.
+    - intros In_b.
+      apply in_app_or in In_b.
+      destruct In_b as [b_in_f_a | b_in_rest];
+        [exists a | apply IHl in b_in_rest; destruct b_in_rest as [d def_d]; exists d];
+        tauto.
+    - intros [a0 [H1 H2]].
+      apply in_or_app.
+      destruct H2 as [a_first | a_rest];
+        [left; rewrite a_first | right; apply IHl; exists a0]; auto.
+  Qed.
+
+End concat_map.
