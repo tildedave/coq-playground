@@ -277,18 +277,12 @@ Section ListFunctions.
     auto.
   Qed.
 
-  Lemma listsurjective_shows_length (A B: Type):
-    forall (f: A -> B) l1 l2, ListSurjective f l2 l1 -> NoDup l2 -> length l2 <= length l1.
-  Proof.
-    intros f l1 l2 l2_NoDup Surjective.
-    replace (length l1) with (length (map f l1)) by apply map_length.
-    apply NoDup_incl_length; [ | apply listsurjective_shows_incl]; auto.
-  Qed.
-
   Definition ListIsomorphism (A B: Type) (f: A -> B) (l1: list A) (l2: list B) :=
-    ListInjective f l1 /\ ListSurjective f l2 l1.
+    ListInjective f l1 /\ ListSurjective f l2 l1 /\
+    (forall d, In d l1 -> In (f d) l2).
 
   Global Arguments ListSurjective [A] [B] _ _.
+  Global Arguments ListIsomorphism [A] [B] _ _.
 
 End ListFunctions.
 
@@ -362,6 +356,29 @@ Section NoDup.
     apply (NoDup_listinjection_length_lte _ _ l2 l1 f_inv); auto.
     intros; apply Injection; auto.
     rewrite f_Inverse; auto.
+  Qed.
+
+  Lemma listsurjective_NoDup_bounds_length (A B: Type):
+    forall (f: A -> B) l1 l2, ListSurjective f l2 l1 -> NoDup l2 -> length l2 <= length l1.
+  Proof.
+    intros f l1 l2 l2_NoDup Surjective.
+    replace (length l1) with (length (map f l1)) by apply map_length.
+    apply NoDup_incl_length; [ | apply listsurjective_shows_incl]; auto.
+  Qed.
+
+  Lemma listisomorphism_NoDup_same_length (A B: Type):
+    forall (f: A -> B) l1 l2,
+      ListIsomorphism f l1 l2 ->
+      NoDup l1 ->
+      NoDup l2 ->
+      length l1 = length l2.
+  Proof.
+    intros f l1 l2 [f_Injective [f_Surjective f_Covers]] l1_NoDup l2_NoDup.
+    assert (length l1 <= length l2).
+    apply (NoDup_listinjection_length_lte _ _ l1 l2 f); auto.
+    assert (length l2 <= length l1).
+    apply (listsurjective_NoDup_bounds_length _ _ f l1 l2); auto.
+    omega.
   Qed.
 
 End NoDup.
