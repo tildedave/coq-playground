@@ -1,5 +1,25 @@
-Require Import List Bool FinFun Omega.
+Require Import List  ListSet Bool FinFun Omega.
 Import ListNotations.
+
+Section hd_error.
+  Lemma hd_error_nil: forall A (l: list A), hd_error l = None <-> l = [].
+  Proof.
+    intros A l.
+    compute; destruct l; split; auto; intros H; contradict H; discriminate.
+  Qed.
+
+  Lemma hd_error_cons (A: Type): forall l1 (a : A),
+      hd_error l1 = Some a <-> exists l2, l1 = a :: l2.
+  Proof.
+    intros l1 a.
+    split.
+    - unfold hd_error.
+      destruct l1; intros H; auto.
+      contradict H; discriminate.
+      inversion H; rewrite <- H1; exists l1; reflexivity.
+    - intros H; destruct H as [l2 l2_def]; rewrite l2_def; simpl; reflexivity.
+  Qed.
+End hd_error.
 
 Section In.
 
@@ -75,7 +95,6 @@ Section filter.
     destruct (bool_dec b true); auto.
     apply not_true_is_false in n; auto.
   Qed.
-
 
   (* random filter lemmas since the standard lib doesn't have much *)
   Lemma filter_empty_head: forall (A: Type) f (l: list A) a, filter f (a :: l) = [] -> f a <> true.
@@ -174,13 +193,117 @@ Section filter.
     simpl.
     reflexivity.
   Qed.
+
+  Lemma filter_eq (A: Type) (f g: A -> bool) :
+    forall l, (forall a, f a = g a) -> filter f l = filter g l.
+  Proof.
+    induction l; intros fg_equiv; simpl.
+    - reflexivity.
+    - rewrite fg_equiv, IHl; auto.
+  Qed.
 End filter.
 
+Section ListFunctions.
+  (* We will use ListInjective rather than Injective for NoDup equality *)
+
+  Definition ListInjective (A B: Type) (f: A -> B) (l: list A) :=
+    (forall x y: A, In x l -> In y l -> f x = f y -> x = y).
+
+  Global Arguments ListInjective [A] [B] _ _.
+
+  Lemma injective_implies_listinjective (A B: Type):
+    forall (f: A -> B) l, Injective f -> ListInjective f l.
+  Proof.
+    intros f l Injective.
+    unfold ListInjective.
+    intros; apply Injective; auto.
+  Qed.
+
+  Lemma listinjective_cons (A B: Type):
+    forall (f: A -> B) l a, ListInjective f (a::l) -> ListInjective f l.
+  Proof.
+    intros.
+    unfold ListInjective in H.
+    unfold ListInjective.
+    intros x y x_in y_in.
+    apply H; simpl; auto.
+  Qed.
+
+  Definition ListSurjective (A B: Type) (f: A -> B) (l: list B) (l': list A) :=
+    (forall x: B, In x l -> exists y, In y l' /\ f y = x).
+
+  Global Arguments ListSurjective [A] [B] _ _.
+
+  Lemma listsurjective_cons (A B: Type):
+    forall (f: A -> B) l l' a, ListSurjective f (a::l) l' -> ListSurjective f l l'.
+  Proof.
+    intros.
+    unfold ListSurjective in H.
+    unfold ListSurjective; intros; apply H; simpl; auto.
+  Qed.
+
+  Lemma listsurjective_cons2 (A B: Type):
+    forall (f: A -> B) l l' a, ListSurjective f (f a :: l) l' -> ListSurjective f l l'.
+  Proof.
+    intros f l l' a H.
+    unfold ListSurjective.
+    intros c c_in.
+    apply (H c).
+    simpl; auto.
+  Qed.
+
+  Lemma listsurjective_incl1 (A B: Type):
+    forall (f: A -> B) l xs ys, incl ys xs -> ListSurjective f l ys -> ListSurjective f l xs.
+  Proof.
+    intros f l xs ys list_incl ys_surjective.
+    unfold ListSurjective.
+    intros d.
+    intros.
+    destruct (ys_surjective d) as [q [q_in_y def_q]]; auto.
+    exists q.
+    split; auto.
+  Qed.
+
+  Lemma listsurjective_shows_incl (A B: Type):
+    forall (f: A -> B) l1 l2, ListSurjective f l2 l1 -> incl l2 (map f l1).
+  Proof.
+    intros f l1 l2 Surjective.
+    intros d.
+    rewrite in_map_iff.
+    intros d_in.
+    apply (Surjective d) in d_in.
+    destruct d_in as [q [def_q q_in]].
+    exists q.
+    auto.
+  Qed.
+
+  Lemma listsurjective_shows_length (A B: Type):
+    forall (f: A -> B) l1 l2, ListSurjective f l2 l1 -> NoDup l2 -> length l2 <= length l1.
+  Proof.
+    intros f l1 l2 l2_NoDup Surjective.
+    replace (length l1) with (length (map f l1)) by apply map_length.
+    apply NoDup_incl_length; [ | apply listsurjective_shows_incl]; auto.
+  Qed.
+
+  Definition ListIsomorphism (A B: Type) (f: A -> B) (l1: list A) (l2: list B) :=
+    ListInjective f l1 /\ ListSurjective f l2 l1.
+
+  Global Arguments ListSurjective [A] [B] _ _.
+
+End ListFunctions.
+
 Section NoDup.
-  Lemma NoDup_injection_length_lte : forall A B (l1: list A) (l2: list B) f,
+
+  Lemma NoDup_cons_reduce (A: Type): forall (l: list A) a, NoDup (a :: l) -> NoDup l.
+  Proof.
+    intros l a.
+    rewrite NoDup_cons_iff; tauto.
+  Qed.
+
+  Lemma NoDup_listinjection_length_lte : forall A B (l1: list A) (l2: list B) f,
       NoDup l1 ->
       NoDup l2 ->
-      Injective f ->
+      ListInjective f l1 ->
       (forall c, In c l1 -> In (f c) l2) ->
       length l1 <= length l2.
   Proof.
@@ -196,13 +319,12 @@ Section NoDup.
     rewrite l2_def.
     replace (length (l1' ++ f a :: l3')) with (S (length (l1' ++ l3'))).
     simpl.
-    Search (_ <= _ -> S _ <= S _).
     apply le_n_S.
     apply (IHl1 (l1' ++ l3') f).
     apply NoDup_cons_iff in NoDup_l1; destruct NoDup_l1; auto.
     rewrite l2_def in NoDup_l2; apply NoDup_remove in NoDup_l2.
     destruct NoDup_l2; auto.
-    assumption.
+    apply (listinjective_cons _ _ _ _ a); auto.
     2: autorewrite with list; simpl; auto with arith.
     (* show if c in l1, then f c is in l1' ++ l3'.  required to apply IH *)
     intros c.
@@ -214,16 +336,16 @@ Section NoDup.
     destruct (in_inv fc_in_l2).
     (* this scenario is impossible because f is injective *)
     Focus 2. assumption.
-    apply f_Injective in H.
+    apply f_Injective in H; simpl; auto.
     rewrite <- H in c_in_l1.
     apply NoDup_cons_iff in NoDup_l1; destruct NoDup_l1; contradict H0; auto.
   Qed.
 
-  Lemma NoDup_injection_length : forall A B (l1: list A) (l2: list B) f f_inv,
+  Lemma NoDup_listinjection_length : forall A B (l1: list A) (l2: list B) f f_inv,
       NoDup l1 ->
       NoDup l2 ->
-      Injective f ->
-      Injective f_inv ->
+      ListInjective f l1 ->
+      ListInjective f_inv l2 ->
       (forall c, In c l1 <-> In (f c) l2) ->
       (forall d, In d l2 <-> In (f_inv d) l1) ->
       (forall e, f (f_inv e) = e) ->
@@ -235,13 +357,11 @@ Section NoDup.
     cut (length l2 <= length l1).
     intros; auto with arith.
     Focus 2.
-    apply (NoDup_injection_length_lte _ _ l1 l2 f); auto.
+    apply (NoDup_listinjection_length_lte _ _ l1 l2 f); auto.
     intros; apply Injection; auto.
-    apply (NoDup_injection_length_lte _ _ l2 l1 f_inv); auto.
+    apply (NoDup_listinjection_length_lte _ _ l2 l1 f_inv); auto.
     intros; apply Injection; auto.
     rewrite f_Inverse; auto.
-  (* we need to apply the reverse of f, but I'm not sure how to do that
-       because of the universe mismatch *)
   Qed.
 
 End NoDup.
@@ -293,3 +413,25 @@ Section partition.
   Qed.
 
 End partition.
+
+Section fold_set_add.
+
+  Lemma fold_set_add_in (A: Type) (l: list A) (eq_dec: forall (x y : A), {x = y} + {x <> y}):
+    forall c, In c (fold_right (set_add eq_dec) (empty_set A) l) <-> In c l.
+  Proof.
+    induction l; intros c.
+    - simpl; tauto.
+    - simpl.
+      rewrite set_add_iff.
+      split; intros Q; destruct Q; auto; right; apply IHl; auto.
+  Qed.
+
+  Lemma fold_set_NoDup (A: Type) (l: list A) (eq_dec: forall (x y : A), {x = y} + {x <> y}):
+    NoDup (fold_right (set_add eq_dec) (empty_set A) l).
+  Proof.
+    induction l.
+    - unfold empty_set; simpl; apply NoDup_nil.
+    - simpl; apply set_add_nodup; auto.
+  Qed.
+
+End fold_set_add.

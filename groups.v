@@ -1292,24 +1292,6 @@ Section finite_groups.
   Definition coset_repr (G: finite_group) (H: subgroup G) g :=
     hd_error (filter (right_coset G H g) (seq G)).
 
-  Lemma hd_error_nil: forall A (l: list A), hd_error l = None <-> l = [].
-  Proof.
-    intros A l.
-    compute; destruct l; split; auto; intros H; contradict H; discriminate.
-  Qed.
-
-  Lemma hd_error_cons (A: Type): forall l1 (a : A),
-      hd_error l1 = Some a <-> exists l2, l1 = a :: l2.
-  Proof.
-    intros l1 a.
-    split.
-    - unfold hd_error.
-      destruct l1; intros H; auto.
-      contradict H; discriminate.
-      inversion H; rewrite <- H1; exists l1; reflexivity.
-    - intros H; destruct H as [l2 l2_def]; rewrite l2_def; simpl; reflexivity.
-  Qed.
-
   Theorem coset_repr_always_some (G: finite_group) (H: subgroup G) :
     forall g, coset_repr G H g <> None.
   Proof.
@@ -1327,14 +1309,6 @@ Section finite_groups.
     | None => g
     | Some a => a
     end.
-
-  Lemma filter_eq (A: Type) (f g: A -> bool) :
-    forall l, (forall a, f a = g a) -> filter f l = filter g l.
-  Proof.
-    induction l; intros fg_equiv; simpl.
-    - reflexivity.
-    - rewrite fg_equiv, IHl; auto.
-  Qed.
 
   (* everything that is a member of the coset has the same canonical_right_coset value *)
   Lemma coset_repr_mem (G: finite_group) (H: subgroup G) g :
@@ -1478,16 +1452,16 @@ Section finite_groups.
     (* h \in H, take this to a coset of g *)
     (* every member of the coset of Hg = h * g = a *)
     remember (fun h => (h <*> g)) as f_inv.
-    apply (NoDup_injection_length _ _ _ _ f f_inv).
+    apply (NoDup_listinjection_length _ _ _ _ f f_inv).
     - apply finite_coset_NoDup.
     - apply subgroup_filter_NoDup; apply seq_listing.
-      (* show f is injective *)
+      (* show f is listinjective *)
     - rewrite Heqf.
-      intros x y Q'.
+      intros x y x_in y_in.
       apply (group_cancel_r _ (inv g)); auto.
-    (* show f' is injective *)
+    (* show f' is listinjective *)
     - rewrite Heqf_inv.
-      intros x y Q'.
+      intros x y x_in y_in.
       apply (group_cancel_r _ g x y); auto.
     (* show cosets maps into subgroup *)
     - intros c.
@@ -1789,24 +1763,6 @@ Section finite_groups.
           let f_inv := canonical_right_coset G H in
           (map (fpair_fst G f_inv) (expand_partition G (unique_cosets G H group_eq_dec) f f_inv))).
 
-  Lemma fold_set_add_in (A: Type) (l: list A) (eq_dec: forall (x y : A), {x = y} + {x <> y}):
-    forall c, In c (fold_right (set_add eq_dec) (empty_set A) l) <-> In c l.
-  Proof.
-    induction l; intros c.
-    - simpl; tauto.
-    - simpl.
-      rewrite set_add_iff.
-      split; intros Q; destruct Q; auto; right; apply IHl; auto.
-  Qed.
-
-  Lemma fold_set_NoDup (A: Type) (l: list A) (eq_dec: forall (x y : A), {x = y} + {x <> y}):
-    NoDup (fold_right (set_add eq_dec) (empty_set A) l).
-  Proof.
-    induction l.
-    - unfold empty_set; simpl; apply NoDup_nil.
-    - simpl; apply set_add_nodup; auto.
-  Qed.
-
   Lemma unique_cosets_in (G: finite_group) (H: finite_subgroup G) group_eq_dec:
     forall c, In c (unique_cosets G H group_eq_dec) -> (canonical_right_coset G H c) = c.
   Proof.
@@ -1884,7 +1840,6 @@ Section finite_groups.
     fold (is_mem _ (right_coset G H (canonical_right_coset G H e)) e).
     apply canonical_right_coset_always_mem.
   Qed.
-
 
   Theorem lagrange_theorem : forall (G: finite_group) (H: finite_subgroup G) group_eq_dec,
       length (unique_cosets G H group_eq_dec) * cardinality_subgroup G H =
