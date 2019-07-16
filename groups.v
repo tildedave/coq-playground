@@ -4,6 +4,7 @@ Require Import Coq.Classes.Equivalence.
 Require Import List.
 Require Import ListSet.
 Require Import ListUtils.
+Import ListNotations.
 
 Section group_definitions.
   Definition is_assoc (A: Set) (f: A -> A -> A) := forall a b c,
@@ -1481,177 +1482,180 @@ Section finite_groups.
   Proof.
     simple destruct x; simple destruct y; auto; right; discriminate.
   Defined.
+End finite_groups.
+
+Section fn_partitions.
+
+  Variable (A: Type).
+  Variable (f: A -> A).
+  Variable (l: list A).
+  Variable eq_dec: forall (x y: A), {x = y} + {x <> y}.
 
   (* TODO: try out a list-based partition, might be less annoying *)
-  Inductive fn_partition (A: Type) (l: list A) (f: A -> list A) n :=
+  Inductive fn_partition n :=
   | fn_partition_intro:
-      NoDup l ->
-      (forall b x y, In x l -> In y l -> In b (f x) -> In b (f y) -> x = y) ->
-      (forall x, length (f x) = n) ->
-      (forall a, NoDup (f a)) ->
-      (forall a, exists b, In a (f b)) ->
-      fn_partition A l f n.
+      Listing l ->
+      (forall x, length (filter (fun y => if eq_dec (f y) x then true else false) l) = n) ->
+      fn_partition n.
 
-  Lemma fn_partition_cons (A: Type) (l: list A) (f: A -> list A) n:
-    forall a, fn_partition A (a :: l) f n -> fn_partition A l f n.
-    intros a Partition; auto.
-    apply fn_partition_intro; destruct Partition; auto.
-    rewrite NoDup_cons_iff in n0; destruct n0; auto.
-    intros b x y in_x in_y.
-    apply e; apply in_cons; auto.
-  Qed.
+  (*
+  Definition expand_partition := map (fun (x : A) => pair (f x) x) l.
+   *)
 
-  Inductive fn_partition_inverse (A: Type) (l: list A) (f: A -> list A) (f_inv: A -> A) :=
-  | fn_partition_inverse_intro:
-      (forall e, In e (f (f_inv e))) ->
-      (*(forall d, In (f_inv d) l) ->*)
-      fn_partition_inverse A l f f_inv.
+  Definition partition_reprs := fold_right (set_add eq_dec) (empty_set A) (map f l).
+  Check fold_right.
 
-  Lemma fn_partition_inverse_cons (A: Type) (l: list A) (f: A -> list A) (f_inv: A -> A):
-    forall a, fn_partition_inverse A (a :: l) f f_inv -> fn_partition_inverse A l f f_inv.
-    intros; auto.
-    apply fn_partition_inverse_intro.
-    destruct H0; auto.
-  Qed.
+  Definition partition_elems a := (filter (fun x => if eq_dec (f x) a then true else false) l).
 
-  (* func_pair objects func_pair f a *)
-  (* fst (func_pair f a) = a *)
-  (* snd (func_pair f a) = (f a) *)
-
-  Inductive fpair (A: Type) (f: A -> A) :=
-  | fpair_intro: A -> fpair A f.
-
-  Definition fpair_fst (A: Type) (f: A -> A) (p: fpair A f) :=
-    match p with
-    | fpair_intro _ _ a => (f a)
-    end.
-  Definition fpair_snd (A: Type) (f: A -> A) (p: fpair A f) :=
-    match p with
-    | fpair_intro _ _ a => a
-    end.
-
-  Arguments fpair_intro {A} _ _.
-  Hint Constructors fpair.
-
-
-  Definition expand_partition (A: Type) (l: list A) (f: A -> list A) (f_inv: A -> A) :=
-    flat_map (fun (x : A) => map (fun y => fpair_intro f_inv y) (f x)) l.
-
-  Theorem expand_partition_NoDup (A: Type) (l: list A) (f: A -> list A) (f_inv: A -> A) n:
-    fn_partition A l f n ->
-    fn_partition_inverse A l f f_inv ->
-    NoDup (expand_partition A l f f_inv).
+  Lemma partition_reprs_NoDup: NoDup partition_reprs.
   Proof.
-    (*intros [l_NoDup NoOverlap _ NoRepeat _].*)
-    intros Partition PartitionInverse.
+    unfold partition_reprs.
+    induction l.
+    - unfold empty_set; simpl; apply NoDup_nil.
+    - simpl; apply set_add_nodup; auto.
+  Qed.
+
+  Lemma partition_reprs_in : forall a, Listing l -> In (f a) partition_reprs.
+  Proof.
+    intros a Listing.
+    unfold partition_reprs.
+    rewrite fold_set_add_in.
+    apply in_map, Listing.
+  Qed.
+
+  Lemma partition_elems_in : forall a b, In b (partition_elems a) -> f b = a.
+  Proof.
+    intros a b.
+    unfold partition_elems.
+    rewrite filter_In.
+    destruct (eq_dec (f b) a); auto.
+    intros [_ C]; contradict C; congruence.
+  Qed.
+
+  Lemma partition_elems_in2: forall a, Listing l -> In a (partition_elems (f a)).
+  Proof.
+    intros a Listing.
+    unfold partition_elems.
+    rewrite filter_In.
+    split; [apply Listing | destruct (eq_dec (f a) (f a)) ]; auto.
+  Qed.
+
+  Lemma partition_elems_NoDup n: forall a, fn_partition n -> NoDup (partition_elems a).
+  Proof.
+    intros a Partition; apply filter_NoDup.
+    apply Partition.
+  Qed.
+
+  Lemma cut_equiv: forall (A: Type) g h (l': list A),
+      (forall a, g a = h a) -> length (filter g l') = length (filter h l').
+  Proof.
+    intros B g h l' fn_equiv; induction l'; simpl; auto.
+    replace (g a) with (h a); [ | rewrite fn_equiv; reflexivity ].
+    destruct (h a); simpl; rewrite IHl'; auto.
+  Qed.
+
+  Lemma partition_elems_length n:
+    fn_partition n ->
+    forall a, length (partition_elems a) = n.
+  Proof.
+    intros [_ Partition] a.
+    unfold partition_elems.
+    rewrite <- (Partition a).
+    apply cut_equiv.
+    intros b; destruct (eq_dec (f b) a); destruct (eq_dec (f a) b); simpl; auto.
+  Qed.
+
+  Definition expand_partition :=
+    flat_map (fun x => list_prod [x] (partition_elems x)) partition_reprs.
+
+  Definition concat_map_list_prod: forall (B: Type) (l2: list B) (f: B -> list B),
+      (forall x, NoDup (f x)) -> NoDup l2 ->
+      NoDup (concat (map (fun x => list_prod [x] (f x)) l2)).
+  Proof.
+    intros B l2 g l1_NoDup l2_NoDup.
+  Admitted.
+
+  Theorem expand_partition_NoDup n:
+    fn_partition n ->
+    NoDup (expand_partition).
+  Proof.
+    intros Partition.
     unfold expand_partition.
     rewrite flat_map_concat_map.
-    remember (fun x : A => map (fun y : A => fpair_intro f_inv y) (f x)) as inj.
-    induction l; simpl.
-    apply NoDup_nil.
-    apply NoDup_append.
-    rewrite Heqinj; apply Injective_map_NoDup;
-      [intros x y H; inversion H | apply Partition]; auto.
-    apply IHl.
-    apply (fn_partition_cons A l f n a); auto.
-    apply fn_partition_inverse_cons in PartitionInverse; auto.
-    intros q.
-    destruct q as [x].
-    intros xy_a.
-    intros InRest.
-    apply in_concat_map in InRest.
-    destruct InRest as [d d_in_rest].
-    (* we will derive a = d which will contradict NoDup *)
-    destruct d_in_rest as [xy_d d_in_rest].
-    rewrite Heqinj, in_map_iff in xy_a.
-    rewrite Heqinj, in_map_iff in xy_d.
-    destruct xy_a as [r [a_def a_in]].
-    destruct xy_d as [s [d_def d_in]].
-    inversion a_def.
-    inversion d_def.
-    rewrite H1 in a_in.
-    rewrite H2 in d_in.
-    destruct Partition as [l_NoDup NoOverlap _ _ _].
-    rewrite (NoOverlap x a d) in l_NoDup; auto.
-    rewrite NoDup_cons_iff in l_NoDup.
-    (* TODO: pretty this up *)
-    destruct l_NoDup; auto.
-    simpl; auto.
-    simpl; right; auto.
+    apply concat_map_list_prod.
+    intros x; apply (partition_elems_NoDup n); auto.
+    apply partition_reprs_NoDup.
   Qed.
 
-  Theorem expand_partition_in  (A: Type) (l: list A) f f_inv n:
-    fn_partition A l f n ->
-    fn_partition_inverse A l f f_inv ->
-    (forall d, In (f_inv d) l) ->
-    forall c, In c (expand_partition A l f f_inv) <->
-              (exists d, fpair_fst _ _ c = (f_inv d) /\ fpair_snd _ _ c = d).
+  Lemma in_singleton: forall (B: Type) (a b: B), In a [b] <-> a = b.
   Proof.
-    intros [l_NoDup NoOverlap _ NoRepeat EveryElementInPartition].
-    intros PartitionInverse InverseMapsToList.
-    intros q.
+    split; simpl; intros H; destruct H; auto; tauto.
+  Qed.
+
+  Theorem expand_partition_in:
+    Listing l ->
+    forall c, In c expand_partition <-> (exists d, c = (f d, d)).
+  Proof.
+    intros Listing c.
     unfold expand_partition.
-    rewrite flat_map_concat_map, in_concat_map.
+    rewrite flat_map_concat_map.
+    rewrite in_concat_map.
     split.
-    - intros [a a_in_concatmap].
-      rewrite in_map_iff in a_in_concatmap.
-      destruct a_in_concatmap as [[e [def_e e_in_fa]] a_in_l].
-      rewrite <- def_e.
-      simpl.
-      exists e.
-      tauto.
-    - intros [d d_has_form].
-      exists (f_inv d).
-      rewrite in_map_iff.
-      destruct q.
-      destruct d_has_form as [Q1 Q2].
-      rewrite <- Q1.
-      simpl.
-      split.
-      exists a.
-      split; [reflexivity | apply PartitionInverse].
-      (* must show f_inv a maps into l which is an issue with some of our induction steps *)
-      apply InverseMapsToList.
+    - intros [a [a_in_c a_in_reprs]].
+      destruct c as (r, s).
+      rewrite in_prod_iff in a_in_c.
+      elim a_in_c.
+      rewrite (in_singleton _ r a).
+      intros r_is_a s_in_elem_a.
+      apply partition_elems_in in s_in_elem_a.
+      exists s.
+      rewrite r_is_a, s_in_elem_a.
+      reflexivity.
+    - intros [d c_has_form].
+      exists (f d).
+      split; [ | apply partition_reprs_in ]; auto.
+      rewrite c_has_form, in_prod_iff.
+      split; [ apply in_singleton | apply partition_elems_in2 ]; auto.
   Qed.
 
-  Theorem expand_partition_listing (A: Type) (l: list A) f f_inv (seq_A: list A) n:
-    Listing seq_A ->
-    fn_partition A l f n ->
-    fn_partition_inverse A l f f_inv ->
-    (forall d, In (f_inv d) l) ->
-    forall c, In c (expand_partition A l f f_inv) <-> In (fpair_snd _ _ c) seq_A.
+  Theorem expand_partition_listing:
+    Listing l ->
+    forall c, In (f c, c) expand_partition <-> In c l.
   Proof.
-    intros seq_listing Partition PartitionInverse InverseMapsToList.
-    intros d.
-    rewrite (expand_partition_in _ _ f f_inv n); auto.
-    split; [intros; apply seq_listing | ].
-    intros in_seq.
-    destruct d.
-    simpl; exists a; tauto.
+    intros Listing.
+    intros c.
+    rewrite expand_partition_in; auto.
+    split.
+    - intros; apply Listing.
+    - intros c_l; exists c; reflexivity.
   Qed.
 
-  Theorem expand_partition_isomorphism (A: Type) (l: list A) f f_inv (seq_A: list A) n:
-    Listing seq_A ->
-    fn_partition A l f n ->
-    fn_partition_inverse A l f f_inv ->
-    (forall d, In (f_inv d) l) ->
-    ListIsomorphism (fpair_snd _ _) (expand_partition A l f f_inv) seq_A.
+  Theorem expand_partition_isomorphism:
+    Listing l ->
+    (*    (forall d, In (f_inv d) l) ->*)
+    ListIsomorphism snd expand_partition l.
   Proof.
-    intros seq_listing.
-    intros [l_NoDup NoOverlap SameLength NoRepeat EveryElementInPartition].
-    intros PartitionInverse.
+    intros Partition.
     try repeat split.
     - simple destruct x; simple destruct y; simpl.
       intros.
-      rewrite H3.
+      rewrite <- H2 in H1.
+      rewrite expand_partition_in in H0; auto.
+      rewrite expand_partition_in in H1; auto.
+      (* this is dumb *)
+      destruct H0.
+      destruct H1.
+      inversion H0.
+      inversion H1.
+      rewrite <- H7, <- H5, <- H2.
       reflexivity.
     - unfold ListSurjective.
       intros d d_in_seq.
-      exists (fpair_intro f_inv d).
+      exists (pair (f d) d).
       simpl.
-      rewrite (expand_partition_listing _ _ _ _ seq_A n); auto.
-      apply fn_partition_intro; auto.
-    - simple destruct d; simpl; intros; apply seq_listing.
+      rewrite expand_partition_in; auto.
+      split; try exists d; auto.
+    - simple destruct d; simpl; intros; apply Partition.
   Qed.
 
   (*
@@ -1662,45 +1666,63 @@ Section finite_groups.
      V
      seq A
    *)
-  Theorem expand_partition_same_size (A: Set) (l: list A) (f: A -> list A) (f_inv: A -> A) n
-          (seq_A: list A):
-    Listing seq_A ->
-    fn_partition A l f n ->
-    fn_partition_inverse A l f f_inv ->
-    (forall d, In (f_inv d) l) ->
-    length (expand_partition A l f f_inv) = length seq_A.
+
+  Theorem expand_partition_same_size n:
+    fn_partition n ->
+    (forall d, In (f d) l) ->
+    length expand_partition = length l.
   Proof.
-    intros Listing.
-    intros [l_NoDup NoOverlap SameLength NoRepeat EveryElementInPartition].
-    intros PartitionInverse.
-    intros InverseWitness.
-    apply (listisomorphism_NoDup_same_length _ _ (fpair_snd _ _) _ seq_A).
-    apply (expand_partition_isomorphism _ _ _ _ _ n); auto.
-    apply fn_partition_intro; auto.
-    - apply (expand_partition_NoDup _ _ _ _ n); try apply fn_partition_intro; auto.
-    - apply Listing.
+    intros Partition.
+    intros Witness.
+    apply (listisomorphism_NoDup_same_length _ _ snd _ l); try apply Partition.
+    apply (expand_partition_isomorphism n); apply Partition.
+    apply (expand_partition_NoDup n); auto.
   Qed.
 
-  Theorem expand_partition_length (A: Type): forall l f f_inv n,
-      fn_partition A l f n ->
-      fn_partition_inverse A l f f_inv ->
-      length (expand_partition A l f f_inv) = length l * n.
+  (* partition reprs will be the list of elements that map to a given element *)
+
+  Lemma expand_partition_prod_list n:
+    fn_partition n ->
+    length expand_partition = length (list_prod partition_reprs (List.repeat 1 n)).
   Proof.
-    induction l.
-    intros.
-    simpl; reflexivity.
-    intros f f_inv n.
-    intros Partition PartitionInverse.
-    simpl.
-    rewrite app_length, map_length.
-    assert (length (f a) = n); destruct Partition; auto.
-    rewrite H0.
-    rewrite Nat.add_cancel_l.
-    apply IHl; auto.
-    apply (fn_partition_cons A l f n a); auto.
-    apply fn_partition_intro; auto.
-    apply fn_partition_inverse_cons in PartitionInverse; auto.
+    intros Partition.
+    (* 0 is wrong, needs to be the n that is in the partition *)
+    (*
+    apply (listisomorphism_NoDup_same_length
+             (A * A) (A * nat)
+             (fun x => (fst x, partition_index (snd x)))).
+             *)
+    (* if we can set up an isomorphism here this is easy - requires we count up
+       instead of repeat 1.  also if we can do like, nth member of partition. *)
+  Admitted.
+
+  Theorem expand_partition_length n:
+      fn_partition n ->
+      length expand_partition = length partition_reprs * n.
+  Proof.
+    intros Partition.
+    rewrite (expand_partition_prod_list n); auto.
+    rewrite prod_length, repeat_length.
+    reflexivity.
   Qed.
+
+End fn_partitions.
+
+Section lagrange_theorem.
+
+  Compute (let G := klein_group_finite in
+          let H := klein_subgroup_X in
+          let group_eq_dec := klein_group_eq_decidable in
+          let f := finite_coset G H in
+          let f_inv := canonical_right_coset G H in
+          (expand_partition G f_inv (seq G), partition_reprs G f_inv (seq G) group_eq_dec)).
+  Compute (let G := klein_group_finite in
+          let H := klein_subgroup_X in
+          let group_eq_dec := klein_group_eq_decidable in
+          let f := finite_coset G H in
+          let f_inv := canonical_right_coset G H in
+          (alternative_partition G f_inv (seq G) group_eq_dec)).
+
 
   Definition unique_cosets (G: finite_group) (H: subgroup G) (group_eq_dec: group_eq_decidable G) :=
     fold_right
@@ -1713,14 +1735,15 @@ Section finite_groups.
           let group_eq_dec := klein_group_eq_decidable in
           let f := finite_coset G H in
           let f_inv := canonical_right_coset G H in
-          expand_partition G (unique_cosets G H group_eq_dec) f f_inv).
+          expand_partition G f_inv (seq G)).
 
   Compute (let G := klein_group_finite in
           let H := klein_subgroup_X in
           let group_eq_dec := klein_group_eq_decidable in
           let f := finite_coset G H in
           let f_inv := canonical_right_coset G H in
-          (map (fpair_fst G f_inv) (expand_partition G (unique_cosets G H group_eq_dec) f f_inv))).
+          expand_partition G f_inv (seq G)).
+
 
   Lemma unique_cosets_in (G: finite_group) (H: finite_subgroup G) group_eq_dec:
     forall c, In c (unique_cosets G H group_eq_dec) -> (canonical_right_coset G H c) = c.
@@ -1761,12 +1784,13 @@ Section finite_groups.
 
   Theorem unique_cosets_is_partition (G: finite_group) (H: finite_subgroup G) group_eq_dec:
     fn_partition G
-                 (unique_cosets G H group_eq_dec)
-                 (finite_coset G H)
+                 (canonical_right_coset G H)
+                 (seq G)
+                 group_eq_dec
                  (cardinality_subgroup G H).
   Proof.
     apply fn_partition_intro.
-    - apply fold_set_NoDup.
+    - apply seq_listing.
     - intros b x y x_def y_def.
       apply (unique_cosets_in G H group_eq_dec x) in x_def; auto.
       apply (unique_cosets_in G H group_eq_dec y) in y_def; auto.
