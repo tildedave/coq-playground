@@ -1103,12 +1103,12 @@ Section klein_4_group.
 
   Definition klein_group : Group.
     apply (makeGroup klein klein_op klein_inv k_I).
-    Focus 2.
-    destruct a; [split; auto | auto | auto | auto].
-    Focus 2.
-    intros; unfold klein_inv; rewrite klein_double; auto.
     (* associativity *)
-    destruct a; destruct b; destruct c; compute; reflexivity.
+    - destruct a; destruct b; destruct c; compute; reflexivity.
+    (* identity *)
+    - destruct a; [split; auto | auto | auto | auto].
+    (* inverse *)
+    - intros; unfold klein_inv; rewrite klein_double; auto.
   Defined.
 
 End klein_4_group.
@@ -1431,52 +1431,6 @@ Section finite_groups.
     remember (coset_repr_always_some G H d) as C; intros; contradict HeqC; auto.
   Qed.
 
-  Lemma canonical_right_coset_fixpoint (G: finite_group) (H: subgroup G):
-    forall b,
-      canonical_right_coset G H (canonical_right_coset G H b) = canonical_right_coset G H b.
-  Proof.
-    intros b.
-    remember (canonical_right_coset G H b) as q.
-    symmetry in Heqq.
-    apply canonical_right_coset_unique in Heqq.
-    auto.
-  Qed.
-
-
-(*   b_mem : is_mem G (right_coset G H b) a
-  ============================
-  is_mem G (right_coset G H (canonical_right_coset G H b)) a
- *)
-  Lemma canonical_right_coset_rewrite (G: finite_group) (H: subgroup G):
-    forall a b,
-      is_mem G (right_coset G H b) a <->
-      is_mem G (right_coset G H (canonical_right_coset G H b)) a.
-  Proof.
-    intros a b.
-    split.
-    - intros a_coset.
-      rewrite canonical_right_coset_mem;
-        [ | apply canonical_right_coset_fixpoint ].
-      (* this should be straightforward, come back to this later *)
-  Admitted.
-
-  Lemma canonical_right_coset_mem_equiv (G: finite_group) (H: subgroup G):
-    forall a b,
-      is_mem G (right_coset G H b) a <->
-      canonical_right_coset G H a = canonical_right_coset G H b.
-  Proof.
-    intros a b.
-    split.
-    - intros b_mem.
-      rewrite <- canonical_right_coset_mem;
-        [ rewrite <- canonical_right_coset_rewrite | apply canonical_right_coset_fixpoint];
-        auto.
-    - intros J.
-      rewrite canonical_right_coset_rewrite.
-      rewrite <- J.
-      apply canonical_right_coset_always_mem.
-  Qed.
-
   Compute (canonical_right_coset klein_group_finite klein_subgroup_X k_I).
   Compute (canonical_right_coset klein_group_finite klein_subgroup_X k_X).
   Compute (canonical_right_coset klein_group_finite klein_subgroup_X k_Y).
@@ -1546,13 +1500,8 @@ Section fn_partitions.
       (forall x, f x = x -> length (filter (fun y => if eq_dec (f y) x then true else false) l) = n) ->
       fn_partition n.
 
-  (*
-  Definition expand_partition := map (fun (x : A) => pair (f x) x) l.
-   *)
-
-  Definition partition_reprs := fold_right (fun x => (set_add eq_dec (f x))) (empty_set A) (map f l).
-
-  Definition partition_elems a := (filter (fun x => if eq_dec (f x) (f a) then true else false) l).
+  Definition partition_reprs := fold_right (set_add eq_dec) (empty_set A) (map f l).
+  Definition partition_elems a := (filter (fun x => if eq_dec (f x) a then true else false) l).
 
   Lemma partition_reprs_NoDup: NoDup partition_reprs.
   Proof.
@@ -1562,19 +1511,12 @@ Section fn_partitions.
     - simpl; apply set_add_nodup; auto.
   Qed.
 
-  Lemma fold_set_add_in2:
-    forall l' c, In c (fold_right (fun x => set_add eq_dec (f x)) (empty_set A) l') -> f c = c.
-  Proof.
-    induction l'; intros c.
-    - simpl; tauto.
-    - simpl.
-  Admitted.
-
-  Lemma partition_reprs_in2 : forall a, Listing l -> In a partition_reprs -> f a = a.
+  Lemma partition_reprs_in : forall a, Listing l -> In (f a) partition_reprs.
   Proof.
     intros a Listing.
     unfold partition_reprs.
-    apply fold_set_add_in2.
+    rewrite fold_set_add_in.
+    apply in_map, Listing.
   Qed.
 
   Lemma partition_reprs_in2 n: forall d,
@@ -1591,15 +1533,14 @@ Section fn_partitions.
     intros a b.
     unfold partition_elems.
     rewrite filter_In.
-    destruct (eq_dec (f b) (f a)); auto.
+    destruct (eq_dec (f b) a); auto.
     intros [_ C]; contradict C; congruence.
   Qed.
 
-  Lemma partition_elems_in2 n: forall a, fn_partition n -> In a (partition_elems (f a)).
+  Lemma partition_elems_in2: forall a, Listing l -> In a (partition_elems (f a)).
   Proof.
-    intros a [Listing FixPoint _].
+    intros a Listing.
     unfold partition_elems.
-    rewrite FixPoint.
     rewrite filter_In.
     split; [apply Listing | destruct (eq_dec (f a) (f a)) ]; auto.
   Qed.
@@ -1665,54 +1606,44 @@ Section fn_partitions.
     apply partition_reprs_NoDup.
   Qed.
 
-  Lemma in_singleton: forall (B: Type) (a b: B), In a [b] <-> a = b.
-  Proof.
-    split; simpl; intros H; destruct H; auto; tauto.
-  Qed.
 
-  Theorem expand_partition_in n:
-    fn_partition n ->
+  Theorem expand_partition_in:
+    Listing l ->
     forall c, In c expand_partition <-> (exists d, c = (f d, d)).
   Proof.
-    intros Partition c.
+    intros Listing c.
     unfold expand_partition.
     rewrite flat_map_concat_map.
     rewrite in_concat_map.
     split.
-    2: {
-      intros [d c_has_form].
-      exists (f d).
-      split; [ | apply partition_reprs_in ]; auto.
-      rewrite c_has_form, in_prod_iff.
-      split; [ apply in_singleton | apply (partition_elems_in2 n) ]; auto.
-      apply Partition.
-    }
     - intros [a [a_in_c a_in_reprs]].
       destruct c as (r, s).
       rewrite in_prod_iff in a_in_c.
       elim a_in_c.
       rewrite (in_singleton _ r a).
       intros r_is_a s_in_elem_a.
-      (*
-         Need a d such that f d = a.  How would we have this?
-         More importantly, since s is in partition_elems then
-         (f s) = (f a).
-         But not sure how we can go back with the new definition.
-       *)
-      (* last thing to prove is partition_elems_in kind of *)
-  Admitted.
+      apply partition_elems_in in s_in_elem_a.
+      exists s.
+      rewrite r_is_a, s_in_elem_a.
+      reflexivity.
+    - intros [d c_has_form].
+      exists (f d).
+      split; [ | apply partition_reprs_in ]; auto.
+      rewrite c_has_form, in_prod_iff.
+      split; [ apply in_singleton | apply partition_elems_in2 ]; auto.
+  Qed.
 
-  Theorem expand_partition_isomorphism n:
-    fn_partition n ->
+  Theorem expand_partition_isomorphism:
+    Listing l ->
     ListIsomorphism snd expand_partition l.
   Proof.
-    intros Partition.
+    intros Listing.
     try repeat split.
     - simple destruct x; simple destruct y; simpl.
       intros.
       rewrite <- H2 in H1.
-      rewrite (expand_partition_in n) in H0; auto.
-      rewrite (expand_partition_in n) in H1; auto.
+      rewrite expand_partition_in in H0; auto.
+      rewrite expand_partition_in in H1; auto.
       (* this is dumb *)
       destruct H0.
       destruct H1.
@@ -1724,47 +1655,19 @@ Section fn_partitions.
       intros d d_in_seq.
       exists (pair (f d) d).
       simpl.
-      rewrite (expand_partition_in n); auto.
+      rewrite expand_partition_in; auto.
       split; try exists d; auto.
-    - simple destruct d; simpl; intros; apply Partition.
+    - simple destruct d; simpl; intros; apply Listing.
   Qed.
-
-  (*
-     expand_partition A l f is A * A
-     |
-     | maps to
-     |
-     V
-     seq A
-   *)
 
   Theorem expand_partition_same_size n:
     fn_partition n ->
-    (forall d, In (f d) l) ->
     length expand_partition = length l.
   Proof.
     intros Partition.
-    intros Witness.
     apply (listisomorphism_NoDup_same_length _ _ snd _ l); try apply Partition.
-    apply (expand_partition_isomorphism n); apply Partition.
+    apply expand_partition_isomorphism; apply Partition.
     apply (expand_partition_NoDup n); auto.
-  Qed.
-
-  (* partition reprs will be the list of elements that map to a given element *)
-
-  Lemma length_concat: forall (B: Type) (l1: list (list B)) m,
-      (forall l2, In l2 l1 -> length l2 = m) ->
-      length (concat l1) = m * length l1.
-  Proof.
-    intros B l1 m len_proof.
-    induction l1; simpl; auto.
-    autorewrite with list.
-    rewrite IHl1.
-    rewrite len_proof.
-    rewrite Nat.mul_succ_r; auto with arith.
-    simpl; left; auto.
-    intros l0 l0_in_l1; apply len_proof.
-    simpl; right; auto.
   Qed.
 
   Theorem expand_partition_length n:
@@ -1821,49 +1724,11 @@ Section lagrange_theorem.
           let f_inv := canonical_right_coset G H in
           expand_partition G f_inv (seq G)).
 
-
-  Lemma unique_cosets_in (G: finite_group) (H: finite_subgroup G) group_eq_dec:
-    forall c, In c (unique_cosets G H group_eq_dec) -> (canonical_right_coset G H c) = c.
-  Proof.
-    intros c.
-    unfold unique_cosets.
-    intros In_fold; apply fold_set_add_in in In_fold.
-    rewrite in_map_iff in In_fold.
-    destruct In_fold as [d [def_d _]].
-    apply (canonical_right_coset_unique _ _ _ d); auto.
-  Qed.
-
-  Lemma unique_cosets_in2 (G: finite_group) (H: finite_subgroup G) group_eq_dec:
-    forall d : G, In (canonical_right_coset G H d) (unique_cosets G H group_eq_dec).
-  Proof.
-    intros d.
-    unfold unique_cosets.
-    remember (canonical_right_coset G H d) as g.
-    rewrite fold_set_add_in.
-    rewrite in_map_iff.
-    exists d; split; [ | apply seq_listing]; auto.
-  Qed.
-
-  Lemma canonical_cosets (G: finite_group) (H: finite_subgroup G):
-    forall a b c,
-      canonical_right_coset G H a = a ->
-      canonical_right_coset G H b = b ->
-      is_mem G (right_coset G H a) c ->
-      is_mem G (right_coset G H b) c ->
-      a = b.
-  Proof.
-    intros a b c CanonicalA CanonicalB.
-    rewrite (canonical_right_coset_mem _ _ a CanonicalA c).
-    rewrite (canonical_right_coset_mem _ _ b CanonicalB c).
-    intros H0 H1.
-    rewrite <- H0, <- H1; reflexivity.
-  Qed.
-
   Arguments op {g} _ _.
   Arguments inv {g} _.
   Notation "x <*> y" := (op x y) (at level 50, left associativity).
 
-  Theorem unique_cosets_is_partition (G: finite_group) (H: finite_subgroup G) group_eq_dec:
+  Theorem cosets_are_partition (G: finite_group) (H: finite_subgroup G) group_eq_dec:
     fn_partition G
                  (canonical_right_coset G H)
                  (seq G)
@@ -1895,7 +1760,7 @@ Section lagrange_theorem.
   Proof.
     intros G H group_eq_dec.
     unfold cardinality.
-    remember (unique_cosets_is_partition G H group_eq_dec) as cosets_fn_partition.
+    remember (cosets_are_partition G H group_eq_dec) as cosets_fn_partition.
     rewrite <- (expand_partition_same_size
                   _
                   (canonical_right_coset G H)
@@ -1908,6 +1773,5 @@ Section lagrange_theorem.
                   (seq G)
                   group_eq_dec
                   (cardinality_subgroup G H)); auto.
-    intros; apply seq_listing.
   Qed.
 End lagrange_theorem.

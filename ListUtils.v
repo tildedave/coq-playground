@@ -23,6 +23,11 @@ End hd_error.
 
 Section In.
 
+  Lemma in_singleton: forall (B: Type) (a b: B), In a [b] <-> a = b.
+  Proof.
+    split; simpl; intros H; destruct H; auto; tauto.
+  Qed.
+
   Lemma in_not_exists_in_empty_list (A: Type): ~ (exists a : A, In a []).
   Proof.
     intros NonEmpty.
@@ -465,6 +470,26 @@ Section fold_set_add.
   Qed.
 
 End fold_set_add.
+
+Section concat.
+
+  Lemma length_concat: forall (B: Type) (l1: list (list B)) m,
+      (forall l2, In l2 l1 -> length l2 = m) ->
+      length (concat l1) = m * length l1.
+  Proof.
+    intros B l1 m len_proof.
+    induction l1; simpl; auto.
+    autorewrite with list.
+    rewrite IHl1.
+    rewrite len_proof.
+    rewrite Nat.mul_succ_r; auto with arith.
+    simpl; left; auto.
+    intros l0 l0_in_l1; apply len_proof.
+    simpl; right; auto.
+  Qed.
+
+End concat.
+
 
 Section concat_map.
 
