@@ -1541,8 +1541,9 @@ Section fn_partitions.
   Inductive fn_partition n :=
   | fn_partition_intro:
       Listing l ->
-      (forall x, f (f x) = f x) ->
-      (forall x, length (filter (fun y => if eq_dec (f y) (f x) then true else false) l) = n) ->
+      (* not sure how to name this condition *)
+      (forall x, In x (map f l) -> f x = x) ->
+      (forall x, f x = x -> length (filter (fun y => if eq_dec (f y) x then true else false) l) = n) ->
       fn_partition n.
 
   (*
@@ -1576,7 +1577,16 @@ Section fn_partitions.
     apply fold_set_add_in2.
   Qed.
 
-  Lemma partition_elems_in : forall a b, In b (partition_elems a) -> f b = f a.
+  Lemma partition_reprs_in2 n: forall d,
+      fn_partition n -> In d partition_reprs -> f d = d.
+  Proof.
+    intros d.
+    unfold partition_reprs.
+    rewrite fold_set_add_in.
+    intros Partition; apply Partition.
+  Qed.
+
+  Lemma partition_elems_in : forall a b, In b (partition_elems a) -> f b = a.
   Proof.
     intros a b.
     unfold partition_elems.
@@ -1600,26 +1610,14 @@ Section fn_partitions.
     apply Partition.
   Qed.
 
-  Lemma cut_equiv: forall (A: Type) g h (l': list A),
-      (forall a, g a = h a) -> length (filter g l') = length (filter h l').
-  Proof.
-    intros B g h l' fn_equiv; induction l'; simpl; auto.
-    replace (g a) with (h a); [ | rewrite fn_equiv; reflexivity ].
-    destruct (h a); simpl; rewrite IHl'; auto.
-  Qed.
-
   Lemma partition_elems_length n:
     fn_partition n ->
-    forall a, length (partition_elems a) = n.
+    forall a, f a = a -> length (partition_elems a) = n.
   Proof.
-    intros [Listing FixPoint ListLength] a.
+    intros [_ _ Partition] a.
     unfold partition_elems.
-    rewrite <- (ListLength a).
-    apply cut_equiv.
-    intros b;
-      destruct (eq_dec (f b) (f a));
-      destruct (eq_dec (f a) (f b));
-      simpl; auto.
+    intros fa_eq_a.
+    rewrite <- (Partition a); auto.
   Qed.
 
   Definition expand_partition :=
@@ -1780,13 +1778,16 @@ Section fn_partitions.
     rewrite map_length; auto with arith.
     intros l2.
     rewrite in_map_iff.
-    intros [d [d_form d_in_partition_reprs]].
+    intros [d [d_form d_in_list]].
     rewrite <- d_form.
-    Search (length (list_prod _ _)).
     rewrite prod_length.
     rewrite (partition_elems_length n).
     auto with arith.
-    auto.
+    apply Partition.
+    apply Partition.
+    apply (partition_reprs_in2 n) in d_in_list; auto.
+    rewrite <- d_in_list.
+    apply in_map, Partition.
   Qed.
 
 End fn_partitions.
@@ -1871,29 +1872,21 @@ Section lagrange_theorem.
   Proof.
     apply fn_partition_intro.
     - apply seq_listing.
-    - apply canonical_right_coset_fixpoint.
-    - intros b.
-      rewrite <- (finite_coset_same_size_as_subgroup G H (canonical_right_coset G H b)).
-      apply cut_equiv.
-      intros a.
-      destruct (group_eq_dec (canonical_right_coset G H a) (canonical_right_coset G H b)) as [a_coset | a_not_coset].
-      + rewrite <- a_coset.
-        rewrite canonical_right_coset_always_mem.
-        reflexivity.
-      + symmetry.
-        rewrite <- not_true_iff_false.
-        (* should be true that if canonical_right_coset G H a <> canonical_right_coset G H b
-           then a and b are in different cosets *)
-        remember (canonical_right_coset G H a) as r.
-        remember (canonical_right_coset G H b) as s.
-        intros Not.
-        symmetry in Heqr.
-        symmetry in Heqs.
-        apply canonical_right_coset_unique in Heqs.
-        fold (is_mem _ (right_coset G H s) a) in Not.
-        apply canonical_right_coset_mem_equiv in Not.
-        rewrite Heqr, Heqs in Not.
-        auto.
+    - intros x.
+      rewrite in_map_iff.
+      intros [d [d_def _]].
+      apply canonical_right_coset_unique in d_def.
+      assumption.
+    - intros a coset_equiv.
+      rewrite <- (finite_coset_same_size_as_subgroup _ _ a).
+      apply filter_length_equiv.
+      intros b.
+      destruct (group_eq_dec (canonical_right_coset G H b) a);
+        symmetry; [ | rewrite <- not_true_iff_false];
+        fold (is_mem _ (right_coset G H a) b).
+      apply canonical_right_coset_mem; auto.
+      intros Not.
+      apply canonical_right_coset_mem in Not; auto.
   Qed.
 
   Theorem lagrange_theorem : forall (G: finite_group) (H: finite_subgroup G) group_eq_dec,

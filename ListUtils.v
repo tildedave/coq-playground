@@ -69,6 +69,15 @@ Section In.
 End In.
 
 Section filter.
+
+  Lemma filter_length_equiv: forall (A: Type) g h (l': list A),
+      (forall a, g a = h a) -> length (filter g l') = length (filter h l').
+  Proof.
+    intros B g h l' fn_equiv; induction l'; simpl; auto.
+    replace (g a) with (h a); [ | rewrite fn_equiv; reflexivity ].
+    destruct (h a); simpl; rewrite IHl'; auto.
+  Qed.
+
   Lemma filter_NotIn : forall (A: Type) f x (l : list A),
       ~In x l -> ~In x (filter f l).
   Proof.
