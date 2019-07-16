@@ -1393,6 +1393,7 @@ Section finite_groups.
     contradict HeqQ; auto.
   Qed.
 
+
   Lemma coset_reprs_unique (G: finite_group) (H: subgroup G):
     forall c d,
       coset_repr G H d = Some c ->
@@ -1562,7 +1563,10 @@ Section fn_partitions.
     unfold partition_elems.
     rewrite <- (Partition a).
     apply cut_equiv.
-    intros b; destruct (eq_dec (f b) a); destruct (eq_dec (f a) b); simpl; auto.
+    intros b;
+      destruct (eq_dec (f b) (f a));
+      destruct (eq_dec (f a) (f b));
+      simpl; auto.
   Qed.
 
   Definition expand_partition :=
@@ -1730,14 +1734,15 @@ Section fn_partitions.
     rewrite map_length; auto with arith.
     intros l2.
     rewrite in_map_iff.
-    intros [d [d_form _]].
+    intros [d [d_form d_in_partition_reprs]].
     rewrite <- d_form.
     Search (length (list_prod _ _)).
     rewrite prod_length.
     rewrite (partition_elems_length n).
     auto with arith.
-    apply Partition.
-  Qed.
+    auto.
+    (* must have f d = d somehow *)
+  Admitted.
 
 End fn_partitions.
 
@@ -1808,6 +1813,25 @@ Section lagrange_theorem.
     rewrite <- H0, <- H1; reflexivity.
   Qed.
 
+  Arguments op {g} _ _.
+  Arguments inv {g} _.
+  Notation "x <*> y" := (op x y) (at level 50, left associativity).
+
+  Lemma canonical_right_coset_not_mem (G: finite_group) (H: finite_subgroup G):
+    forall a b, canonical_right_coset G H a <> b ->
+                ~ is_mem G (right_coset G H (canonical_right_coset G H b)) a.
+  Proof.
+    intros a b not_coset coset_mem.
+    remember (canonical_right_coset G H b) as c.
+    symmetry in Heqc.
+    (* Coset is 0, 2, 4, 6, 8.
+       a = 4
+       Canonical memeber is 0.
+       If b = 2, its canonical member is 0, which has a in it.
+       So this is not true.
+       *)
+  Admitted.
+
   Theorem unique_cosets_is_partition (G: finite_group) (H: finite_subgroup G) group_eq_dec:
     fn_partition G
                  (canonical_right_coset G H)
@@ -1817,37 +1841,25 @@ Section lagrange_theorem.
   Proof.
     apply fn_partition_intro.
     - apply seq_listing.
-    - intros b x y x_def y_def.
-      apply (unique_cosets_in G H group_eq_dec x) in x_def; auto.
-      apply (unique_cosets_in G H group_eq_dec y) in y_def; auto.
-      unfold finite_coset.
-      rewrite <- x_def, <- y_def at 1.
-      repeat rewrite filter_In.
-      intros [_ Mem1] [_ Mem2].
-      assert (exists b, is_mem G (right_coset G H (canonical_right_coset G H x)) b /\
-                        is_mem G (right_coset G H (canonical_right_coset G H y)) b) as Q.
-      exists b; auto.
-      destruct Q as [q intersection].
-      apply (canonical_cosets G H _ _ q); auto; try rewrite <- x_def; try rewrite <- y_def; tauto.
-    - apply finite_coset_same_size_as_subgroup.
-    - apply finite_coset_NoDup.
-    - intros a; exists a; unfold finite_coset; rewrite filter_In.
-      split; [apply (seq_listing G) | apply coset_reflexive ].
-  Qed.
+    - intros b.
 
-  Theorem unique_cosets_inverse_partition (G: finite_group) (H: finite_subgroup G) group_eq_dec:
-    fn_partition_inverse G
-                         (unique_cosets G H group_eq_dec)
-                         (finite_coset G H)
-                         (canonical_right_coset G H).
-  Proof.
-    apply fn_partition_inverse_intro.
-    intros e.
-    unfold finite_coset.
-    apply filter_In.
-    split; [apply seq_listing | auto].
-    fold (is_mem _ (right_coset G H (canonical_right_coset G H e)) e).
-    apply canonical_right_coset_always_mem.
+      (*
+         this is only true if canonical_right_coset G H x = x.
+         Need some different map that satisfies the expected properties.
+         (canonical_right_coset)
+       *)
+
+      rewrite <- (finite_coset_same_size_as_subgroup G H (canonical_right_coset G H b)).
+      apply cut_equiv.
+      intros a.
+      destruct (group_eq_dec (canonical_right_coset G H a) b) as [a_coset | a_not_coset].
+      + cut (canonical_right_coset G H b = b);
+          [ | apply (canonical_right_coset_unique _ _ _ a)]; auto.
+        intros Cut; rewrite Cut.
+        rewrite <- canonical_right_coset_mem in a_coset; auto.
+      + symmetry.
+        rewrite <- not_true_iff_false.
+        apply canonical_right_coset_not_mem; auto.
   Qed.
 
   Theorem lagrange_theorem : forall (G: finite_group) (H: finite_subgroup G) group_eq_dec,
@@ -1857,21 +1869,18 @@ Section lagrange_theorem.
     intros G H group_eq_dec.
     unfold cardinality.
     remember (unique_cosets_is_partition G H group_eq_dec) as cosets_fn_partition.
-    remember (unique_cosets_inverse_partition G H group_eq_dec) as cosets_fn_partition_inverse.
     rewrite <- (expand_partition_same_size
-                  _ (unique_cosets G H group_eq_dec)
-                  (finite_coset G H)
+                  _
                   (canonical_right_coset G H)
-                  (cardinality_subgroup G H) (seq G)
-                  (seq_listing G)
-                  cosets_fn_partition
-                  cosets_fn_partition_inverse); auto.
-    rewrite <- (expand_partition_length
-                  _ (unique_cosets G H group_eq_dec)
-                  (finite_coset G H)
-                  (canonical_right_coset G H)
+                  (seq G)
+                  group_eq_dec
                   (cardinality_subgroup G H)); auto.
-    (* must show canonical subsets maps to the list now *)
-    apply unique_cosets_in2.
+    rewrite (expand_partition_length
+                  _
+                  (canonical_right_coset G H)
+                  (seq G)
+                  group_eq_dec
+                  (cardinality_subgroup G H)); auto.
+    intros; apply seq_listing.
   Qed.
-End finite_groups.
+End lagrange_theorem.
