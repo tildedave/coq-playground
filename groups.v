@@ -1495,7 +1495,9 @@ Section fn_partitions.
   Inductive fn_partition n :=
   | fn_partition_intro:
       Listing l ->
-      (forall x, length (filter (fun y => if eq_dec (f y) x then true else false) l) = n) ->
+      (* not sure how to name this condition *)
+      (forall x, In x (map f l) -> f x = x) ->
+      (forall x, f x = x -> length (filter (fun y => if eq_dec (f y) x then true else false) l) = n) ->
       fn_partition n.
 
   (*
@@ -1523,6 +1525,15 @@ Section fn_partitions.
     apply in_map, Listing.
   Qed.
 
+  Lemma partition_reprs_in2 n: forall d,
+      fn_partition n -> In d partition_reprs -> f d = d.
+  Proof.
+    intros d.
+    unfold partition_reprs.
+    rewrite fold_set_add_in.
+    intros Partition; apply Partition.
+  Qed.
+
   Lemma partition_elems_in : forall a b, In b (partition_elems a) -> f b = a.
   Proof.
     intros a b.
@@ -1546,23 +1557,14 @@ Section fn_partitions.
     apply Partition.
   Qed.
 
-  Lemma cut_equiv: forall (A: Type) g h (l': list A),
-      (forall a, g a = h a) -> length (filter g l') = length (filter h l').
-  Proof.
-    intros B g h l' fn_equiv; induction l'; simpl; auto.
-    replace (g a) with (h a); [ | rewrite fn_equiv; reflexivity ].
-    destruct (h a); simpl; rewrite IHl'; auto.
-  Qed.
-
   Lemma partition_elems_length n:
     fn_partition n ->
-    forall a, length (partition_elems a) = n.
+    forall a, f a = a -> length (partition_elems a) = n.
   Proof.
-    intros [_ Partition] a.
+    intros [_ _ Partition] a.
     unfold partition_elems.
-    rewrite <- (Partition a).
-    apply cut_equiv.
-    intros b; destruct (eq_dec (f b) a); destruct (eq_dec (f a) b); simpl; auto.
+    intros fa_eq_a.
+    rewrite <- (Partition a); auto.
   Qed.
 
   Definition expand_partition :=
@@ -1730,13 +1732,16 @@ Section fn_partitions.
     rewrite map_length; auto with arith.
     intros l2.
     rewrite in_map_iff.
-    intros [d [d_form _]].
+    intros [d [d_form d_in_list]].
     rewrite <- d_form.
-    Search (length (list_prod _ _)).
     rewrite prod_length.
     rewrite (partition_elems_length n).
     auto with arith.
     apply Partition.
+    apply Partition.
+    apply (partition_reprs_in2 n) in d_in_list; auto.
+    rewrite <- d_in_list.
+    apply in_map, Partition.
   Qed.
 
 End fn_partitions.
@@ -1817,37 +1822,21 @@ Section lagrange_theorem.
   Proof.
     apply fn_partition_intro.
     - apply seq_listing.
-    - intros b x y x_def y_def.
-      apply (unique_cosets_in G H group_eq_dec x) in x_def; auto.
-      apply (unique_cosets_in G H group_eq_dec y) in y_def; auto.
-      unfold finite_coset.
-      rewrite <- x_def, <- y_def at 1.
-      repeat rewrite filter_In.
-      intros [_ Mem1] [_ Mem2].
-      assert (exists b, is_mem G (right_coset G H (canonical_right_coset G H x)) b /\
-                        is_mem G (right_coset G H (canonical_right_coset G H y)) b) as Q.
-      exists b; auto.
-      destruct Q as [q intersection].
-      apply (canonical_cosets G H _ _ q); auto; try rewrite <- x_def; try rewrite <- y_def; tauto.
-    - apply finite_coset_same_size_as_subgroup.
-    - apply finite_coset_NoDup.
-    - intros a; exists a; unfold finite_coset; rewrite filter_In.
-      split; [apply (seq_listing G) | apply coset_reflexive ].
-  Qed.
-
-  Theorem unique_cosets_inverse_partition (G: finite_group) (H: finite_subgroup G) group_eq_dec:
-    fn_partition_inverse G
-                         (unique_cosets G H group_eq_dec)
-                         (finite_coset G H)
-                         (canonical_right_coset G H).
-  Proof.
-    apply fn_partition_inverse_intro.
-    intros e.
-    unfold finite_coset.
-    apply filter_In.
-    split; [apply seq_listing | auto].
-    fold (is_mem _ (right_coset G H (canonical_right_coset G H e)) e).
-    apply canonical_right_coset_always_mem.
+    - intros x.
+      rewrite in_map_iff.
+      intros [d [d_def _]].
+      apply canonical_right_coset_unique in d_def.
+      assumption.
+    - intros a coset_equiv.
+      rewrite <- (finite_coset_same_size_as_subgroup _ _ a).
+      apply filter_length_equiv.
+      intros b.
+      destruct (group_eq_dec (canonical_right_coset G H b) a);
+        symmetry; [ | rewrite <- not_true_iff_false];
+        fold (is_mem _ (right_coset G H a) b).
+      apply canonical_right_coset_mem; auto.
+      intros Not.
+      apply canonical_right_coset_mem in Not; auto.
   Qed.
 
   Theorem lagrange_theorem : forall (G: finite_group) (H: finite_subgroup G) group_eq_dec,
@@ -1857,21 +1846,19 @@ Section lagrange_theorem.
     intros G H group_eq_dec.
     unfold cardinality.
     remember (unique_cosets_is_partition G H group_eq_dec) as cosets_fn_partition.
-    remember (unique_cosets_inverse_partition G H group_eq_dec) as cosets_fn_partition_inverse.
     rewrite <- (expand_partition_same_size
-                  _ (unique_cosets G H group_eq_dec)
-                  (finite_coset G H)
+                  _
                   (canonical_right_coset G H)
-                  (cardinality_subgroup G H) (seq G)
-                  (seq_listing G)
-                  cosets_fn_partition
-                  cosets_fn_partition_inverse); auto.
-    rewrite <- (expand_partition_length
-                  _ (unique_cosets G H group_eq_dec)
-                  (finite_coset G H)
+                  (seq G)
+                  group_eq_dec
+                  (cardinality_subgroup G H)); auto.
+    rewrite (expand_partition_length
+                  _
                   (canonical_right_coset G H)
+                  (seq G)
+                  group_eq_dec
                   (cardinality_subgroup G H)); auto.
     (* must show canonical subsets maps to the list now *)
-    apply unique_cosets_in2.
+    intros; apply seq_listing.
   Qed.
-End finite_groups.
+End lagrange_theorem.
