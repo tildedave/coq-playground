@@ -1568,12 +1568,35 @@ Section fn_partitions.
   Definition expand_partition :=
     flat_map (fun x => list_prod [x] (partition_elems x)) partition_reprs.
 
-  Definition concat_map_list_prod: forall (B: Type) (l2: list B) (f: B -> list B),
-      (forall x, NoDup (f x)) -> NoDup l2 ->
-      NoDup (concat (map (fun x => list_prod [x] (f x)) l2)).
+  Definition concat_map_list_prod: forall (B: Type) (l': list B) (f: B -> list B),
+      (forall x, NoDup (f x)) -> NoDup l' ->
+      NoDup (concat (map (fun x => list_prod [x] (f x)) l')).
   Proof.
     intros B l2 g l1_NoDup l2_NoDup.
-  Admitted.
+    induction l2.
+    simpl; apply NoDup_nil.
+    simpl.
+    autorewrite with list.
+    apply NoDup_append.
+    - apply Injective_map_NoDup; [intros x y H; inversion H; reflexivity | apply l1_NoDup].
+    - apply NoDup_cons_reduce in l2_NoDup; apply IHl2; auto.
+    - intros q q_in_map.
+      (* first show q has the form (a, d) *)
+      (* then use nodup in l2_NoDup *)
+      rewrite in_map_iff in q_in_map.
+      destruct q_in_map as [d [q_form q_in_ga]].
+      Search (_ ++ []).
+      rewrite in_concat_map.
+      intros [t [t_in_map t_in_l2]].
+      rewrite app_nil_r in t_in_map.
+      rewrite in_map_iff in t_in_map.
+      destruct t_in_map as [u [u_form u_in_gt]].
+      rewrite <- u_form in q_form.
+      inversion q_form.
+      rewrite NoDup_cons_iff in l2_NoDup.
+      rewrite H1 in l2_NoDup.
+      tauto.
+  Qed.
 
   Theorem expand_partition_NoDup n:
     fn_partition n ->
@@ -1675,35 +1698,45 @@ Section fn_partitions.
     intros Partition.
     intros Witness.
     apply (listisomorphism_NoDup_same_length _ _ snd _ l); try apply Partition.
-    apply (expand_partition_isomorphism n); apply Partition.
+    apply expand_partition_isomorphism; apply Partition.
     apply (expand_partition_NoDup n); auto.
   Qed.
 
   (* partition reprs will be the list of elements that map to a given element *)
 
-  Lemma expand_partition_prod_list n:
-    fn_partition n ->
-    length expand_partition = length (list_prod partition_reprs (List.repeat 1 n)).
+  Lemma length_concat: forall (B: Type) (l1: list (list B)) m,
+      (forall l2, In l2 l1 -> length l2 = m) ->
+      length (concat l1) = m * length l1.
   Proof.
-    intros Partition.
-    (* 0 is wrong, needs to be the n that is in the partition *)
-    (*
-    apply (listisomorphism_NoDup_same_length
-             (A * A) (A * nat)
-             (fun x => (fst x, partition_index (snd x)))).
-             *)
-    (* if we can set up an isomorphism here this is easy - requires we count up
-       instead of repeat 1.  also if we can do like, nth member of partition. *)
-  Admitted.
+    intros B l1 m len_proof.
+    induction l1; simpl; auto.
+    autorewrite with list.
+    rewrite IHl1.
+    rewrite len_proof.
+    rewrite Nat.mul_succ_r; auto with arith.
+    simpl; left; auto.
+    intros l0 l0_in_l1; apply len_proof.
+    simpl; right; auto.
+  Qed.
 
   Theorem expand_partition_length n:
       fn_partition n ->
       length expand_partition = length partition_reprs * n.
   Proof.
     intros Partition.
-    rewrite (expand_partition_prod_list n); auto.
-    rewrite prod_length, repeat_length.
-    reflexivity.
+    unfold expand_partition.
+    rewrite flat_map_concat_map.
+    rewrite (length_concat _ _ n); auto.
+    rewrite map_length; auto with arith.
+    intros l2.
+    rewrite in_map_iff.
+    intros [d [d_form _]].
+    rewrite <- d_form.
+    Search (length (list_prod _ _)).
+    rewrite prod_length.
+    rewrite (partition_elems_length n).
+    auto with arith.
+    apply Partition.
   Qed.
 
 End fn_partitions.
@@ -1716,13 +1749,6 @@ Section lagrange_theorem.
           let f := finite_coset G H in
           let f_inv := canonical_right_coset G H in
           (expand_partition G f_inv (seq G), partition_reprs G f_inv (seq G) group_eq_dec)).
-  Compute (let G := klein_group_finite in
-          let H := klein_subgroup_X in
-          let group_eq_dec := klein_group_eq_decidable in
-          let f := finite_coset G H in
-          let f_inv := canonical_right_coset G H in
-          (alternative_partition G f_inv (seq G) group_eq_dec)).
-
 
   Definition unique_cosets (G: finite_group) (H: subgroup G) (group_eq_dec: group_eq_decidable G) :=
     fold_right
