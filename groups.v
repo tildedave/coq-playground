@@ -1393,6 +1393,12 @@ Section finite_groups.
     contradict HeqQ; auto.
   Qed.
 
+  Lemma canonical_right_coset_mem_equiv (G: finite_group) (H: subgroup G):
+    forall a b,
+      is_mem G (right_coset G H b) a <->
+      canonical_right_coset G H a = canonical_right_coset G H b.
+  Proof.
+  Admitted.
 
   Lemma coset_reprs_unique (G: finite_group) (H: subgroup G):
     forall c d,
@@ -1496,7 +1502,7 @@ Section fn_partitions.
   Inductive fn_partition n :=
   | fn_partition_intro:
       Listing l ->
-      (forall x, length (filter (fun y => if eq_dec (f y) x then true else false) l) = n) ->
+      (forall x, length (filter (fun y => if eq_dec (f y) (f x) then true else false) l) = n) ->
       fn_partition n.
 
   (*
@@ -1506,7 +1512,7 @@ Section fn_partitions.
   Definition partition_reprs := fold_right (set_add eq_dec) (empty_set A) (map f l).
   Check fold_right.
 
-  Definition partition_elems a := (filter (fun x => if eq_dec (f x) a then true else false) l).
+  Definition partition_elems a := (filter (fun x => if eq_dec (f x) (f a) then true else false) l).
 
   Lemma partition_reprs_NoDup: NoDup partition_reprs.
   Proof.
@@ -1524,6 +1530,7 @@ Section fn_partitions.
     apply in_map, Listing.
   Qed.
 
+  (*
   Lemma partition_elems_in : forall a b, In b (partition_elems a) -> f b = a.
   Proof.
     intros a b.
@@ -1540,6 +1547,7 @@ Section fn_partitions.
     rewrite filter_In.
     split; [apply Listing | destruct (eq_dec (f a) (f a)) ]; auto.
   Qed.
+   *)
 
   Lemma partition_elems_NoDup n: forall a, fn_partition n -> NoDup (partition_elems a).
   Proof.
@@ -1634,8 +1642,10 @@ Section fn_partitions.
       elim a_in_c.
       rewrite (in_singleton _ r a).
       intros r_is_a s_in_elem_a.
-      apply partition_elems_in in s_in_elem_a.
+      (*apply partition_elems_in in s_in_elem_a.*)
+(*
       exists s.
+      (* need a = f s which should be true *)
       rewrite r_is_a, s_in_elem_a.
       reflexivity.
     - intros [d c_has_form].
@@ -1643,7 +1653,8 @@ Section fn_partitions.
       split; [ | apply partition_reprs_in ]; auto.
       rewrite c_has_form, in_prod_iff.
       split; [ apply in_singleton | apply partition_elems_in2 ]; auto.
-  Qed.
+ *)
+  Admitted.
 
   Theorem expand_partition_listing:
     Listing l ->
@@ -1741,8 +1752,7 @@ Section fn_partitions.
     rewrite (partition_elems_length n).
     auto with arith.
     auto.
-    (* must have f d = d somehow *)
-  Admitted.
+  Qed.
 
 End fn_partitions.
 
@@ -1817,21 +1827,6 @@ Section lagrange_theorem.
   Arguments inv {g} _.
   Notation "x <*> y" := (op x y) (at level 50, left associativity).
 
-  Lemma canonical_right_coset_not_mem (G: finite_group) (H: finite_subgroup G):
-    forall a b, canonical_right_coset G H a <> b ->
-                ~ is_mem G (right_coset G H (canonical_right_coset G H b)) a.
-  Proof.
-    intros a b not_coset coset_mem.
-    remember (canonical_right_coset G H b) as c.
-    symmetry in Heqc.
-    (* Coset is 0, 2, 4, 6, 8.
-       a = 4
-       Canonical memeber is 0.
-       If b = 2, its canonical member is 0, which has a in it.
-       So this is not true.
-       *)
-  Admitted.
-
   Theorem unique_cosets_is_partition (G: finite_group) (H: finite_subgroup G) group_eq_dec:
     fn_partition G
                  (canonical_right_coset G H)
@@ -1842,24 +1837,27 @@ Section lagrange_theorem.
     apply fn_partition_intro.
     - apply seq_listing.
     - intros b.
-
-      (*
-         this is only true if canonical_right_coset G H x = x.
-         Need some different map that satisfies the expected properties.
-         (canonical_right_coset)
-       *)
-
       rewrite <- (finite_coset_same_size_as_subgroup G H (canonical_right_coset G H b)).
       apply cut_equiv.
       intros a.
-      destruct (group_eq_dec (canonical_right_coset G H a) b) as [a_coset | a_not_coset].
-      + cut (canonical_right_coset G H b = b);
-          [ | apply (canonical_right_coset_unique _ _ _ a)]; auto.
-        intros Cut; rewrite Cut.
-        rewrite <- canonical_right_coset_mem in a_coset; auto.
+      destruct (group_eq_dec (canonical_right_coset G H a) (canonical_right_coset G H b)) as [a_coset | a_not_coset].
+      + rewrite <- a_coset.
+        rewrite canonical_right_coset_always_mem.
+        reflexivity.
       + symmetry.
         rewrite <- not_true_iff_false.
-        apply canonical_right_coset_not_mem; auto.
+        (* should be true that if canonical_right_coset G H a <> canonical_right_coset G H b
+           then a and b are in different cosets *)
+        remember (canonical_right_coset G H a) as r.
+        remember (canonical_right_coset G H b) as s.
+        intros Not.
+        symmetry in Heqr.
+        symmetry in Heqs.
+        apply canonical_right_coset_unique in Heqs.
+        fold (is_mem _ (right_coset G H s) a) in Not.
+        apply canonical_right_coset_mem_equiv in Not.
+        rewrite Heqr, Heqs in Not.
+        auto.
   Qed.
 
   Theorem lagrange_theorem : forall (G: finite_group) (H: finite_subgroup G) group_eq_dec,
