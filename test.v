@@ -227,5 +227,21 @@ Proof.
     apply Union_intror.
     exact x1_in_c.
 Qed.
-
+(*
 Theorem Distr1 : Same_set U (Union U A (Intersection U B C)) (Union U (Intersection U A B) (Intersection U A C)).
+ *)
+(*
+Import PeanoNat.
+
+Fixpoint wont_type_check n :=
+  match n with
+  | 0 => 0
+  | S m => wont_type_check (m / 2)
+  end.
+ *)
+Require Import Coq.Logic.FinFun.
+
+
+Print Listing.
+Print NoDup.
+Print Full.

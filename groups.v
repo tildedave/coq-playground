@@ -208,6 +208,9 @@ Section groups.
   Section group_examples.
     Require Import Coq.ZArith.BinInt.
     Require Import ZArithRing.
+    Require Import Znumtheory.
+    Require Import Zdiv.
+
     Local Open Scope Z_scope.
     Check Group.
 
@@ -221,6 +224,150 @@ Section groups.
       intros; rewrite Z.add_opp_diag_r, Z.add_opp_diag_l. auto.
       exact (makeGroup Z Z.add (fun n => - n) Z.zero Z_assoc Z_zero Z_inv).
     Defined.
+
+    Inductive lt_n (n : Z): Set :=
+    | lt_n_intro (m : Z) : lt_n n.
+
+    Definition lt_n_add n (a b: lt_n n) : (lt_n n).
+      destruct a as [r]; induction b as [s].
+      apply (lt_n_intro n ((r + s) mod n)); auto.
+    Defined.
+
+    Notation "m # n" := (lt_n_intro n m) (at level 50, left associativity).
+    Check (4 # 3).
+
+    Axiom lt_n_intro_equality:
+      forall n a b, a mod n = b mod n -> a # n = b # n.
+
+    Require Import Omega.
+
+    Definition lt_n_inv n (a: lt_n n) : (lt_n n).
+      destruct a as [r].
+      apply (lt_n_intro n (-r)); auto.
+    Defined.
+
+    Definition lt_n_zero n := lt_n_intro n 0.
+
+    Lemma lt_n_add_rewrite n: forall r s,
+        lt_n_add n (r # n) (s # n) =
+        ((r + s) mod n) # n.
+    Proof.
+      intros r s.
+      simpl.
+      reflexivity.
+    Qed.
+
+    Lemma lt_n_add_comm n:
+      forall (a b : lt_n n), lt_n_add n a b = lt_n_add n b a.
+    Proof.
+      intros a b.
+      case a; case b; intros r s.
+      repeat rewrite lt_n_add_rewrite.
+      rewrite Zplus_comm.
+      reflexivity.
+    Defined.
+
+    Lemma lt_n_add_assoc n:
+      forall (a b c: lt_n n),
+        lt_n_add n (lt_n_add n a b) c = lt_n_add n a (lt_n_add n b c).
+    Proof.
+      intros a b c.
+      case a; case b; case c; intros r s t.
+      repeat rewrite lt_n_add_rewrite.
+      rewrite Zplus_mod_idemp_l.
+      rewrite <- Zplus_assoc.
+      rewrite Zplus_mod.
+      rewrite Zplus_mod_idemp_l.
+      reflexivity.
+    Qed.
+
+    Lemma lt_n_add_inverse n: forall a,
+        lt_n_add n a (lt_n_inv n a) =
+        lt_n_zero n.
+    Proof.
+      intros.
+      unfold lt_n_add.
+      destruct a; simpl; rewrite Z.add_opp_diag_r, Zmod_0_l; reflexivity.
+    Qed.
+
+    Lemma lt_n_add_zero n: forall a,
+        lt_n_add n a (lt_n_zero n) = a.
+    Proof.
+      intros; unfold lt_n_add.
+      simpl.
+      Search (_ + 0).
+      destruct a.
+      rewrite Z.add_0_r.
+      apply lt_n_intro_equality.
+      rewrite Zmod_mod.
+      reflexivity.
+    Qed.
+
+    Hint Rewrite lt_n_add_assoc.
+    Hint Rewrite lt_n_add_inverse.
+    Hint Rewrite lt_n_add_zero.
+
+    Definition integers_mod_n_group (n : Z) (GtZero : n > 0): Group.
+      apply (makeGroup (lt_n n) (lt_n_add n) (lt_n_inv n) (lt_n_intro n 0)).
+      - intros; autorewrite with core; reflexivity.
+      - split; [ | rewrite lt_n_add_comm]; autorewrite with core; reflexivity.
+      - split; [ | rewrite lt_n_add_comm]; autorewrite with core; reflexivity.
+    Qed.
+
+    Fixpoint first_n_integers_helper (n : nat) : (list nat) :=
+      match n with
+      | 0%nat => []
+      | S m => m :: (first_n_integers_helper m)
+      end.
+
+    Definition first_n_integers (n : Z) :=
+      map Z.of_nat (rev (first_n_integers_helper (Z.to_nat n))).
+
+    Lemma first_n_integers_helper_contains:
+      forall m n, (0 <= m < n)%nat <-> In m (first_n_integers_helper n).
+    Proof.
+      intros m n.
+      split.
+      - induction n; simpl; intros m_bounded.
+        omega.
+        destruct (Nat.eq_dec m n); [left; auto | right; apply IHn; omega].
+      - induction n; simpl; intros in_list; destruct in_list; try omega.
+        apply IHn in H; omega.
+    Qed.
+
+    Theorem first_n_integers_helper_nonempty:
+      forall m n, In m (first_n_integers_helper n) -> (0 < n)%nat.
+    Admitted.
+
+    Theorem first_n_integers_contains:
+      forall a b, (0 <= a < b) <-> In a (first_n_integers b).
+    Proof.
+      intros a b.
+      unfold first_n_integers.
+        remember (Z.to_nat b) as n.
+        remember (Z.to_nat a) as m.
+        rewrite map_rev, <- in_rev, in_map_iff.
+      split.
+      - intros a_bounded.
+        exists m; split; [ | apply first_n_integers_helper_contains ]; auto.
+        rewrite Heqm.
+        apply Z2Nat.id; omega.
+        rewrite Heqn, Heqm.
+        split.
+        + replace (0%nat) with (Z.to_nat 0)%nat.
+          rewrite <- Z2Nat.inj_le; omega.
+          simpl; reflexivity.
+        + rewrite <- Z2Nat.inj_lt; omega.
+      - intros [x [def_x x_in_list]].
+        assert (x = m) as x_is_m.
+        rewrite <- def_x in Heqm; rewrite Nat2Z.id in Heqm; auto.
+        assert (0 < n)%nat.
+        apply first_n_integers_helper_nonempty in x_in_list; auto.
+        apply first_n_integers_helper_contains in x_in_list.
+        split.
+        + rewrite <- def_x; apply Nat2Z.is_nonneg.
+          (* finishing this is really annoying *)
+    Admitted.
 
     Check integer_group.
 
@@ -1125,8 +1272,8 @@ Section finite_groups.
   Structure finite_group := makeFiniteGroup
     {
       G :> Group;
-      seq : list G;
-      seq_listing : Listing seq;
+      seq_g : list G;
+      seq_listing : Listing seq_g;
     }.
 
   Structure finite_subgroup (G: Group) := makeFiniteSubgroup
@@ -1138,7 +1285,7 @@ Section finite_groups.
     }.
 
   Definition cardinality (G: finite_group) :=
-    length (seq G).
+    length (seq_g G).
 
   Definition subgroup_filter (G: finite_group) (H: subgroup G) l : list G :=
     filter (fun a => (subgroup_mem _ H a)) l.
@@ -1150,7 +1297,7 @@ Section finite_groups.
   Qed.
 
   Lemma subgroup_filter_contains (G: finite_group) H :
-    forall g, In g (subgroup_filter G H (seq G)) <-> is_mem _ H g.
+    forall g, In g (subgroup_filter G H (seq_g G)) <-> is_mem _ H g.
   Proof.
     intros g.
     split.
@@ -1176,7 +1323,7 @@ Section finite_groups.
     intros Cut H_mem.
     remember (seq_listing G) as Q.
     destruct Q as [NoDup Full].
-    apply (Cut (seq G) H_mem (Full g)).
+    apply (Cut (seq_g G) H_mem (Full g)).
     (* prove cut *)
     induction l; auto.
     intros H_mem In_g.
@@ -1193,14 +1340,14 @@ Section finite_groups.
   (* take a subgroup, take a finite group, create a finite subgroup *)
   Definition subgroup_finite_group (G: finite_group) (H: subgroup G) : finite_subgroup G.
   Proof.
-    apply (makeFiniteSubgroup _ H (subgroup_filter G H (seq G))).
-    (* forall g : G, is_mem G H g <-> In g (subgroup_filter G H (seq G)) *)
+    apply (makeFiniteSubgroup _ H (subgroup_filter G H (seq_g G))).
+    (* forall g : G, is_mem G H g <-> In g (subgroup_filter G H (seq_g G)) *)
     split; apply subgroup_filter_contains.
     apply subgroup_filter_NoDup, seq_listing.
   Qed.
 
   Definition cardinality_subgroup (G: finite_group) (H: subgroup G) : nat :=
-    length (subgroup_filter G H (seq G)).
+    length (subgroup_filter G H (seq_g G)).
 
   Theorem klein_group_finite : finite_group.
     apply (makeFiniteGroup klein_group [k_I; k_X; k_Y; k_Z]).
@@ -1255,12 +1402,42 @@ Section finite_groups.
   Definition klein_subgroup_Y := klein_subgroup k_Y.
   Definition klein_subgroup_Z := klein_subgroup k_Z.
 
+  (*
+  Definition integers_mod_n_subgroup (n m: Z) (GtZero: n > 0):
+    subgroup (integers_mod_n_group n GtZero).
+    remember (integers_mod_n_group n GtZero) as Zn.
+
+    remember ((fun (a: lt_n n) => match a with
+                        | lt_n_intro _ k => if Z.eq_dec (k mod m) 0 then true else false
+                        end)) as char.
+    apply (makeSubgroup Zn char); auto.
+    rewrite Heqchar; cbv; auto.
+    (* closed under op *)
+    destruct k in Heqchar; simple destruct a; simple destruct b;
+      rewrite Heqchar; cbv; intros H; auto.
+    (* closed under op: impossible cases *)
+    0-36: destruct H; auto.
+  Defined.
+   *)
+
+
+(*
+  Theorem integers_mod_n_finite_group (n: Z) : n > 0 -> finite_group.
+  Proof.
+    intros n_bounded.
+    Check (A ).
+    Compute (integers_mod_n_group n n_bounded).
+
+    apply (makeFiniteGroup
+
+             (map (lt_n_intro n) (first_n_integers n))).
+*)
   Require Import Arith BinNat Nat.
 
   Lemma finite_subgroup_bounded (G: finite_group) (H : subgroup G):
     cardinality_subgroup G H <= cardinality G.
   Proof.
-    remember (seq G) as S.
+    remember (seq_g G) as S.
     unfold cardinality, cardinality_subgroup.
     assert (forall l, length (subgroup_filter G H l) <= length l) as H0.
     induction l; auto.
@@ -1273,7 +1450,7 @@ Section finite_groups.
     apply H0.
   Qed.
 
-  Lemma z_in_seq_G (G: finite_group) : In (z G) (seq G).
+  Lemma z_in_seq_G (G: finite_group) : In (z G) (seq_g G).
   Proof.
     apply seq_listing.
   Qed.
@@ -1291,7 +1468,7 @@ Section finite_groups.
 
   (* Must define a canonical coset map so we can say it's injective *)
   Definition coset_repr (G: finite_group) (H: subgroup G) g :=
-    hd_error (filter (right_coset G H g) (seq G)).
+    hd_error (filter (right_coset G H g) (seq_g G)).
 
   Theorem coset_repr_always_some (G: finite_group) (H: subgroup G) :
     forall g, coset_repr G H g <> None.
@@ -1344,7 +1521,7 @@ Section finite_groups.
       unfold coset_repr in CosetSame.
       apply hd_error_cons in CosetSame.
       destruct CosetSame as [l2 l2_def].
-      assert (In g (filter (right_coset G H a) (seq G))) as g_in_filter.
+      assert (In g (filter (right_coset G H a) (seq_g G))) as g_in_filter.
       rewrite l2_def; simpl; auto.
       rewrite filter_In in g_in_filter.
       rewrite coset_swap; destruct g_in_filter; tauto.
@@ -1437,7 +1614,7 @@ Section finite_groups.
   Compute (canonical_right_coset klein_group_finite klein_subgroup_X k_Z).
 
   Definition finite_coset (G: finite_group) (H: subgroup G) g :=
-    (filter (right_coset G H g) (seq G)).
+    (filter (right_coset G H g) (seq_g G)).
 
   Lemma finite_coset_NoDup (G: finite_group) (H: subgroup G) g :
     NoDup (finite_coset G H g).
@@ -1482,6 +1659,12 @@ Section finite_groups.
   Proof.
     simple destruct x; simple destruct y; auto; right; discriminate.
   Defined.
+(*
+  Definition integers_mod_n (n : nat) : finite_group.
+    apply (makeFiniteGroup nat (seq 0 n)).
+*)
+
+
 End finite_groups.
 
 Section fn_partitions.
@@ -1702,27 +1885,30 @@ Section lagrange_theorem.
           let group_eq_dec := klein_group_eq_decidable in
           let f := finite_coset G H in
           let f_inv := canonical_right_coset G H in
-          (expand_partition G f_inv (seq G), partition_reprs G f_inv (seq G) group_eq_dec)).
+          (expand_partition G f_inv (seq_g G), partition_reprs G f_inv (seq_g G) group_eq_dec)).
 
   Definition unique_cosets (G: finite_group) (H: subgroup G) (group_eq_dec: group_eq_decidable G) :=
     fold_right
       (set_add group_eq_dec)
       (empty_set G)
-      (map (canonical_right_coset G H) (seq G)).
+      (map (canonical_right_coset G H) (seq_g G)).
+
+  Compute (unique_cosets klein_group_finite (klein_subgroup_X)) klein_group_eq_decidable.
+
 
     Check (let G := klein_group_finite in
           let H := klein_subgroup_X in
           let group_eq_dec := klein_group_eq_decidable in
           let f := finite_coset G H in
           let f_inv := canonical_right_coset G H in
-          expand_partition G f_inv (seq G)).
+          expand_partition G f_inv (seq_g G)).
 
   Compute (let G := klein_group_finite in
           let H := klein_subgroup_X in
           let group_eq_dec := klein_group_eq_decidable in
           let f := finite_coset G H in
           let f_inv := canonical_right_coset G H in
-          expand_partition G f_inv (seq G)).
+          expand_partition G f_inv (seq_g G)).
 
   Arguments op {g} _ _.
   Arguments inv {g} _.
@@ -1731,7 +1917,7 @@ Section lagrange_theorem.
   Theorem cosets_are_partition (G: finite_group) (H: finite_subgroup G) group_eq_dec:
     fn_partition G
                  (canonical_right_coset G H)
-                 (seq G)
+                 (seq_g G)
                  group_eq_dec
                  (cardinality_subgroup G H).
   Proof.
@@ -1764,13 +1950,13 @@ Section lagrange_theorem.
     rewrite <- (expand_partition_same_size
                   _
                   (canonical_right_coset G H)
-                  (seq G)
+                  (seq_g G)
                   group_eq_dec
                   (cardinality_subgroup G H)); auto.
     rewrite (expand_partition_length
                   _
                   (canonical_right_coset G H)
-                  (seq G)
+                  (seq_g G)
                   group_eq_dec
                   (cardinality_subgroup G H)); auto.
   Qed.
