@@ -1654,13 +1654,6 @@ Section element_order.
 
   Notation "x ** y" := (op x y) (at level 50, left associativity).
 
-  (* define the list of powers of an element *)
-  Fixpoint element_powers (G: Group) (g: G) n : list G :=
-    match n with
-      0 => []
-    | S m => g :: element_powers G (g ** g) m
-    end.
-
   Fixpoint element_power (G: Group) (g: G) n : G :=
     match n with
     | 0 => z
@@ -1668,11 +1661,173 @@ Section element_order.
     end.
 
   Arguments element_power {G} _ _.
-  Notation "g ^^ n" := (element_power g n) (at level 50, left associativity).
+  Notation "g ^^ n" := (element_power g n) (at level 51, right associativity).
+
+  Theorem element_power_0 (G: Group): forall g: G, g ^^ 0 = z.
+  Proof.
+    intros; simpl; autorewrite with core; auto.
+  Qed.
 
   Theorem element_power_1 (G: Group): forall g: G, g ^^ 1 = g.
   Proof.
     intros; simpl; autorewrite with core; auto.
+  Qed.
+
+  Hint Rewrite element_power_0.
+  Hint Rewrite element_power_1.
+
+  Theorem element_power_additive (G: Group): forall (g : G) m n,
+      (g ^^ m) ** (g ^^ n) = g ^^ (m + n).
+  Proof.
+    intros g.
+    induction m; intros; simpl; autorewrite with core; auto.
+    rewrite IHm; auto.
+  Qed.
+
+  Theorem element_power_commutes (G: Group): forall (g : G) m n,
+      (g ^^ m) ** (g ^^ n) = (g ^^ n) ** (g ^^ m).
+  Proof.
+    intros; repeat rewrite element_power_additive; rewrite plus_comm; auto.
+  Qed.
+
+  Theorem element_power_single_commutes (G: Group): forall (g : G) m,
+      (g ^^m) ** g = g ** (g^^m).
+  Proof.
+    intros.
+    rewrite <- (element_power_1 _ g) at 2.
+    rewrite <- (element_power_1 _ g) at 3.
+    rewrite element_power_commutes.
+    autorewrite with core; auto.
+  Qed.
+
+  Lemma element_power_right  (G: Group) (g : G): forall n, (g ^^ n) ** g = g ^^ S n.
+  Proof.
+    induction n; simpl; autorewrite with core; auto.
+    rewrite IHn; simpl; auto.
+  Qed.
+
+  Lemma element_power_left  (G: Group) (g : G): forall n, g ** (g ^^ n) = g ^^ S n.
+  Proof.
+    induction n; simpl; autorewrite with core; auto.
+  Qed.
+
+  Lemma element_power_inverse_right (G: Group): forall (g: G) n m,
+      n <= m -> (g ^^ m) ** ((inv g) ^^ n) = (g ^^ (m - n)).
+  Proof.
+    intros g.
+    induction n.
+    intros m; autorewrite with core; rewrite Nat.sub_0_r; auto.
+    simpl.
+    intros m H.
+    rewrite <- element_power_single_commutes.
+    rewrite op_assoc.
+    rewrite IHn; try omega.
+    apply (group_cancel_r _ g _ _).
+    autorewrite with core.
+    rewrite element_power_right.
+    assert (S (m - S n) = m - n) as Rewrite by omega.
+    rewrite Rewrite; auto.
+  Qed.
+
+  Lemma element_power_inverse_left (G: Group): forall (g: G) n m,
+      n <= m -> ((inv g) ^^ n) ** (g ^^ m) = (g ^^ (m - n)).
+  Proof.
+    intros g.
+    induction n.
+    intros m; autorewrite with core; rewrite Nat.sub_0_r; auto.
+    simpl.
+    intros m H.
+    rewrite <- op_assoc.
+    rewrite IHn; try omega.
+    apply (group_cancel_l _ g _ _).
+    autorewrite with core.
+    rewrite element_power_left.
+    assert (S (m - S n) = m - n) as Rewrite by omega.
+    rewrite Rewrite; auto.
+  Qed.
+
+  Lemma element_power_inverse (G: Group): forall (g: G) n,
+      inv (g^^n) = (inv g)^^n.
+  Proof.
+    intros g; induction n; simpl; autorewrite with core; auto.
+    rewrite IHn, element_power_right; auto.
+  Qed.
+
+  Hint Rewrite element_power_additive.
+  Hint Rewrite element_power_inverse_right.
+  Hint Rewrite element_power_inverse_left.
+  Hint Rewrite element_power_inverse.
+
+  Definition iterated_powers (G: Group) (g : G) m : (list G) :=
+    map (fun n => g ^^ n)  (List.seq 0 m).
+
+  Compute (iterated_powers klein_group k_Y 4).
+  Compute (@element_power klein_group k_Y 1).
+  Compute (nth_error (iterated_powers klein_group_finite k_Y 4) 1).
+
+  Lemma nth_error_seq : forall len start m,
+      m < len -> nth_error (seq start len) m = Some (start + m).
+  Proof.
+    induction len.
+    intros start m; omega.
+    intros start m m_lt_Slen.
+    simpl.
+    destruct m.
+    simpl; auto.
+    simpl.
+    apply lt_S_n, (IHlen (S start) m) in m_lt_Slen.
+    rewrite m_lt_Slen, Nat.add_succ_comm; auto.
+  Qed.
+
+  Theorem iterated_powers_works (G: Group) : forall g n m h,
+      nth_error (iterated_powers G g n) m = Some h -> g ^^ m = h.
+  Proof.
+    intros g n m h.
+    unfold iterated_powers.
+    intros H.
+    cut (m < n).
+    intros Cut.
+    assert ((nth_error (map (fun n => g ^^ n) (seq 0 n)) m) = Some (g ^^ m)).
+    apply map_nth_error, nth_error_seq; auto.
+    rewrite H in H0.
+    inversion H0; auto.
+    assert (nth_error (map (fun n : nat => g ^^ n) (seq 0 n)) m <> None) as H'.
+    contradict H.
+    rewrite H; discriminate.
+    apply nth_error_Some in H'.
+    rewrite map_length, seq_length in H'.
+    auto.
+  Qed.
+
+  Lemma iterated_powers_length (G: Group):
+    forall g n, length (iterated_powers G g n) = n.
+  Proof.
+    intros g n; unfold iterated_powers; rewrite map_length, seq_length; auto.
+  Qed.
+
+  Theorem iterated_powers_works2 (G: Group) : forall g n m,
+      m < n -> nth_error (iterated_powers G g n) m = Some (g ^^ m).
+  Proof.
+    intros g n m m_lt_n.
+    rewrite <- (iterated_powers_length G g) in m_lt_n.
+    rewrite <- nth_error_Some in m_lt_n.
+    remember (nth_error (iterated_powers G g n) m) as h.
+    destruct h; [auto | contradict m_lt_n; auto].
+    symmetry in Heqh; apply iterated_powers_works in Heqh; rewrite Heqh; auto.
+  Qed.
+
+  Lemma finite_group_iterated_powers_repeats (G: finite_group):
+    forall g, ~ NoDup (iterated_powers G g (S (cardinality G))).
+  Proof.
+    intros g IteratedPowersNoDup.
+    remember (S (cardinality G)) as N.
+    assert (incl (iterated_powers G g N) (seq_g G)) as Powers_Subset.
+    unfold incl; intros a H; apply seq_listing.
+    apply (NoDup_incl_length IteratedPowersNoDup) in Powers_Subset.
+    rewrite iterated_powers_length in Powers_Subset.
+    rewrite HeqN in Powers_Subset.
+    unfold cardinality in Powers_Subset.
+    omega.
   Qed.
 
   Definition order (G: Group) (g : G) m :=
@@ -1684,62 +1839,255 @@ Section element_order.
     repeat split; try omega; try apply element_power_1.
     unfold not; intros H; destruct H; omega.
   Qed.
-(*
-  Fixpoint find_order_helper (G: Group) (g : G) (h : G) m : option nat :=
-    match m with
-    | 0 => None
-    | S n => if (eq_dec h z) then
-               Some 1
-             else
-               match find_order_helper G g (h ** g) n with
-               | None => None
-               | Some a => Some (S a)
-               end
-    end.
 
-  Fixpoint find_order (G: Group) (g: G) m : option nat :=
-    find_order_helper G g g m.
+  Require Import Classical.
 
-  Lemma find_order_inductive_step (G: Group) (g: G) (h: G) m a :
-    find_order_helper G g (h ** g) m = Some a ->
-    find_order_helper G g h (S m) = Some (S a).
-  Admitted.
-
-  Lemma find_order_helper_works (G: Group) (g: G) (h: G) : forall m n,
-      find_order_helper G g h m = Some n -> order G g n.
+  (* must show this to be able to show power cycle
+     approach requires classical logic - I imagine there is a way to do this
+     with a more direct "find" *)
+  Lemma not_nodup_means_different_elems: forall (A: Type) (l: list A),
+      ~NoDup l ->
+      (exists m n, m < (length l) /\ n < (length l) /\
+                   m <> n /\ nth_error l m = nth_error l n).
   Proof.
-    induction m; unfold find_order.
-    intros m H; discriminate H.
-    unfold find_order_helper; fold find_order_helper.
-    destruct (eq_dec g z) as [g_z | g_not_z].
-    intros n H; inversion H; rewrite g_z; apply order_z.
-    intros n H.
-    remember (find_order_helper G g (g ** g) m) as Q.
-    destruct Q.
-    symmetry in HeqQ.
-    apply find_order_inductive_step in HeqQ.
-    apply IHm.
+    intros A.
+    induction l; intros l_NoDup.
+    contradict l_NoDup; apply NoDup_nil.
+    rewrite NoDup_cons_iff in l_NoDup.
+    apply not_and_or in l_NoDup.
+    destruct l_NoDup as [In_a | Not_NoDup].
+    apply NNPP in In_a.
+    apply in_split in In_a.
+    destruct In_a as [l1 [l2 l_eq]].
+    exists 0; exists (S (length l1)).
+    repeat split; try simpl; try omega; rewrite l_eq.
+    rewrite app_length; simpl; omega.
+    rewrite nth_error_app2; try omega.
+    rewrite Nat.sub_diag; simpl; auto.
+    (* induction step, must 'step forward' and add 1 to both m and n *)
+    apply IHl in Not_NoDup.
+    destruct Not_NoDup as [m [n [m_length [n_length [m_neq_n list_eq]]]]].
+    exists (S m); exists (S n).
+    repeat split; try simpl; try omega; auto.
+  Qed.
 
-  Definition element_powers_set (G: Group) (g: G) n : ListSet.set G :=
-    fold_right (set_add (eq_dec G)) (empty_set G) (element_powers G g n).
+  Lemma power_cycle (G: Group) (g: G): forall m n,
+      n > m -> g ^^n = g^^m -> g ^^ (n - m) = z.
+  Proof.
+    induction m; intros n; autorewrite with core.
+    rewrite Nat.sub_0_r; auto.
+    Search (_ - S _).
+    intros n_gt_Sm.
+    simpl.
+    intros H.
+    (* would be nice to not do everything in H here *)
+    apply (group_add_r _ ((inv g)^^m)) in H.
+    rewrite <- op_assoc in H.
+    rewrite element_power_inverse_right in H; try omega.
+    rewrite element_power_inverse_right in H; try omega.
+    rewrite Nat.sub_diag in H.
+    simpl in H.
+    autorewrite with core in H.
+    apply (group_cancel_r _ g).
+    rewrite element_power_right.
+    replace (S (n - S m)) with (n -  m); try omega.
+    autorewrite with core; auto.
+  Qed.
 
-  (* won't be able to recognize powers in an infinite group *)
+  Theorem every_finite_group_element_has_a_power_cycle (G: finite_group):
+    forall (g : G), exists m, m > 0 /\ m < S (cardinality G) /\ g^^m = z.
+  Proof.
+    intros g.
+    remember (finite_group_iterated_powers_repeats G g) as RepeatedCycles.
+    destruct HeqRepeatedCycles.
+    remember (S (cardinality G)) as N.
+    apply not_nodup_means_different_elems in RepeatedCycles.
+    destruct RepeatedCycles as [m [n [m_lt_len [n_lt_len [m_neq_n Cycle]]]]].
+    assert ((nth_error (iterated_powers G g N) m) = Some (g ^^ m)) as G_power_m.
+    apply iterated_powers_works2;
+      rewrite iterated_powers_length in m_lt_len; auto.
+    assert ((nth_error (iterated_powers G g N) n) = Some (g ^^ n)) as G_power_n.
+    apply iterated_powers_works2;
+      rewrite iterated_powers_length in n_lt_len; auto.
+    rewrite iterated_powers_length in n_lt_len.
+    rewrite iterated_powers_length in m_lt_len.
+    rewrite G_power_m, G_power_n in Cycle.
+    inversion Cycle.
+    destruct (lt_eq_lt_dec m n) as [[m_lt_n | m_eq_n] | m_gt_n];
+      [exists (n - m) | contradict m_eq_n; auto | exists (m - n)];
+      repeat split; try omega; apply power_cycle; try omega; auto.
+  Qed.
 
-  Definition element_powers_mem (G: finite_group) (g: G) : set G :=
-    (fun a =>
-       set_mem (eq_dec G) a (element_powers_set G g (cardinality G))).
-*)
+  Lemma power_cycle_mult (G: Group):
+    forall (g: G) (k m: nat), g ^^m = z -> g ^^ k * m = z.
+  Proof.
+    intros g; induction k; intros m g_cycle; simpl; auto.
+    rewrite <- element_power_additive.
+    rewrite g_cycle.
+    autorewrite with core.
+    apply IHk; auto.
+  Qed.
+
+  Lemma power_cycle_mod (G: Group):
+    forall (g: G) (m n: nat), m > 0 -> (g ^^ m = z) -> (g ^^ n) = g ^^ (n mod m).
+  Proof.
+    intros g m n m_gt_0 m_power.
+    assert (g ^^ (m * (n / m)) = z).
+    rewrite Nat.mul_comm; apply power_cycle_mult; auto.
+    apply (group_cancel_r _ z).
+    rewrite <- H0 at 2.
+    autorewrite with core.
+    rewrite plus_comm.
+    rewrite <- (Nat.div_mod n m); auto; try omega.
+  Qed.
+
+  Lemma iterated_powers_contains_z (G: Group):
+    forall (g: G) n, n > 0 -> In z (iterated_powers G g n).
+  Proof.
+    intros g.
+    induction n; intros n_gt_0; try omega.
+    simpl; left; auto.
+  Qed.
+
+  Definition element_subgroup_mem (G: finite_group) (g : G) : (set G) :=
+    let power_list := iterated_powers G g (S (cardinality G)) in
+    (fun h => match count_occ eq_dec power_list h with
+                                      0 => false
+                                    | _ => true
+                                    end).
+
+  Lemma iterated_powers_in (G : Group) (g: G): forall a n,
+      In a (iterated_powers G g n) -> exists m, m < n /\ g ^^ m = a.
+  Proof.
+    intros a n.
+    unfold iterated_powers.
+    rewrite in_map_iff.
+    intros [x [g_x x_in]].
+    exists x.
+    apply in_seq in x_in.
+    split; auto; omega.
+  Qed.
+
+  Lemma element_subgroup_mem_exists_n (G: finite_group) (g : G) :
+    forall a,
+      is_mem G (element_subgroup_mem G g) a <->
+      (exists n,
+          n < S (cardinality G) /\
+          g ^^ n = a).
+  Proof.
+    intros a.
+    unfold element_subgroup_mem, is_mem.
+    remember (count_occ eq_dec _ a) as Q.
+    split.
+    destruct Q; intros H.
+    contradict H; auto.
+    assert (count_occ eq_dec
+                      (iterated_powers G g (S (cardinality G))) a > 0) as H1
+      by omega.
+    apply count_occ_In in H1.
+    apply (iterated_powers_in _ _ _ (S (cardinality G))); auto.
+    intros [n [n_bounded g_to_n]].
+    apply (iterated_powers_works2 G g (S (cardinality G))) in n_bounded.
+    apply nth_error_In in n_bounded.
+    rewrite g_to_n in n_bounded.
+    apply (count_occ_In eq_dec) in n_bounded.
+    destruct Q; try omega; auto.
+  Qed.
+
+  Lemma element_subgroup_mem_z (G: finite_group) (g: G) :
+    is_mem G (element_subgroup_mem G g) z.
+  Proof.
+    assert (S (cardinality G) > 0) as Gt by omega.
+    remember (iterated_powers_contains_z G g (S (cardinality G)) Gt) as Q.
+    destruct HeqQ.
+    unfold is_mem, element_subgroup_mem.
+    rewrite (count_occ_In eq_dec _ _) in Q.
+    destruct (count_occ eq_dec _ z); try omega; auto.
+  Qed.
+
+  Lemma element_subgroup_mem_closed (G: finite_group) (g : G) :
+    forall a b,
+      is_mem G (element_subgroup_mem G g) a /\
+      is_mem G (element_subgroup_mem G g) b ->
+      is_mem G (element_subgroup_mem G g) (a ** b).
+  Proof.
+    intros a b [a_mem b_mem].
+    apply element_subgroup_mem_exists_n in a_mem.
+    apply element_subgroup_mem_exists_n in b_mem.
+    destruct a_mem as [h [h_bound g_to_h]].
+    destruct b_mem as [i [g_bound g_to_i]].
+    rewrite <- g_to_h, <- g_to_i.
+    rewrite element_power_additive.
+    (* h + i % group order *)
+    destruct (every_finite_group_element_has_a_power_cycle G g) as [k [k_gt_0 [k_lt_cardinality k_equality]]].
+    assert (g ^^ (h + i) = g ^^ ((h + i) mod k)) as ThingWeCanProve.
+    apply power_cycle_mod; auto.
+    rewrite ThingWeCanProve.
+    assert (((h + i) mod k) < k).
+    apply Nat.mod_upper_bound; omega.
+    assert (((h + i) mod k) < (S (cardinality G))) by omega.
+    apply element_subgroup_mem_exists_n.
+    exists ((h + i) mod k); auto.
+  Qed.
 
 
-  (* show element_powers is subgroup *)
-  (* challenge with current setup is showing decidability of membership *)
-  (* will be difficult no matter what *)
+  Lemma element_subgroup_mem_inverse (G: finite_group) (g : G) :
+    forall a,
+      is_mem G (element_subgroup_mem G g) a ->
+      is_mem G (element_subgroup_mem G g) (inv a).
+  Proof.
+    intros a a_mem.
+    apply element_subgroup_mem_exists_n in a_mem.
+    destruct a_mem as [h [h_bound g_to_h]].
+    destruct (every_finite_group_element_has_a_power_cycle G g) as [k [k_gt_0 [k_lt_cardinality k_equality]]].
+    apply element_subgroup_mem_exists_n.
+    destruct (lt_eq_lt_dec h k) as [[h_lt_k | h_eq_k] | h_gt_k].
+    exists (k - h).
+    split; try omega.
+    rewrite <- g_to_h.
+    rewrite element_power_inverse.
+    apply (group_cancel_r _ (g ^^ h)).
+    autorewrite with core; try omega.
+    replace (k - h + h) with k by omega.
+    rewrite Nat.sub_diag.
+    autorewrite with core; auto.
+    (* option 2, h = k *)
+    exists h.
+    rewrite <- h_eq_k in k_equality.
+    rewrite k_equality in g_to_h.
+    rewrite <- g_to_h.
+    autorewrite with core.
+    split; auto.
+    (* option 3, h > k *)
+    (* cycle is at k = 5, we are given h = 12 *)
+    (* actual inverse is at 3 *)
+    (* we first replace with the case *)
+    exists (k - (h mod k)).
+    split; try omega.
+    assert (g ^^ h = g ^^ h mod k) as replace_mod.
+    apply power_cycle_mod; try omega; auto.
+    rewrite replace_mod in g_to_h.
+    rewrite <- g_to_h.
+    apply (group_cancel_r _ (g ^^ (h mod k))).
+    autorewrite with core; auto.
+    assert (h mod k < k) as h_mod_k_bound.
+    apply Nat.mod_upper_bound; omega.
+    replace (k - h mod k + h mod k) with k by omega.
+    rewrite Nat.sub_diag.
+    autorewrite with core; auto.
+  Qed.
 
-  Definition element_subgroup (G: finite_group) (g: G) : subgroup G.
-    apply (makeSubgroup G).
+  Theorem element_subgroup (G: finite_group):
+    forall (g: G), subgroup G.
+  Proof.
+    intros g.
+    remember (iterated_powers G g (S (cardinality G))) as power_list.
+    apply (makeSubgroup G (element_subgroup_mem G g)).
+    apply (element_subgroup_mem_z G g).
+    apply (element_subgroup_mem_closed G g).
+    apply (element_subgroup_mem_inverse G g).
+  Qed.
 
-
-
-
+  (* TODO: show size of subgroup is element order *)
 
 End element_order.
