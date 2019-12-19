@@ -1970,9 +1970,6 @@ Section element_order.
      (no duplicates).  where this is challenging is that the k we get from the
      power cycle lemma above is not guaranteed to be the first k *)
 
-  Definition smallest_power_cycle (G: Group) (g : G) (n : nat) :=
-    n > 0 /\ g^^n = z /\ (forall m, 0 < m < n -> g^^m <> z).
-
   Theorem combine_nth_error (A B: Type): forall n (l1: list A) (l2: list B) h j,
       nth_error l1 n = Some h ->
       nth_error l2 n = Some j ->
@@ -2160,6 +2157,37 @@ Section element_order.
 
   (* stopping point, need to redo the subgroup logic and show cardinality of
      subgroup = order *)
+
+  Arguments order {G0} _.
+
+  Lemma order_bound (G: finite_group) (g: G) :
+    order g <= (cardinality G).
+  Admitted.
+
+  Definition smallest_power_cycle (G: Group) (g : G) (n : nat) :=
+    n > 0 /\ g^^n = z /\ (forall m, 0 < m < n -> g^^m <> z).
+
+  (* show order is smallest power cycle *)
+  Theorem order_is_smallest  (G: finite_group) (g : G) :
+    (smallest_power_cycle G g) (order g).
+  Proof.
+    unfold smallest_power_cycle.
+    repeat split;
+      [apply order_always_positive | apply element_raised_to_order | auto].
+    intros m m_lt_g Not.
+    (* the approach here should be that order g was the first *)
+    assert (In (m, z) (powers_of_g G g)) as m_in_powers.
+    apply in_powers_of_g; split; [remember (order_bound G g); omega | assumption].
+    unfold powers_of_g in m_in_powers.
+    simpl in m_in_powers; destruct m_in_powers as [m_first | m_rest];
+      [inversion m_first; omega | auto].
+    remember (order g) as n.
+    unfold order in Heqn.
+    destruct (order_filter_nonempty G g) as [p [tl p_rest]].
+    rewrite p_rest in Heqn; simpl in Heqn.
+
+
+
 
   Lemma powers_of_g_NoDup (G: finite_group) (g : G) : NoDup (powers_of_g G g).
   Proof.
