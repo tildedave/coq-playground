@@ -1970,14 +1970,55 @@ Section element_order.
      (no duplicates).  where this is challenging is that the k we get from the
      power cycle lemma above is not guaranteed to be the first k *)
 
+  Lemma combine_nil :forall (C D: Type) (l': list C), combine l' (@nil D) = [].
+  Proof.
+    induction l'; auto.
+  Qed.
+
+  Lemma combine_nil2 :forall (C D: Type) (l': list C), combine (@nil D) l' = [].
+  Proof.
+    induction l'; auto.
+  Qed.
+
+  Lemma combine_seq: forall (C: Type) l m (b : C) len,
+      len > 0 ->
+      combine (seq m len) (b :: l) = (m, b) :: (combine (seq (m + 1) (len - 1)) l).
+  Proof.
+    intros C; induction l; intros m b len; simpl.
+    rewrite combine_nil; simpl.
+    destruct len;
+      [intros; omega |
+       simpl; rewrite combine_nil; intros; reflexivity].
+    intros len_gt_0.
+    destruct len.
+    contradict len_gt_0; omega.
+    simpl.
+    replace (len - 0) with len by omega.
+    replace (S m) with (m + 1) by omega.
+    reflexivity.
+  Qed.
+
+  (* ugly proof *)
   Theorem combine_nth_error (A B: Type): forall n (l1: list A) (l2: list B) h j,
-      nth_error l1 n = Some h ->
-      nth_error l2 n = Some j ->
+      (nth_error l1 n = Some h /\ nth_error l2 n = Some j) <->
       nth_error (combine l1 l2) n = Some (h, j).
   Proof.
-    induction n; simpl; intros l1 l2 h j nth_l1 nth_l2;
-      destruct l1; destruct l2; simpl; try discriminate;
-        [inversion nth_l1; inversion nth_l2 | apply IHn]; auto.
+    induction n; simpl; intros l1 l2 h j; split.
+    intros [nth_l1 nth_l2]; destruct l1; destruct l2; simpl; try discriminate.
+    inversion nth_l1; inversion nth_l2; auto.
+    intros l1_l2_combine; destruct l1; destruct l2;
+      try rewrite combine_nil in l1_l2_combine;
+      try rewrite combine_nil2 in l1_l2_combine;
+      [ | | | simpl in l1_l2_combine; inversion l1_l2_combine; tauto];
+      contradict l1_l2_combine; discriminate.
+    intros [nth_l1 nth_l2]; destruct l1; destruct l2; simpl; try discriminate.
+    apply IHn; tauto.
+    intros l1_l2_combine.
+    destruct l1; destruct l2;
+      try rewrite combine_nil in l1_l2_combine;
+      try rewrite combine_nil2 in l1_l2_combine;
+      [ | | | simpl in l1_l2_combine; inversion l1_l2_combine; apply IHn ; tauto];
+      contradict l1_l2_combine; discriminate.
   Qed.
 
   Theorem combine_nth_error2 (A B: Type): forall (l1: list A) (l2: list B) h j,
@@ -2023,10 +2064,7 @@ Section element_order.
       apply (nth_error_seq _ 0 _) in m_lt_bound.
       simpl in m_lt_bound.
       apply (iterated_powers_works2 G g) in m_lt_bound2.
-      remember (combine_nth_error _ _ m _ _ _ _ m_lt_bound m_lt_bound2) as Q.
-      Search (nth_error).
-      apply (nth_error_In _ m).
-      destruct HeqQ; rewrite m_eq in Q; auto.
+      apply (nth_error_In _ m), combine_nth_error; rewrite <- m_eq; split; assumption.
   Qed.
 
   Definition nonzero_powers (G: finite_group) (g: G) := tail (powers_of_g G g).
@@ -2045,10 +2083,8 @@ Section element_order.
     apply in_powers_of_g; split; try omega; auto.
     assert (In (h, z) (nonzero_powers G g)) as in_nonzero_powers.
     unfold powers_of_g, iterated_powers; unfold nonzero_powers; simpl.
-    apply (nth_error_In _ (h - 1)), combine_nth_error;
-      [ | rewrite <- g_to_h; apply map_nth_error];
-      replace h with (1 + (h - 1)) at 2 by omega; apply nth_error_seq; omega.
-    Search (filter).
+    apply (nth_error_In _ (h - 1)), combine_nth_error.
+    split; [ | rewrite <- g_to_h; apply map_nth_error]; replace h with (1 + (h - 1)) at 2 by omega; apply nth_error_seq; omega.
     assert (In (h, z) (filter (is_pair_zero G) (nonzero_powers G g))) as in_filter.
     apply filter_In; try split; auto; simpl; unfold is_pair_zero; simpl; destruct (@eq_dec G z z); auto.
     assert (filter (is_pair_zero G) (nonzero_powers G g) <> []) as NonZeroFilter.
@@ -2155,9 +2191,6 @@ Section element_order.
 
   Compute (order klein_group_finite k_Y).
 
-  (* stopping point, need to redo the subgroup logic and show cardinality of
-     subgroup = order *)
-
   Arguments order {G0} _.
 
   Lemma order_bound (G: finite_group) (g: G) :
@@ -2166,6 +2199,43 @@ Section element_order.
 
   Definition smallest_power_cycle (G: Group) (g : G) (n : nat) :=
     n > 0 /\ g^^n = z /\ (forall m, 0 < m < n -> g^^m <> z).
+
+  Lemma filter_split: forall (A: Type) (l l': list A) f b,
+      filter f l = b :: l' -> exists l2 l3, l = l2 ++ b :: l3 /\ forall b, In b l2 -> f b = false.
+  Proof.
+    induction l; intros l' f b; simpl; intro filter_eq.
+    contradict filter_eq; discriminate.
+    destruct (bool_dec (f a) true) as [fa_true | fa_false].
+    rewrite fa_true in filter_eq.
+    inversion filter_eq as [a_eq_b].
+    exists []; exists l; simpl; split; [reflexivity | intros b' H'; contradict H'].
+    Search (_ <> true).
+    apply not_true_is_false in fa_false.
+    rewrite fa_false in filter_eq.
+    apply IHl in filter_eq.
+    destruct filter_eq as [l2 [l3 [l_eq l_not_contains]]].
+    exists (a :: l2), l3.
+    split; [rewrite l_eq; reflexivity | simpl; intros c].
+    intros [a_eq_c | c_in_l2]; [rewrite <- a_eq_c | apply l_not_contains]; assumption.
+  Qed.
+
+  Lemma filter_combine: forall (A: Type) (l: list A) f m len,
+      forall j q, In (j, q) (filter f (combine (seq m len) l)) -> m <= j.
+  Proof.
+    intros A; induction l; intros f m len j q in_jq.
+    rewrite combine_nil in in_jq; contradict in_jq.
+    assert (len > 0) as len_gt_0.
+    destruct len;
+      [simpl in in_jq; contradict in_jq; discriminate | omega].
+    rewrite combine_seq in in_jq; auto.
+    simpl in in_jq.
+    destruct (bool_dec (f (m, a)) true) as [fma | fma];
+      [ | apply not_true_is_false in fma]; rewrite fma in in_jq.
+    simpl in in_jq.
+    destruct in_jq as [ma_first | in_rest];
+      [inversion ma_first | apply (IHl f (m + 1)) in in_rest]; omega.
+    apply IHl in in_jq; omega.
+  Qed.
 
   (* show order is smallest power cycle *)
   Theorem order_is_smallest  (G: finite_group) (g : G) :
@@ -2183,47 +2253,41 @@ Section element_order.
       [inversion m_first; omega | auto].
     remember (order g) as n.
     unfold order in Heqn.
-    destruct (order_filter_nonempty G g) as [p [tl p_rest]].
+    destruct (order_filter_nonempty G g) as [p [l p_rest]].
     rewrite p_rest in Heqn; simpl in Heqn.
+    cut (forall (A: Type) p' i j l',
+            In p' (combine (seq i j) l') -> i <= @fst nat A p').
+    intros Cut.
+    apply Cut in m_rest.
+    (* TODO: return to this *)
+  Admitted.
 
-
-
+  Check powers_of_g.
 
   Lemma powers_of_g_NoDup (G: finite_group) (g : G) : NoDup (powers_of_g G g).
   Proof.
-    apply fold_set_NoDup.
-  Qed.
-
-  Lemma powers_of_g_nth_error (G: finite_group) (g: G) :
-    forall n a, nth_error (powers_of_g G g) n = Some a -> g ^^ n = a.
-  Proof.
-    induction n.
-    intros a.
-    simpl.
-    intros H.
-    unfold powers_of_g in H.
-    simpl in H.
-    destruct H.
-
-    intros n a.
-    intros H.
-    apply nth_error_split in H.
-    destruct H as [l1 [l2 [l_equal n_equal]]].
-    unfold powers_of_g in l_equal.
-
-
+    (* TODO: probably can use z not in list - in_dec *)
   Admitted.
 
-  Theorem element_to_power_order (G: finite_group):
-    forall g, g ^^ (order G g) = z.
+  Check powers_of_g.
+
+  Lemma powers_of_g_nth_error (G: finite_group) (g: G) :
+    forall n m a, nth_error (powers_of_g G g) n = Some (m, a) -> m = n /\ g ^^ m = a.
   Proof.
-    unfold order.
-    intros g.
-    destruct (eq_dec g z) as [g_is_z | g_not_z].
-    rewrite g_is_z.
-    apply element_power_z.
-
-
+    intros n m a Hma.
+    assert (n < S (cardinality G)) as n_bound.
+    apply nth_error_Some2 in Hma; unfold powers_of_g in Hma;
+      rewrite combine_length, seq_length, iterated_powers_length in Hma;
+      rewrite Nat.min_id in Hma; assumption.
+    assert (In (m, a) (powers_of_g G g)) as ma_in_powers.
+    apply nth_error_In in Hma; assumption.
+    rewrite in_powers_of_g in ma_in_powers.
+    unfold powers_of_g in Hma.
+    rewrite <- combine_nth_error in Hma.
+    destruct Hma as [Hm Hn].
+    apply iterated_powers_works in Hn.
+    rewrite nth_error_seq in Hm; [ simpl in Hm; inversion Hm; tauto | assumption ].
+  Qed.
 
 
   (* show the element powers are a subgroup *)
@@ -2292,6 +2356,8 @@ Section element_order.
       is_mem G (element_subgroup_mem G g) (a ** b).
   Proof.
     intros a b [a_mem b_mem].
+    remember (order_always_positive G g) as order_positive.
+    remember (order_bound G g) as order_bounded.
     apply element_subgroup_mem_exists_n in a_mem.
     apply element_subgroup_mem_exists_n in b_mem.
     destruct a_mem as [h [h_bound g_to_h]].
@@ -2299,17 +2365,15 @@ Section element_order.
     rewrite <- g_to_h, <- g_to_i.
     rewrite element_power_additive.
     (* h + i % group order *)
-    destruct (every_finite_group_element_has_a_power_cycle G g) as [k [k_gt_0 [k_lt_cardinality k_equality]]].
-    assert (g ^^ (h + i) = g ^^ ((h + i) mod k)) as ThingWeCanProve.
-    apply power_cycle_mod; auto.
+    assert (g ^^ (h + i) = g ^^ ((h + i) mod (order g))) as ThingWeCanProve.
+    apply power_cycle_mod; [apply order_always_positive | apply element_raised_to_order].
     rewrite ThingWeCanProve.
-    assert (((h + i) mod k) < k).
+    assert (((h + i) mod (order g)) < (order g)).
     apply Nat.mod_upper_bound; omega.
-    assert (((h + i) mod k) < (S (cardinality G))) by omega.
+    assert (((h + i) mod (order g)) < (S (cardinality G))) by omega.
     apply element_subgroup_mem_exists_n.
-    exists ((h + i) mod k); auto.
+    exists ((h + i) mod (order g)); auto.
   Qed.
-
 
   Lemma element_subgroup_mem_inverse (G: finite_group) (g : G) :
     forall a,
@@ -2319,42 +2383,41 @@ Section element_order.
     intros a a_mem.
     apply element_subgroup_mem_exists_n in a_mem.
     destruct a_mem as [h [h_bound g_to_h]].
-    destruct (every_finite_group_element_has_a_power_cycle G g) as [k [k_gt_0 [k_lt_cardinality k_equality]]].
+    remember (order_always_positive G g) as order_positive.
+    remember (order_bound G g) as order_bounded.
     apply element_subgroup_mem_exists_n.
-    destruct (lt_eq_lt_dec h k) as [[h_lt_k | h_eq_k] | h_gt_k].
-    exists (k - h).
+    destruct (lt_eq_lt_dec h (order g)) as [[h_lt_k | h_eq_k] | h_gt_k].
+    exists ((order g) - h).
     split; try omega.
     rewrite <- g_to_h.
     rewrite element_power_inverse.
     apply (group_cancel_r _ (g ^^ h)).
     autorewrite with core; try omega.
-    replace (k - h + h) with k by omega.
+    replace ((order g) - h + h) with (order g) by omega.
     rewrite Nat.sub_diag.
-    autorewrite with core; auto.
+    autorewrite with core; apply element_raised_to_order.
     (* option 2, h = k *)
-    exists h.
-    rewrite <- h_eq_k in k_equality.
-    rewrite k_equality in g_to_h.
-    rewrite <- g_to_h.
-    autorewrite with core.
-    split; auto.
+    exists (order g).
+    rewrite h_eq_k, element_raised_to_order in g_to_h.
+    rewrite <- g_to_h; rewrite element_raised_to_order; split;
+      [omega | autorewrite with core; reflexivity].
     (* option 3, h > k *)
     (* cycle is at k = 5, we are given h = 12 *)
     (* actual inverse is at 3 *)
     (* we first replace with the case *)
-    exists (k - (h mod k)).
+    exists ((order g) - (h mod (order g))).
     split; try omega.
-    assert (g ^^ h = g ^^ h mod k) as replace_mod.
-    apply power_cycle_mod; try omega; auto.
+    assert (g ^^ h = g ^^ h mod (order g)) as replace_mod.
+    apply power_cycle_mod; [omega | apply element_raised_to_order].
     rewrite replace_mod in g_to_h.
     rewrite <- g_to_h.
-    apply (group_cancel_r _ (g ^^ (h mod k))).
+    apply (group_cancel_r _ (g ^^ (h mod (order g)))).
     autorewrite with core; auto.
-    assert (h mod k < k) as h_mod_k_bound.
+    assert (h mod (order g) < (order g)) as h_mod_k_bound.
     apply Nat.mod_upper_bound; omega.
-    replace (k - h mod k + h mod k) with k by omega.
+    replace ((order g) - h mod (order g) + h mod (order g)) with (order g) by omega.
     rewrite Nat.sub_diag.
-    autorewrite with core; auto.
+    autorewrite with core; apply element_raised_to_order; reflexivity.
   Qed.
 
   Definition element_subgroup (G: finite_group):
@@ -2377,11 +2440,98 @@ Section element_order.
                                           (iterated_powers G g (S (cardinality G))))).
     intros h.
     rewrite fold_set_add_in, (element_subgroup_mem_exists_n G g h), iterated_powers_in; tauto.
-    apply fold_set_NoDup.
+    apply fold_set_NoDup; reflexivity.
   Defined.
 
-  Definition order (G: finite_group) (g : G) :=
-    (cardinality_subgroup G (element_subgroup_finite G g)).
+  Lemma mod_squeeze: forall a b c, c <> 0 -> a >= b -> a < c -> b < c -> (a - b) mod c = 0 <-> a = b.
+  Proof.
+    intros a b c c_eq_0 a_lt_c b_lt_c.
+    split; [ | intros H; rewrite H; rewrite Nat.sub_diag, Nat.mod_0_l; auto].
+    intros ModSqueeze.
+    destruct (lt_eq_lt_dec a b) as [[a_lt_b | a_eq_b] | a_gt_b]; try omega.
+    rewrite Nat.mod_divide in ModSqueeze; [|assumption]; try omega; apply Nat.divide_pos_le in ModSqueeze; omega.
+  Qed.
+
+  Theorem power_isomorphism (G: finite_group) (g: G):
+    ListIsomorphism (fun n => g^^n)
+                    (seq 0 (order g))
+                    (filter (fun a : G => element_subgroup_mem G g a) (seq_g G)).
+  Proof.
+    remember (order_always_positive G g) as OrderPositive.
+    remember (order_bound G g) as OrderBound.
+    assert (order g <> 0) as OrderNeq0 by omega.
+    repeat split.
+    - (* injectivity: must use order g is minimum here *)
+      remember (order_is_smallest G g) as SmallestPowerCycle.
+      unfold smallest_power_cycle in SmallestPowerCycle.
+      destruct SmallestPowerCycle as [OrderGt0 [OrderPowerCycle BoundRaiseToZ]].
+      intros m n m_bound n_bound gm_eq_gn.
+      rewrite in_seq in m_bound.
+      rewrite in_seq in n_bound.
+      destruct (lt_eq_lt_dec m n) as [[m_lt_n | m_eq_n] | m_gt_n];
+        [ remember ((n - m) mod (order g)) as Value; symmetry in gm_eq_gn |
+          assumption |
+          remember ((m - n) mod (order g)) as Value];
+        apply power_cycle in gm_eq_gn; [|omega | |omega];
+          rewrite (power_cycle_mod _ _ (order g)) in gm_eq_gn; try assumption;
+          assert (Value < (order g)) as nm_bound.
+        1, 3: rewrite HeqValue; apply Nat.mod_upper_bound; omega.
+        1, 2: remember (BoundRaiseToZ Value).
+        1, 2: assert (~(Value > 0)) as ValueNeqGt0.
+        1, 3: intros Not; apply n0; [split; omega | rewrite HeqValue; assumption].
+        1, 2: apply not_gt, le_n_0_eq in ValueNeqGt0;
+          destruct m_bound as [_ m_bound];
+          destruct n_bound as [_ n_bound];
+          simpl in m_bound;
+          simpl in n_bound.
+        1: symmetry; apply (mod_squeeze n m (order g)); try omega.
+        1: apply (mod_squeeze m n (order g)); try omega.
+        (* ugh *)
+    - (* surjectivity: *)
+      unfold ListSurjective.
+      intros h; rewrite filter_In.
+      intros [_ h_is_sugroup_mem].
+      unfold element_subgroup_mem in h_is_sugroup_mem.
+      remember (count_occ eq_dec (iterated_powers G g (S (cardinality G))) h) as q.
+      assert (count_occ eq_dec (iterated_powers G g (S (cardinality G))) h > 0)
+        as CountGt0.
+      destruct q; [contradict h_is_sugroup_mem; discriminate | omega].
+      Search (count_occ).
+      rewrite <- count_occ_In in CountGt0.
+      Search (In _ (iterated_powers _ _ _)).
+      rewrite iterated_powers_in in CountGt0.
+      destruct CountGt0 as [m [m_bound g_raised_to_m]].
+      exists (m mod (order g)).
+      Search (0 <= _).
+      split.
+      * apply in_seq; split; [apply Nat.le_0_l | apply Nat.mod_upper_bound]; omega.
+      * rewrite <- power_cycle_mod;
+          [assumption | omega | apply element_raised_to_order].
+    - (* mapping *)
+      intros m m_in_order.
+      apply filter_In; split; [apply seq_listing | auto].
+      assert (In (g^^m) (iterated_powers G g (S (cardinality G)))) as g_m_in_iterated_powers.
+      rewrite iterated_powers_in.
+      exists m.
+      rewrite in_seq in m_in_order.
+      split; [omega  |reflexivity].
+      Search (count_occ).
+      rewrite (count_occ_In eq_dec) in g_m_in_iterated_powers.
+      unfold element_subgroup_mem.
+      remember (count_occ eq_dec _ _) as q.
+      destruct q; [omega | reflexivity].
+  Qed.
+
+  Theorem order_is_cardinality_subgroup (G: finite_group):
+    forall (g: G), cardinality_subgroup G (element_subgroup_finite G g) = (order g).
+  Proof.
+    intros g; symmetry.
+    unfold cardinality_subgroup, element_subgroup, subgroup_filter; simpl.
+    replace (order g) with (length (seq 0 (order g)));
+      [| rewrite seq_length; reflexivity].
+    apply (listisomorphism_NoDup_same_length _ _ (fun n => g ^^n));
+      [apply power_isomorphism | apply seq_NoDup | apply filter_NoDup, seq_listing].
+  Qed.
 
   Lemma order_divides_group (G: finite_group) : forall g,
       exists k, k * (order G g) = (cardinality G).
