@@ -2195,7 +2195,22 @@ Section element_order.
 
   Lemma order_bound (G: finite_group) (g: G) :
     order g <= (cardinality G).
-  Admitted.
+  Proof.
+    unfold order.
+    unfold nonzero_powers.
+    remember (filter (is_pair_zero G) (tl (powers_of_g G g))) as q.
+    destruct q; simpl.
+    - omega.
+    - cut (In p (tl (powers_of_g G g))).
+      intros Cut.
+      simpl in Cut.
+      destruct p.
+      simpl.
+      apply in_combine_l, in_seq in Cut; omega.
+      cut (In p (filter (is_pair_zero G) (tl (powers_of_g G g)))).
+      rewrite filter_In; tauto.
+      rewrite <- Heqq; simpl; tauto.
+  Qed.
 
   Definition smallest_power_cycle (G: Group) (g : G) (n : nat) :=
     n > 0 /\ g^^n = z /\ (forall m, 0 < m < n -> g^^m <> z).
@@ -2261,15 +2276,6 @@ Section element_order.
     apply Cut in m_rest.
     (* TODO: return to this *)
   Admitted.
-
-  Check powers_of_g.
-
-  Lemma powers_of_g_NoDup (G: finite_group) (g : G) : NoDup (powers_of_g G g).
-  Proof.
-    (* TODO: probably can use z not in list - in_dec *)
-  Admitted.
-
-  Check powers_of_g.
 
   Lemma powers_of_g_nth_error (G: finite_group) (g: G) :
     forall n m a, nth_error (powers_of_g G g) n = Some (m, a) -> m = n /\ g ^^ m = a.
@@ -2534,24 +2540,15 @@ Section element_order.
   Qed.
 
   Lemma order_divides_group (G: finite_group) : forall g,
-      exists k, k * (order G g) = (cardinality G).
+      exists k, k * (@order G g) = (cardinality G).
   Proof.
     intros g.
-    unfold order.
+    rewrite <- order_is_cardinality_subgroup.
     exists (length (unique_cosets G (element_subgroup G g))).
     apply (lagrange_theorem G (element_subgroup_finite G g)).
   Qed.
-
-  Theorem element_to_order (G: finite_group) : forall g,
-      g ^^ (order G g) = z.
-  Proof.
-    intros g.
-
-
-  (* TODO: show size of subgroup is element order *)
-
 End element_order.
 
-  Compute (iterated_powers klein_group k_Y 4).
-  Compute (@element_power klein_group k_Y 1).
-  Compute (nth_error (iterated_powers klein_group_finite k_Y 4) 1).
+Compute (iterated_powers klein_group k_Y 4).
+Compute (@element_power klein_group k_Y 1).
+Compute (nth_error (iterated_powers klein_group_finite k_Y 4) 1).
