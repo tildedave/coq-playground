@@ -2021,10 +2021,32 @@ Section element_order.
       contradict l1_l2_combine; discriminate.
   Qed.
 
+  Lemma nth_error_step (A: Type): forall n (l: list A) a h,
+      nth_error (a :: l) (n + 1) = Some h <-> nth_error l n = Some h.
+  Proof.
+    induction n; induction l; intros b h; simpl.
+    * tauto.
+    * tauto.
+    * destruct n; simpl; tauto.
+    * rewrite IHn; tauto.
+  Qed.
+
   Theorem combine_nth_error2 (A B: Type): forall (l1: list A) (l2: list B) h j,
       In (h, j) (combine l1 l2) -> exists n, nth_error l1 n = Some h /\ nth_error l2 n = Some j.
   Proof.
-  Admitted.
+    induction l1; induction l2; intros h j in_hj.
+    * rewrite combine_nil in in_hj; contradict in_hj.
+    * rewrite combine_nil2 in in_hj; contradict in_hj.
+    * rewrite combine_nil in in_hj; contradict in_hj.
+    * simpl in in_hj.
+      destruct in_hj as [n_eq_0 | n_in_rest].
+      - exists 0; inversion n_eq_0 as [[rew1 rew2]].
+        rewrite <- rew1, <- rew2; simpl; tauto.
+      - apply IHl1 in n_in_rest.
+        destruct n_in_rest as [m [rew1 rew2]].
+        exists (m + 1).
+        split; simpl; rewrite nth_error_step; assumption.
+  Qed.
 
   Definition powers_of_g (G: finite_group) (g: G) :=
     let n := S (cardinality G) in
@@ -2312,157 +2334,6 @@ Section element_order.
       apply in_combine_l, in_seq in In_p'; simpl; omega.
   Qed.
 
-  (*
-  Lemma combine_seq_tail (A: Type):
-    forall (l: list A) start len,
-      len > 0 ->
-      length l >= len ->
-      exists l' b,
-        combine (seq start len) l = combine (seq start (len - 1)) l' ++ [(start + len, b)].
-  Proof.
-    induction l; intros start len LenGt0 LengthBound.
-    contradict LengthBound; simpl; omega.
-    destruct l.
-    exists [].
-    exists a.
-    rewrite combine_nil.
-
-    simpl.
-    Check (IHl start len LenGt0).
-
-  Admitted.
-
-  Lemma combine_app_split (A: Type):
-    forall n (l: list A) start len,
-      n < len ->
-      length l >= len ->
-      exists (l1 l2: list A),
-        combine (seq start len) l =
-        combine (seq start n) l1 ++
-                combine (seq (start + n) (len - n)) l2.
-  Proof.
-    induction n; intros l start len n_bound length_bound; simpl.
-    exists []; exists l; rewrite Nat.add_0_r, Nat.sub_0_r; reflexivity.
-    assert (n  < len) as NBound by omega.
-    remember (IHn l start len NBound length_bound) as Q.
-    destruct Q as [l1' [l2' l_eq]]; destruct HeqQ.
-
-    case n.
-    simpl.
-
-    exists []
-
-    destruct l.
-    exists []; exists []; repeat rewrite combine_nil; autorewrite with list; reflexivity.
-    rewrite l_eq.
-    exists (a :: l).
-    replace (S start) with (start + 1) by ring.
-    replace n with (n + 1 - 1).
-    rewrite <- combine_seq.
-    replace (n + 1 - 1) with n.
-
-    destruct l1'.
-    rewrite combine_nil in l_eq.
-
-
-
-    (*
-
-      exists [].
-      exists l2'.
-      simpl.
-
-          rewrite l_eq.
-
-
-
-
-    simpl.
-    induction l; intros start len n NBound LengthBound.
-    rewrite combine_nil.
-    exists []; exists []; repeat rewrite combine_nil; simpl; reflexivity.
-    rewrite combine_seq; [|omega].
-    remember (len - 1) as LengthMinus 1.
-    destruct (len - 1); destruct n; simpl.
-    - exists []; exists [a]; rewrite combine_seq;
-        [simpl; rewrite combine_nil, Nat.add_0_r; reflexivity|omega].
-    - exists [a]; exists []; repeat rewrite combine_nil; rewrite app_nil_r; reflexivity.
-    - exists [].
-      destruct l.
-      exists [a].
-      rewrite combine_seq, combine_nil, Nat.add_0_r; [reflexivity | omega].
-      remember (IHl (S (start + 1)) n0).
-      exists [a; a0].
-      simpl.
-
-
-      rewrite combine_nil.
-
-      ; exists [a]; rewrite combine_seq; try omega; rewrite combine_nil.
-
-
-
-    simpl.
-    exists [a]; exists []; rewrite combine_nil.
-
-
-    cut (n - 1 < len - 1).
-    intros Cut.
-    cut (length l >= len - 1).
-    intros Cut2.
-    remember (IHl (start + 1) (len - 1) (n - 1) Cut Cut2) as Q.
-
-
-    destruct Q as [l1' l2'].
-    re
-
-  .
-     *)
-
-
-  Lemma combine_split_bound (A: Type):
-    forall l2 (l: list A) p l3 start len,
-      combine (seq start len) l = l2 ++ p :: l3 ->
-      (forall p', In p' l2 -> fst p' < fst p) /\
-      (forall p', In p' l3 -> fst p < fst p').
-  Proof.
-    induction l2; intros l p l3 start len; simpl; intros combine_eq; split; intros [n b].
-    - tauto.
-    - intros In_l3.
-      apply combine_seq2 in combine_eq.
-      destruct combine_eq as [fst_p combine_eq]; rewrite fst_p.
-      rewrite <- combine_eq in In_l3.
-      apply in_combine_l,  in_seq in In_l3.
-      simpl; omega.
-    - intros [a_eq | In_l2].
-      * (* a = (n, b) -- *)
-
-        apply combine_seq2 in combine_eq.
-      destruct combine_eq as [H1 H2].
-      apply IHl2 in H2.
-      destruct H2 as [lower_bound upper_bound].
-      rewrite <- a_eq, H1.
-      (* lost ability to say anything about l2 / l3 *)
-
-
-    -
-
-    - intros H.
-      split; intros [n a]; [intros H'; contradict H' | auto].
-      apply combine_seq2 in H.
-      destruct H as [fst_p combine_eq]; rewrite fst_p.
-      simpl; omega.
-    -
-      split.
-
-
-
-
-
-
-  Admitted.
- *)
-
   Lemma combine_seq_length (A: Type):
     forall l2 (l: list A)  start len (p: nat * A) l3,
       combine (seq start len) l = l2 ++ p :: l3 -> length l2 = fst p - start.
@@ -2472,18 +2343,12 @@ Section element_order.
         rewrite start_eq; auto with arith.
     - intros H.
       assert (combine (seq start len) l = a :: l2 ++ p :: l3) as H' by assumption.
-
-      (*remember (combine_seq_bound A (l2 ++ p :: l3) l a start len H p).*)
-
-
-      (*apply (combine_split_bound A l (a :: l2) p l3 start len) in H.*)
       cut (fst a < fst p).
       intros Cut.
       apply combine_seq2 in H'; destruct H' as [start_eq combine_rest].
       apply IHl2 in combine_rest; rewrite combine_rest.
       omega.
       apply (combine_seq_bound A (l2 ++ p :: l3) l a start len H p).
-      Search (In _).
       rewrite in_app_iff; right; simpl; left; reflexivity.
   Qed.
 
