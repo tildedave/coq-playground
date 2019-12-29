@@ -298,7 +298,6 @@ Section groups.
     Proof.
       intros; unfold lt_n_add.
       simpl.
-      Search (_ + 0).
       destruct a.
       rewrite Z.add_0_r.
       apply lt_n_intro_equality.
@@ -1789,20 +1788,6 @@ Section element_order.
   Definition iterated_powers (G: Group) (g : G) m : (list G) :=
     map (fun n => g ^^ n)  (List.seq 0 m).
 
-  Lemma nth_error_seq : forall len start m,
-      m < len -> nth_error (seq start len) m = Some (start + m).
-  Proof.
-    induction len.
-    intros start m; omega.
-    intros start m m_lt_Slen.
-    simpl.
-    destruct m.
-    simpl; auto.
-    simpl.
-    apply lt_S_n, (IHlen (S start) m) in m_lt_Slen.
-    rewrite m_lt_Slen, Nat.add_succ_comm; auto.
-  Qed.
-
   Theorem iterated_powers_works (G: Group) : forall g n m h,
       nth_error (iterated_powers G g n) m = Some h -> g ^^ m = h.
   Proof.
@@ -1893,7 +1878,6 @@ Section element_order.
   Proof.
     induction m; intros n; autorewrite with core.
     rewrite Nat.sub_0_r; auto.
-    Search (_ - S _).
     intros n_gt_Sm.
     simpl.
     intros H.
@@ -1970,96 +1954,9 @@ Section element_order.
      (no duplicates).  where this is challenging is that the k we get from the
      power cycle lemma above is not guaranteed to be the first k *)
 
-  Lemma combine_nil :forall (C D: Type) (l': list C), combine l' (@nil D) = [].
-  Proof.
-    induction l'; auto.
-  Qed.
-
-  Lemma combine_nil2 :forall (C D: Type) (l': list C), combine (@nil D) l' = [].
-  Proof.
-    induction l'; auto.
-  Qed.
-
-  Lemma combine_seq: forall (C: Type) l m (b : C) len,
-      len > 0 ->
-      combine (seq m len) (b :: l) = (m, b) :: (combine (seq (m + 1) (len - 1)) l).
-  Proof.
-    intros C; induction l; intros m b len; simpl.
-    rewrite combine_nil; simpl.
-    destruct len;
-      [intros; omega |
-       simpl; rewrite combine_nil; intros; reflexivity].
-    intros len_gt_0.
-    destruct len.
-    contradict len_gt_0; omega.
-    simpl.
-    replace (len - 0) with len by omega.
-    replace (S m) with (m + 1) by omega.
-    reflexivity.
-  Qed.
-
-  (* ugly proof *)
-  Theorem combine_nth_error (A B: Type): forall n (l1: list A) (l2: list B) h j,
-      (nth_error l1 n = Some h /\ nth_error l2 n = Some j) <->
-      nth_error (combine l1 l2) n = Some (h, j).
-  Proof.
-    induction n; simpl; intros l1 l2 h j; split.
-    intros [nth_l1 nth_l2]; destruct l1; destruct l2; simpl; try discriminate.
-    inversion nth_l1; inversion nth_l2; auto.
-    intros l1_l2_combine; destruct l1; destruct l2;
-      try rewrite combine_nil in l1_l2_combine;
-      try rewrite combine_nil2 in l1_l2_combine;
-      [ | | | simpl in l1_l2_combine; inversion l1_l2_combine; tauto];
-      contradict l1_l2_combine; discriminate.
-    intros [nth_l1 nth_l2]; destruct l1; destruct l2; simpl; try discriminate.
-    apply IHn; tauto.
-    intros l1_l2_combine.
-    destruct l1; destruct l2;
-      try rewrite combine_nil in l1_l2_combine;
-      try rewrite combine_nil2 in l1_l2_combine;
-      [ | | | simpl in l1_l2_combine; inversion l1_l2_combine; apply IHn ; tauto];
-      contradict l1_l2_combine; discriminate.
-  Qed.
-
-  Lemma nth_error_step (A: Type): forall n (l: list A) a h,
-      nth_error (a :: l) (n + 1) = Some h <-> nth_error l n = Some h.
-  Proof.
-    induction n; induction l; intros b h; simpl.
-    * tauto.
-    * tauto.
-    * destruct n; simpl; tauto.
-    * rewrite IHn; tauto.
-  Qed.
-
-  Theorem combine_nth_error2 (A B: Type): forall (l1: list A) (l2: list B) h j,
-      In (h, j) (combine l1 l2) -> exists n, nth_error l1 n = Some h /\ nth_error l2 n = Some j.
-  Proof.
-    induction l1; induction l2; intros h j in_hj.
-    * rewrite combine_nil in in_hj; contradict in_hj.
-    * rewrite combine_nil2 in in_hj; contradict in_hj.
-    * rewrite combine_nil in in_hj; contradict in_hj.
-    * simpl in in_hj.
-      destruct in_hj as [n_eq_0 | n_in_rest].
-      - exists 0; inversion n_eq_0 as [[rew1 rew2]].
-        rewrite <- rew1, <- rew2; simpl; tauto.
-      - apply IHl1 in n_in_rest.
-        destruct n_in_rest as [m [rew1 rew2]].
-        exists (m + 1).
-        split; simpl; rewrite nth_error_step; assumption.
-  Qed.
-
   Definition powers_of_g (G: finite_group) (g: G) :=
     let n := S (cardinality G) in
     combine (seq 0 n) (iterated_powers G g n).
-
-  Theorem nth_error_Some2 : forall (A: Type) (l : list A) (n : nat) b,
-      nth_error l n = Some b -> n < length l.
-  Proof.
-    intros A l n b.
-    remember (nth_error_Some l n) as OtherLemma.
-    intros H.
-    apply OtherLemma; rewrite H; discriminate.
-  Qed.
 
   Theorem in_powers_of_g (G: finite_group) (g: G) : forall m h,
       In (m, h) (powers_of_g G g) <-> 0 <= m < (S (cardinality G)) /\ g^^m = h.
@@ -2121,11 +2018,9 @@ Section element_order.
       In (a, b) (filter (is_pair_zero G) (nonzero_powers G g)) -> a > 0.
   Proof.
     intros a b.
-    Search (In _ (filter _ _)).
     rewrite filter_In.
     unfold nonzero_powers, powers_of_g.
     simpl.
-    Search (In _ (combine _ _)).
     intros [H _].
     apply in_combine_l in H.
     rewrite in_seq in H; omega.
@@ -2189,7 +2084,6 @@ Section element_order.
     unfold is_pair_zero in PairZero.
     simpl in PairZero; destruct (eq_dec h z);
       [assumption | contradict PairZero; discriminate].
-    Search (In _ (filter _ _)).
     apply filter_In in H1.
     destruct H1 as [H1 _].
     unfold powers_of_g in H1.
@@ -2203,7 +2097,6 @@ Section element_order.
     rewrite (nth_error_seq (cardinality G) _ i i_bound) in i_value.
     inversion i_value as [m_eq_Si].
     (* must finally show result through i_power *)
-    Search (nth_error (seq _ _) _).
     apply nth_error_map2 in i_power.
     destruct i_power as [a [a_value a_equal]].
     rewrite nth_error_seq, i_value in a_value by omega.
@@ -2236,121 +2129,6 @@ Section element_order.
 
   Definition smallest_power_cycle (G: Group) (g : G) (n : nat) :=
     n > 0 /\ g^^n = z /\ (forall m, 0 < m < n -> g^^m <> z).
-
-  Lemma filter_split: forall (A: Type) (l l': list A) f b,
-      filter f l = b :: l' -> exists l2 l3, l = l2 ++ b :: l3 /\ forall b, In b l2 -> f b = false.
-  Proof.
-    induction l; intros l' f b; simpl; intro filter_eq.
-    contradict filter_eq; discriminate.
-    destruct (bool_dec (f a) true) as [fa_true | fa_false].
-    rewrite fa_true in filter_eq.
-    inversion filter_eq as [a_eq_b].
-    exists []; exists l; simpl; split; [reflexivity | intros b' H'; contradict H'].
-    Search (_ <> true).
-    apply not_true_is_false in fa_false.
-    rewrite fa_false in filter_eq.
-    apply IHl in filter_eq.
-    destruct filter_eq as [l2 [l3 [l_eq l_not_contains]]].
-    exists (a :: l2), l3.
-    split; [rewrite l_eq; reflexivity | simpl; intros c].
-    intros [a_eq_c | c_in_l2]; [rewrite <- a_eq_c | apply l_not_contains]; assumption.
-  Qed.
-
-  Lemma filter_combine: forall (A: Type) (l: list A) f m len,
-      forall j q, In (j, q) (filter f (combine (seq m len) l)) -> m <= j.
-  Proof.
-    intros A; induction l; intros f m len j q in_jq.
-    rewrite combine_nil in in_jq; contradict in_jq.
-    assert (len > 0) as len_gt_0.
-    destruct len;
-      [simpl in in_jq; contradict in_jq; discriminate | omega].
-    rewrite combine_seq in in_jq; auto.
-    simpl in in_jq.
-    destruct (bool_dec (f (m, a)) true) as [fma | fma];
-      [ | apply not_true_is_false in fma]; rewrite fma in in_jq.
-    simpl in in_jq.
-    destruct in_jq as [ma_first | in_rest];
-      [inversion ma_first | apply (IHl f (m + 1)) in in_rest]; omega.
-    apply IHl in in_jq; omega.
-  Qed.
-
-  Lemma empty_list_not_equal_app (A: Type):
-    forall (l1 l2: list A) (a: A), [] <> l1 ++ a :: l2.
-  Proof.
-    induction l1; simpl.
-    discriminate.
-    intros H; inversion H; intros a0; discriminate.
-  Qed.
-
-  Lemma combine_seq2 (B: Type): forall (l: list B) start len p l2,
-      combine (seq start len) l = p :: l2 ->
-      fst p = start /\
-      combine (seq (start + 1) (len - 1)) (tl l) = l2.
-  Proof.
-    induction l; intros start len p l2.
-    rewrite combine_nil; intros CombineEq; contradict CombineEq; discriminate.
-    intros CombineEq.
-    assert (~(len = 0)) as LengthNotZero.
-    intros Not; rewrite Not in CombineEq;
-      simpl in CombineEq; contradict CombineEq; discriminate.
-    rewrite combine_seq in CombineEq; [| omega].
-    inversion CombineEq as [[hd l']]; simpl; tauto.
-  Qed.
-
-  Lemma seq_step: forall start len,
-      len > 0 ->
-      seq start len = start :: seq (start + 1) (len - 1).
-  Proof.
-    intros start; destruct len.
-    intros H; contradict H; omega.
-    intros H; simpl; replace (start + 1) with (S start) by ring; rewrite Nat.sub_0_r; reflexivity.
-  Qed.
-
-  Lemma combine_seq_map_l (B: Type): forall (l: list B) start len,
-      length l = len ->
-      seq start len = map fst (combine (seq start len) l).
-  Proof.
-    induction l; intros start len; simpl.
-    rewrite combine_nil; intros H; symmetry in H; rewrite H; simpl; reflexivity.
-    intros H.
-    rewrite combine_seq; simpl; [|omega].
-    rewrite <- (IHl (start + 1) (len - 1)), <- seq_step; [reflexivity|omega|omega].
-  Qed.
-
-  Lemma combine_seq_bound (A: Type):
-    forall l' (l: list A) p start len,
-      combine (seq start len) l = p :: l' ->
-      (forall p', In p' l' -> fst p < fst p').
-  Proof.
-    induction len.
-    simpl.
-    intros H; contradict H; discriminate.
-    intros CombineEq.
-    simpl in CombineEq.
-    destruct l.
-    * contradict CombineEq; discriminate.
-    * inversion CombineEq as [[start_eq_p combine_eq]].
-      intros p' In_p'; destruct p' as [n b].
-      apply in_combine_l, in_seq in In_p'; simpl; omega.
-  Qed.
-
-  Lemma combine_seq_length (A: Type):
-    forall l2 (l: list A)  start len (p: nat * A) l3,
-      combine (seq start len) l = l2 ++ p :: l3 -> length l2 = fst p - start.
-  Proof.
-    induction l2; intros l start len p l3; simpl.
-    - intros H; apply combine_seq2 in H; destruct H as [start_eq _];
-        rewrite start_eq; auto with arith.
-    - intros H.
-      assert (combine (seq start len) l = a :: l2 ++ p :: l3) as H' by assumption.
-      cut (fst a < fst p).
-      intros Cut.
-      apply combine_seq2 in H'; destruct H' as [start_eq combine_rest].
-      apply IHl2 in combine_rest; rewrite combine_rest.
-      omega.
-      apply (combine_seq_bound A (l2 ++ p :: l3) l a start len H p).
-      rewrite in_app_iff; right; simpl; left; reflexivity.
-  Qed.
 
   (* show order is smallest power cycle *)
   Theorem order_is_smallest  (G: finite_group) (g : G) :
@@ -2617,13 +2395,10 @@ Section element_order.
       assert (count_occ eq_dec (iterated_powers G g (S (cardinality G))) h > 0)
         as CountGt0.
       destruct q; [contradict h_is_sugroup_mem; discriminate | omega].
-      Search (count_occ).
       rewrite <- count_occ_In in CountGt0.
-      Search (In _ (iterated_powers _ _ _)).
       rewrite iterated_powers_in in CountGt0.
       destruct CountGt0 as [m [m_bound g_raised_to_m]].
       exists (m mod (order g)).
-      Search (0 <= _).
       split.
       * apply in_seq; split; [apply Nat.le_0_l | apply Nat.mod_upper_bound]; omega.
       * rewrite <- power_cycle_mod;
@@ -2636,7 +2411,6 @@ Section element_order.
       exists m.
       rewrite in_seq in m_in_order.
       split; [omega  |reflexivity].
-      Search (count_occ).
       rewrite (count_occ_In eq_dec) in g_m_in_iterated_powers.
       unfold element_subgroup_mem.
       remember (count_occ eq_dec _ _) as q.
